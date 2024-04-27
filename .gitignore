@@ -149,3 +149,9 @@ dmypy.json
 # Pyre type checker
 .pyre/
 将删除 datasets/remi/test/
+
+# 推理结果
+/infer_out
+
+# 模型
+/checkpoints

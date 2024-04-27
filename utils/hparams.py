@@ -35,10 +35,11 @@ def set_hparams(config='', exp_name='', hparams_str='', print_hparams=True, glob
         parser.add_argument('--reset', action='store_true', help='reset hparams')
         parser.add_argument('--remove', action='store_true', help='remove old ckpt')
         parser.add_argument('--debug', action='store_true', help='debug')
+        parser.add_argument("--proj", type=str)
         args, unknown = parser.parse_known_args()
     else:
         args = Args(config=config, exp_name=exp_name, hparams=hparams_str,
-                    infer=False, validate=False, reset=False, debug=False)
+                    infer=False, validate=False, reset=False, debug=False, proj='')
     global hparams
     assert args.config != '' or args.exp_name != ''
 
@@ -110,6 +111,7 @@ def set_hparams(config='', exp_name='', hparams_str='', print_hparams=True, glob
     hparams_['debug'] = args.debug
     hparams_['validate'] = args.validate
     hparams_['exp_name'] = args.exp_name
+    hparams_['proj'] = args.proj
     global global_print_hparams
     if global_hparams:
         hparams.clear()

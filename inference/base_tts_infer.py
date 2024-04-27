@@ -1,3 +1,4 @@
+import json
 import os
 
 import torch
@@ -119,23 +120,32 @@ class BaseTTSInfer:
         :param inp: {'text': str, 'item_name': (str, optional), 'spk_name': (str, optional)}
         :return:
         """
-        preprocessor, preprocess_args = self.preprocessor, self.preprocess_args
-        text_raw = inp['text']
+        from utils.hparams import hparams as hp
+        with open(inp["proj"], 'r', encoding='utf-8') as f:
+            params = json.load(f)
+        hp["f0_timestep"] = float(params[0].get("f0_timestep"))
+        text = params[0].get("text") # 文本
         item_name = inp.get('item_name', '<ITEM_NAME>')
         spk_name = inp.get('spk_name', 'SPK1')
-        ph, txt = preprocessor.txt_to_ph(
-            preprocessor.txt_processor, text_raw, preprocess_args)
-        ph_token = self.ph_encoder.encode(ph)
+        ph = params[0].get("ph_seq") # 音素
+        ph_token = self.ph_encoder.encode(ph) # 音素编码
         spk_id = self.spk_map[spk_name]
-        item = {'item_name': item_name, 'text': txt, 'ph': ph, 'spk_id': spk_id, 'ph_token': ph_token}
+        item = {'item_name': item_name, 'text': text, 'ph': ph, 'spk_id': spk_id, 'ph_token': ph_token}
         item['ph_len'] = len(item['ph_token'])
+        item['ph_dur'] = params[0].get("ph_dur") # 音素持续时间
+        item["f0_seq"] = params[0].get("f0_seq") # f0序列
         return item
 
     def input_to_batch(self, item):
         item_names = [item['item_name']]
         text = [item['text']]
         ph = [item['ph']]
+        ph_dur = [float(x) for x in item['ph_dur'].split()]
+        f0_seq = [float(x) for x in item['f0_seq'].split()]
+
         txt_tokens = torch.LongTensor(item['ph_token'])[None, :].to(self.device)
+        txt_dur = torch.FloatTensor(ph_dur)[None, :].to(self.device)
+        f0_seq = torch.FloatTensor(f0_seq)[None, :].to(self.device)
         txt_lengths = torch.LongTensor([txt_tokens.shape[1]]).to(self.device)
         spk_ids = torch.LongTensor(item['spk_id'])[None, :].to(self.device)
         batch = {
@@ -143,6 +153,8 @@ class BaseTTSInfer:
             'text': text,
             'ph': ph,
             'txt_tokens': txt_tokens,
+            'txt_dur': txt_dur,
+            'f0_seq': f0_seq,
             'txt_lengths': txt_lengths,
             'spk_ids': spk_ids,
         }
@@ -165,7 +177,7 @@ class BaseTTSInfer:
 
         set_hparams()
         inp = {
-            'text': hp['text']
+            'proj': hp['proj']
         }
         infer_ins = cls(hp)
         out = infer_ins.infer_once(inp)

@@ -22,7 +22,7 @@ class ProDiff_teacher_Task(FastSpeech2Task):
 
     def build_model(self):
         self.build_tts_model()
-        utils.num_params(self.model)
+        utils.num_params(self.model) # 打印模型参数量
         return self.model
 
     def build_tts_model(self):
@@ -43,6 +43,7 @@ class ProDiff_teacher_Task(FastSpeech2Task):
         uv = sample['uv']
         energy = sample['energy']
         spk_embed = sample.get('spk_embed') if not hparams['use_spk_id'] else sample.get('spk_ids')
+        # 模型输出
         output = model(txt_tokens, mel2ph=mel2ph, spk_embed=spk_embed,
                        ref_mels=target, f0=f0, uv=uv, energy=energy, infer=infer)
 

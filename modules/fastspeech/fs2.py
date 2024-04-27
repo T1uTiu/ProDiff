@@ -5,6 +5,7 @@ from modules.fastspeech.tts_modules import FastspeechDecoder, DurationPredictor,
 from utils.cwt import cwt2f0
 from utils.hparams import hparams
 from utils.pitch_utils import f0_to_coarse, denorm_f0, norm_f0
+import numpy as np
 
 FS_ENCODERS = {
     'fft': lambda hp, embed_tokens, d: FastspeechEncoder(
@@ -21,6 +22,7 @@ FS_DECODERS = {
 class FastSpeech2(nn.Module):
     def __init__(self, dictionary, out_dims=None):
         super().__init__()
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.dictionary = dictionary
         self.padding_idx = dictionary.pad()
         self.enc_layers = hparams['enc_layers']
@@ -33,6 +35,7 @@ class FastSpeech2(nn.Module):
         if out_dims is None:
             self.out_dims = hparams['audio_num_mel_bins']
         self.mel_out = Linear(self.hidden_size, self.out_dims, bias=True)
+        self.timestep = hparams["hop_size"] / hparams["audio_sample_rate"]
 
         if hparams['use_spk_id']:
             self.spk_embed_proj = Embedding(hparams['num_spk'] + 1, self.hidden_size)
@@ -91,7 +94,7 @@ class FastSpeech2(nn.Module):
         return emb
 
     def forward(self, txt_tokens, mel2ph=None, spk_embed=None,
-                ref_mels=None, f0=None, uv=None, energy=None, skip_decoder=False,
+                ref_mels=None, dur=None, f0=None, uv=None, energy=None, skip_decoder=False,
                 spk_embed_dur_id=None, spk_embed_f0_id=None, infer=False, **kwargs):
         ret = {}
         encoder_out = self.encoder(txt_tokens)  # [B, T, C]
@@ -120,10 +123,10 @@ class FastSpeech2(nn.Module):
         else:
             spk_embed_dur = spk_embed_f0 = spk_embed = 0
 
-        # add dur
+        # 时长预测+音素长度调整
         dur_inp = (encoder_out + var_embed + spk_embed_dur) * src_nonpadding
 
-        mel2ph = self.add_dur(dur_inp, mel2ph, txt_tokens, ret)
+        mel2ph = self.add_dur(dur_inp, mel2ph, txt_tokens, ret, dur)
 
         decoder_inp = F.pad(encoder_out, [0, 0, 1, 0])
 
@@ -135,8 +138,9 @@ class FastSpeech2(nn.Module):
         # add pitch and energy embed
         pitch_inp = (decoder_inp_origin + var_embed + spk_embed_f0) * tgt_nonpadding
         if hparams['use_pitch_embed']:
-            pitch_inp_ph = (encoder_out + var_embed + spk_embed_f0) * src_nonpadding
-            decoder_inp = decoder_inp + self.add_pitch(pitch_inp, f0, uv, mel2ph, ret, encoder_out=pitch_inp_ph)
+            # pitch_inp_ph = (encoder_out + var_embed + spk_embed_f0) * src_nonpadding
+            # decoder_inp = decoder_inp + self.add_pitch(pitch_inp, f0, uv, mel2ph, ret, encoder_out=pitch_inp_ph)
+            decoder_inp = decoder_inp + self.add_pitch_no_predicate(f0, mel2ph, ret)
         if hparams['use_energy_embed']:
             decoder_inp = decoder_inp + self.add_energy(pitch_inp, energy, ret)
 
@@ -148,9 +152,9 @@ class FastSpeech2(nn.Module):
 
         return ret
 
-    def add_dur(self, dur_input, mel2ph, txt_tokens, ret):
-        """
 
+    def add_dur(self, dur_input, mel2ph, txt_tokens, ret, xs):
+        """
         :param dur_input: [B, T_txt, H]
         :param mel2ph: [B, T_mel]
         :param txt_tokens: [B, T_txt]
@@ -158,18 +162,10 @@ class FastSpeech2(nn.Module):
         :return:
         """
         src_padding = txt_tokens == 0
-        dur_input = dur_input.detach() + hparams['predictor_grad'] * (dur_input - dur_input.detach())
-        if mel2ph is None:
-            dur, xs = self.dur_predictor.inference(dur_input, src_padding)
-            ret['dur'] = xs
-            ret['dur_choice'] = dur
-            mel2ph = self.length_regulator(dur, src_padding).detach()
-            # from modules.fastspeech.fake_modules import FakeLengthRegulator
-            # fake_lr = FakeLengthRegulator()
-            # fake_mel2ph = fake_lr(dur, (1 - src_padding.long()).sum(-1))[..., 0].detach()
-            # print(mel2ph == fake_mel2ph)
-        else:
-            ret['dur'] = self.dur_predictor(dur_input, src_padding)
+        dur = torch.round(torch.cumsum(xs, dim=0) / self.timestep + 0.5).long()
+        ret['dur'] = xs
+        ret['dur_choice'] = dur
+        mel2ph = self.length_regulator(dur, src_padding).detach()
         ret['mel2ph'] = mel2ph
         return mel2ph
 
@@ -182,8 +178,30 @@ class FastSpeech2(nn.Module):
         energy_embed = self.energy_embed(energy)
         return energy_embed
 
+    def resample_align_curve(self, points: np.ndarray, original_timestep: float, target_timestep: float, align_length: int):
+        t_max = (len(points) - 1) * original_timestep
+        curve_interp = np.interp(
+            np.arange(0, t_max, target_timestep),
+            original_timestep * np.arange(len(points)),
+            points
+        ).astype(points.dtype)
+        delta_l = align_length - len(curve_interp)
+        if delta_l < 0:
+            curve_interp = curve_interp[:align_length]
+        elif delta_l > 0:
+            curve_interp = np.concatenate((curve_interp, np.full(delta_l, fill_value=curve_interp[-1])), axis=0)
+        return curve_interp
+
+    def add_pitch_no_predicate(self, f0:torch.Tensor, mel2ph, ret):
+        ret['f0_denorm'] = f0_denorm  = torch.from_numpy(
+            self.resample_align_curve(f0.squeeze().cpu().numpy(), hparams['f0_timestep'], self.timestep, mel2ph.shape[1])
+        ).to(self.device)[None]
+        pitch = f0_to_coarse(f0_denorm)  # start from 0
+        pitch_embed = self.pitch_embed(pitch)
+        return pitch_embed
+
     def add_pitch(self, decoder_inp, f0, uv, mel2ph, ret, encoder_out=None):
-        if hparams['pitch_type'] == 'ph':
+        if hparams['pitch_type'] == 'ph': # 音素级别
             pitch_pred_inp = encoder_out.detach() + hparams['predictor_grad'] * (encoder_out - encoder_out.detach())
             pitch_padding = encoder_out.sum().abs() == 0
             ret['pitch_pred'] = pitch_pred = self.pitch_predictor(pitch_pred_inp)
@@ -199,7 +217,7 @@ class FastSpeech2(nn.Module):
 
         pitch_padding = mel2ph == 0
 
-        if hparams['pitch_type'] == 'cwt':
+        if hparams['pitch_type'] == 'cwt': # 连续小波变换
             pitch_padding = None
             ret['cwt'] = cwt_out = self.cwt_predictor(decoder_inp)
             stats_out = self.cwt_stats_layers(encoder_out[:, 0, :])  # [B, 2]
@@ -216,7 +234,7 @@ class FastSpeech2(nn.Module):
             ret['pitch_pred'] = pitch_pred = self.pitch_predictor(decoder_inp, f0 if self.training else None)
             if f0 is None:
                 f0 = pitch_pred[:, :, 0]
-        else:
+        else: # 帧级别
             ret['pitch_pred'] = pitch_pred = self.pitch_predictor(decoder_inp)
             if f0 is None:
                 f0 = pitch_pred[:, :, 0]

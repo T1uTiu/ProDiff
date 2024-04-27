@@ -92,7 +92,7 @@ class Trainer:
         self.fit(task_cls)
 
     def fit(self, task_cls):
-        if len(self.all_gpu_ids) > 1:
+        if len(self.all_gpu_ids) > 1: # 有多个GPU则使用DDP
             mp.spawn(self.ddp_run, nprocs=self.num_gpus, args=(task_cls, copy.deepcopy(hparams)))
         else:
             self.task = task_cls()
@@ -107,11 +107,11 @@ class Trainer:
         self.run_single_process(task)
 
     def run_single_process(self, task):
-        """Sanity check a few things before starting actual training.
-
+        """
+        在开始实际训练之前，要检查几件事。 
         :param task:
         """
-        # build model, optm and load checkpoint
+        # 构建模型、优化器和加载检查点
         model = task.build_model()
         if model is not None:
             task.model = model
