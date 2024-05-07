@@ -3,7 +3,7 @@
     "offset": 7.0,
     "N": 4, 
     "text": ". you you . you you you you you . you you you .",
-    "ph_seq": "| S ER1 ZH ER1 . Z UW1 Y IY1 B AH1 S IY1 CH EH1 . Z AH0 SH OW1 S IY1 .",
+    "ph_seq": "| L AH1 L AH1 | L AH1 L AH1 L AH1 L AH1 L AH1 | L AH1 L AH1 L AH0 |",
     "ph_dur": "0.3947 0.209 0.2554 0.1509 0.5921 0.1045 0.1045 0.3019 0.0929 0.3019 0.0929 0.2438 0.1625 0.1045 0.0929 0.4063 0.0697 0.1277 0.2206 0.1741 0.3599 0.2438 0.9985 0.0464",
     "ph_num": "2 2 1 2 2 2 2 2 1 2 2 2 1 1",
     "note_seq": "rest D#3 C4 rest D#4 C4 A#3 C4 C4 rest D#3 G3 G#3 rest",

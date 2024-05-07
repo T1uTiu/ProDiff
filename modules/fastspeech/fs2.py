@@ -4,7 +4,7 @@ from modules.fastspeech.tts_modules import FastspeechDecoder, DurationPredictor,
     EnergyPredictor, FastspeechEncoder
 from utils.cwt import cwt2f0
 from utils.hparams import hparams
-from utils.pitch_utils import f0_to_coarse, denorm_f0, norm_f0
+from utils.pitch_utils import f0_to_coarse, denorm_f0, norm_f0, resample_align_curve
 import numpy as np
 
 FS_ENCODERS = {
@@ -100,11 +100,6 @@ class FastSpeech2(nn.Module):
         encoder_out = self.encoder(txt_tokens)  # [B, T, C]
         src_nonpadding = (txt_tokens > 0).float()[:, :, None]
 
-        # add ref style embed
-        # Not implemented
-        # variance encoder
-        var_embed = 0
-
         # encoder_out_dur denotes encoder outputs for duration predictor
         # in speech adaptation, duration predictor use old speaker embedding
         if hparams['use_spk_embed']:
@@ -124,22 +119,16 @@ class FastSpeech2(nn.Module):
             spk_embed_dur = spk_embed_f0 = spk_embed = 0
 
         # 时长预测+音素长度调整
-        dur_inp = (encoder_out + var_embed + spk_embed_dur) * src_nonpadding
-
-        mel2ph = self.add_dur(dur_inp, mel2ph, txt_tokens, ret, dur)
-
+        mel2ph = self.add_dur(txt_tokens, ret, dur)
         decoder_inp = F.pad(encoder_out, [0, 0, 1, 0])
-
         mel2ph_ = mel2ph[..., None].repeat([1, 1, encoder_out.shape[-1]])
         decoder_inp_origin = decoder_inp = torch.gather(decoder_inp, 1, mel2ph_)  # [B, T, H]
 
         tgt_nonpadding = (mel2ph > 0).float()[:, :, None]
 
         # add pitch and energy embed
-        pitch_inp = (decoder_inp_origin + var_embed + spk_embed_f0) * tgt_nonpadding
+        pitch_inp = (decoder_inp_origin + spk_embed_f0) * tgt_nonpadding
         if hparams['use_pitch_embed']:
-            # pitch_inp_ph = (encoder_out + var_embed + spk_embed_f0) * src_nonpadding
-            # decoder_inp = decoder_inp + self.add_pitch(pitch_inp, f0, uv, mel2ph, ret, encoder_out=pitch_inp_ph)
             decoder_inp = decoder_inp + self.add_pitch_no_predicate(f0, mel2ph, ret)
         if hparams['use_energy_embed']:
             decoder_inp = decoder_inp + self.add_energy(pitch_inp, energy, ret)
@@ -153,7 +142,7 @@ class FastSpeech2(nn.Module):
         return ret
 
 
-    def add_dur(self, dur_input, mel2ph, txt_tokens, ret, xs):
+    def add_dur(self, txt_tokens, ret, xs):
         """
         :param dur_input: [B, T_txt, H]
         :param mel2ph: [B, T_mel]
@@ -178,23 +167,10 @@ class FastSpeech2(nn.Module):
         energy_embed = self.energy_embed(energy)
         return energy_embed
 
-    def resample_align_curve(self, points: np.ndarray, original_timestep: float, target_timestep: float, align_length: int):
-        t_max = (len(points) - 1) * original_timestep
-        curve_interp = np.interp(
-            np.arange(0, t_max, target_timestep),
-            original_timestep * np.arange(len(points)),
-            points
-        ).astype(points.dtype)
-        delta_l = align_length - len(curve_interp)
-        if delta_l < 0:
-            curve_interp = curve_interp[:align_length]
-        elif delta_l > 0:
-            curve_interp = np.concatenate((curve_interp, np.full(delta_l, fill_value=curve_interp[-1])), axis=0)
-        return curve_interp
 
     def add_pitch_no_predicate(self, f0:torch.Tensor, mel2ph, ret):
         ret['f0_denorm'] = f0_denorm  = torch.from_numpy(
-            self.resample_align_curve(f0.squeeze().cpu().numpy(), hparams['f0_timestep'], self.timestep, mel2ph.shape[1])
+            resample_align_curve(f0.squeeze().cpu().numpy(), hparams['f0_timestep'], self.timestep, mel2ph.shape[1])
         ).to(self.device)[None]
         pitch = f0_to_coarse(f0_denorm)  # start from 0
         pitch_embed = self.pitch_embed(pitch)

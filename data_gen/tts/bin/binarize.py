@@ -1,4 +1,5 @@
-import os
+import sys, os
+sys.path.append(os.getcwd())
 
 os.environ["OMP_NUM_THREADS"] = "1"
 

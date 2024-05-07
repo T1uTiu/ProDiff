@@ -36,7 +36,7 @@ class BasePreprocessor:
         wav_processed_tmp_dir = f'{processed_dir}/processed_tmp'
         remove_file(wav_processed_tmp_dir)
         os.makedirs(wav_processed_tmp_dir, exist_ok=True)
-        wav_processed_dir = f'{processed_dir}/{self.wav_processed_dirname}'
+        wav_processed_dir = f'{processed_dir}/{self.wav_processed_dirname}' # /processed/wav_processed
         remove_file(wav_processed_dir)
         os.makedirs(wav_processed_dir, exist_ok=True)
 
@@ -49,6 +49,7 @@ class BasePreprocessor:
         word_list = []
         spk_names = set()
         process_item = partial(self.preprocess_first_pass,
+                               processed_data_dir = self.processed_dir,
                                txt_processor=self.txt_processor,
                                wav_processed_dir=wav_processed_dir,
                                wav_processed_tmp=wav_processed_tmp_dir,
@@ -113,16 +114,17 @@ class BasePreprocessor:
         remove_file(wav_processed_tmp_dir)
 
     @classmethod
-    def preprocess_first_pass(cls, item_name, txt_raw, txt_processor,
+    def preprocess_first_pass(cls, item_name, txt_raw, txt_processor,processed_data_dir,
                               wav_fn, wav_processed_dir, wav_processed_tmp,
                               preprocess_args, txt_loader=None, others=None):
         try:
             if txt_loader is not None:
                 txt_raw = txt_loader(txt_raw)
-            ph, txt, word, ph2word, ph_gb_word = cls.txt_to_ph(txt_processor, txt_raw, preprocess_args)
+            # ph, txt, word, ph2word, ph_gb_word = cls.txt_to_ph(txt_processor, txt_raw, preprocess_args)
+            ph, txt = cls.txt_to_ph(txt_processor, txt_raw, preprocess_args)
             wav_fn, wav_align_fn = cls.process_wav(
                 item_name, wav_fn,
-                hparams['processed_data_dir'],
+                processed_data_dir,
                 wav_processed_tmp, preprocess_args)
 
             # wav for binarization
@@ -132,8 +134,8 @@ class BasePreprocessor:
             move_link_func = move_file if os.path.dirname(wav_fn) == wav_processed_tmp else link_file
             move_link_func(wav_fn, new_wav_fn)
             return {
-                'txt': txt, 'txt_raw': txt_raw, 'ph': ph,
-                'word': word, 'ph2word': ph2word, 'ph_gb_word': ph_gb_word,
+                'txt': txt, 'txt_raw': txt_raw, 'ph': ph, "word": txt,
+                # 'word': word, 'ph2word': ph2word, 'ph_gb_word': ph_gb_word,
                 'wav_fn': new_wav_fn, 'wav_align_fn': wav_align_fn,
                 'others': others
             }

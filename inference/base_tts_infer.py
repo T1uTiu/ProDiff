@@ -15,6 +15,7 @@ import torch
 from modules.FastDiff.module.FastDiff_model import FastDiff
 from utils.ckpt_utils import load_ckpt
 from utils.hparams import set_hparams
+from utils.pitch_utils import resample_align_curve
 
 
 class BaseTTSInfer:
@@ -116,47 +117,50 @@ class BaseTTSInfer:
         return y
 
     def preprocess_input(self, inp):
-        """
-        :param inp: {'text': str, 'item_name': (str, optional), 'spk_name': (str, optional)}
-        :return:
-        """
         from utils.hparams import hparams as hp
-        with open(inp["proj"], 'r', encoding='utf-8') as f:
-            params = json.load(f)
-        hp["f0_timestep"] = float(params[0].get("f0_timestep"))
-        text = params[0].get("text") # 文本
-        item_name = inp.get('item_name', '<ITEM_NAME>')
+        hp["f0_timestep"] = float(inp.get("f0_timestep"))
+        hp["N"] = int(inp.get("N"))
+
         spk_name = inp.get('spk_name', 'SPK1')
-        ph = params[0].get("ph_seq") # 音素
-        ph_token = self.ph_encoder.encode(ph) # 音素编码
         spk_id = self.spk_map[spk_name]
-        item = {'item_name': item_name, 'text': text, 'ph': ph, 'spk_id': spk_id, 'ph_token': ph_token}
-        item['ph_len'] = len(item['ph_token'])
-        item['ph_dur'] = params[0].get("ph_dur") # 音素持续时间
-        item["f0_seq"] = params[0].get("f0_seq") # f0序列
+
+        ph = inp.get("ph_seq") # 音素
+        ph_token = self.ph_encoder.encode(ph) # 音素编码
+        ph_dur = [float(x) for x in inp.get("ph_dur").split()] # 音素时长
+
+        f0_seq = np.array(inp.get("f0_seq").split()).astype(float) # F0序列
+
+        item = {
+            'item_name': inp.get('item_name', '<ITEM_NAME>'), 
+            'spk_id': spk_id, 
+            'text': inp.get("text"), 
+            'ph_token': ph_token,
+            'ph_dur': ph_dur,
+            'f0_seq': f0_seq
+        }
         return item
 
     def input_to_batch(self, item):
         item_names = [item['item_name']]
-        text = [item['text']]
-        ph = [item['ph']]
-        ph_dur = [float(x) for x in item['ph_dur'].split()]
-        f0_seq = [float(x) for x in item['f0_seq'].split()]
+        texts = [item['text']]
+        ph_token = item['ph_token']
+        ph_dur = item['ph_dur']
+        f0_seq = item['f0_seq']
 
-        txt_tokens = torch.LongTensor(item['ph_token'])[None, :].to(self.device)
-        txt_dur = torch.FloatTensor(ph_dur)[None, :].to(self.device)
-        f0_seq = torch.FloatTensor(f0_seq)[None, :].to(self.device)
-        txt_lengths = torch.LongTensor([txt_tokens.shape[1]]).to(self.device)
+        ph_tokens = torch.LongTensor(ph_token)[None, :].to(self.device)
+        ph_durs = torch.FloatTensor(ph_dur)[None, :].to(self.device)
+        f0_seqs = torch.FloatTensor(f0_seq)[None, :].to(self.device)
+        ph_lens = torch.LongTensor([ph_tokens.shape[1]]).to(self.device)
         spk_ids = torch.LongTensor(item['spk_id'])[None, :].to(self.device)
+
         batch = {
-            'item_name': item_names,
-            'text': text,
-            'ph': ph,
-            'txt_tokens': txt_tokens,
-            'txt_dur': txt_dur,
-            'f0_seq': f0_seq,
-            'txt_lengths': txt_lengths,
+            'item_names': item_names,
             'spk_ids': spk_ids,
+            'texts': texts,
+            'ph_tokens': ph_tokens,
+            'ph_durs': ph_durs,
+            'f0_seqs': f0_seqs,
+            'ph_lens': ph_lens,
         }
         return batch
 
@@ -176,10 +180,14 @@ class BaseTTSInfer:
         from utils.audio import save_wav
 
         set_hparams()
-        inp = {
-            'proj': hp['proj']
-        }
         infer_ins = cls(hp)
-        out = infer_ins.infer_once(inp)
-        os.makedirs('infer_out', exist_ok=True)
-        save_wav(out, f'infer_out/{hp["text"]}.wav', hp['audio_sample_rate'])
+        with open(hp["proj"], 'r', encoding='utf-8') as f:
+            project = json.load(f)
+        result = []
+        for segment in project:
+            out = infer_ins.infer_once(segment)
+            os.makedirs('infer_out', exist_ok=True)
+            offset = int(segment.get('offset', 0) * hp["audio_sample_rate"])
+            out = np.concatenate([np.zeros(offset), out])
+            result.append(out)
+        save_wav(np.concatenate(result), f'infer_out/{hp["title"]}.wav', hp['audio_sample_rate'])

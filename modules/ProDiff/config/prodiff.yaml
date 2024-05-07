@@ -1,9 +1,9 @@
 base_config:
   - ./base.yaml
 
-raw_data_dir: 'data/raw/LJSpeech'
-processed_data_dir: 'data/processed/LJSpeech'
-binary_data_dir: 'data/binary/LJSpeech'
+raw_data_dir: 'data/LJSpeech/raw'
+processed_data_dir: 'data/LJSpeech/processed'
+binary_data_dir: 'data/LJSpeech/binary'
 
 task_cls: modules.ProDiff.task.ProDiff_task.ProDiff_Task
 

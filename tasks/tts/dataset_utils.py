@@ -29,14 +29,14 @@ class BaseTTSDataset(BaseDataset):
         def load_size():
             self.sizes = np.load(f'{self.data_dir}/{self.prefix}_lengths.npy')
 
-        if prefix == 'test' or hparams['inference']:
+        if prefix == 'test' or hparams['inference']: # 测试集 or 推理
             if test_items is not None:
                 self.indexed_ds, self.sizes = test_items, test_sizes
             else:
                 load_size()
             if hparams['num_test_samples'] > 0:
                 self.avail_idxs = [x for x in range(hparams['num_test_samples']) \
-                                   if x < len(self.sizes)]
+                                   if x < len(self.sizes)] # 限制测试集大小
                 if len(hparams['test_ids']) > 0:
                     self.avail_idxs = hparams['test_ids'] + self.avail_idxs
             else:

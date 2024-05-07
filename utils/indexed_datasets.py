@@ -9,8 +9,8 @@ class IndexedDataset:
         super().__init__()
         self.path = path
         self.data_file = None
-        self.data_offsets = np.load(f"{path}.idx", allow_pickle=True).item()['offsets']
-        self.data_file = open(f"{path}.data", 'rb', buffering=-1)
+        self.data_offsets = np.load(f"{path}.idx", allow_pickle=True).item()['offsets'] # 数据偏移量，用于seek到数据位置
+        self.data_file = open(f"{path}.data", 'rb', buffering=-1) # 数据文件
         self.cache = []
         self.num_cache = num_cache
 
@@ -29,8 +29,8 @@ class IndexedDataset:
                 if c[0] == i:
                     return c[1]
         self.data_file.seek(self.data_offsets[i])
-        b = self.data_file.read(self.data_offsets[i + 1] - self.data_offsets[i])
-        item = pickle.loads(b)
+        b = self.data_file.read(self.data_offsets[i + 1] - self.data_offsets[i]) # 读取数据
+        item = pickle.loads(b) # 反序列化
         if self.num_cache > 0:
             self.cache = [(i, deepcopy(item))] + self.cache[:-1]
         return item

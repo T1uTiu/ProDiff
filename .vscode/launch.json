@@ -4,6 +4,9 @@
     // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
+        
+
         {
             "name": "inference",
             "type": "debugpy",
@@ -11,11 +14,30 @@
             "program": "${workspaceFolder}/inference/Prodiff.py",
             "console": "integratedTerminal",
             "args": [
-                "--config", "modules/ProDiff/config/prodiff.yaml",
+                "--config", "checkpoints/ProDiff/config.yaml",
                 "--exp_name", "ProDiff",
-                "--hparams=N=4,text='How are you. I'm fine. Thank you.'",
                 "--reset",
                 "--proj", "samples/test.ds"
+            ]
+        },
+        {
+            "name": "train",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tasks/run.py",
+            "console": "internalConsole",
+            "args": [
+                "--config", "egs/datasets/audio/tiutiu/config.yaml",
+            ]
+        },
+        {
+            "name": "binary",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/data_gen/tts/bin/binarize.py",
+            "console": "internalConsole",
+            "args": [
+                "--config", "egs/datasets/audio/tiutiu/config.yaml",
             ]
         }
     ]

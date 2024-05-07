@@ -1,5 +1,9 @@
+import os, sys
+sys.path.append(os.getcwd())
+
 import importlib
 from utils.hparams import set_hparams, hparams
+
 
 
 def run_task():

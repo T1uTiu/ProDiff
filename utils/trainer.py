@@ -95,7 +95,7 @@ class Trainer:
         if len(self.all_gpu_ids) > 1: # 有多个GPU则使用DDP
             mp.spawn(self.ddp_run, nprocs=self.num_gpus, args=(task_cls, copy.deepcopy(hparams)))
         else:
-            self.task = task_cls()
+            self.task = task_cls() # 构建训练类对象
             self.task.trainer = self
             self.run_single_process(self.task)
         return 1
@@ -213,7 +213,7 @@ class Trainer:
     # train
     ####################
     def train(self):
-        task_ref = self.get_task_ref()
+        task_ref = self.get_task_ref() # Prodiff_Task
         task_ref.on_train_start()
         if self.num_sanity_val_steps > 0:
             # run tiny validation (if validation defined) to make sure program won't crash during val
@@ -334,7 +334,7 @@ class Trainer:
                 optimizer.zero_grad()
                 task_ref.on_after_optimization(self.current_epoch, batch_idx, optimizer, opt_idx)
 
-        # collapse all metrics into one dict
+        # 将所有的指标合并到一个字典中
         all_progress_bar_metrics = {k: v for d in all_progress_bar_metrics for k, v in d.items()}
         all_log_metrics = {k: v for d in all_log_metrics for k, v in d.items()}
         return all_progress_bar_metrics, all_log_metrics

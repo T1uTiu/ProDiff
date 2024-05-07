@@ -46,7 +46,7 @@ def set_hparams(config='', exp_name='', hparams_str='', print_hparams=True, glob
     config_chains = []
     loaded_config = set()
 
-    def load_config(config_fn):  # deep first
+    def load_config(config_fn):  # 深度优先搜索
         if not os.path.exists(config_fn):
             return {}
         with open(config_fn) as f:
@@ -112,6 +112,8 @@ def set_hparams(config='', exp_name='', hparams_str='', print_hparams=True, glob
     hparams_['validate'] = args.validate
     hparams_['exp_name'] = args.exp_name
     hparams_['proj'] = args.proj
+    if args.proj:
+        hparams_['title'] = args.proj.split('/')[-1].split('.')[0]
     global global_print_hparams
     if global_hparams:
         hparams.clear()

@@ -1,13 +1,14 @@
 import os
 os.environ["OMP_NUM_THREADS"] = "1"
 
+from modules.fastspeech.tts_modules import LengthRegulator
 from utils.multiprocess_utils import chunked_multiprocess_run
 import random
 import traceback
 import json
 from resemblyzer import VoiceEncoder
 from tqdm import tqdm
-from data_gen.tts.data_gen_utils import get_mel2ph, get_pitch, build_phone_encoder
+from data_gen.tts.data_gen_utils import get_mel2ph, get_mel2ph_dur, get_pitch, build_phone_encoder
 from utils.hparams import set_hparams, hparams
 import numpy as np
 from utils.indexed_datasets import IndexedDatasetBuilder
@@ -25,7 +26,7 @@ class BaseBinarizer:
             processed_data_dir = hparams['processed_data_dir']
         self.processed_data_dirs = processed_data_dir.split(",")
         self.binarization_args = hparams['binarization_args']
-        self.pre_align_args = hparams['pre_align_args']
+        self.pre_align_args = hparams['preprocess_args']
         self.forced_align = self.pre_align_args['forced_align']
         tg_dir = None
         if self.forced_align == 'mfa':
@@ -35,7 +36,7 @@ class BaseBinarizer:
         self.item2txt = {}
         self.item2ph = {}
         self.item2wavfn = {}
-        self.item2tgfn = {}
+        self.item2tgfn = {} # TextGrid file name
         self.item2spk = {}
         for ds_id, processed_data_dir in enumerate(self.processed_data_dirs):
             self.meta_df = pd.read_csv(f"{processed_data_dir}/metadata_phone.csv", dtype=str)
@@ -101,10 +102,10 @@ class BaseBinarizer:
         else:
             item_names = self.train_item_names
         for item_name in item_names:
-            ph = self.item2ph[item_name]
-            txt = self.item2txt[item_name]
-            tg_fn = self.item2tgfn.get(item_name)
-            wav_fn = self.item2wavfn[item_name]
+            ph = self.item2ph[item_name] # Phoneme
+            txt = self.item2txt[item_name] # Text
+            tg_fn = self.item2tgfn.get(item_name) # TextGrid file name
+            wav_fn = self.item2wavfn[item_name] # Audio file name
             spk_id = self.item_name2spk_id(item_name)
             yield item_name, ph, txt, tg_fn, wav_fn, spk_id
 
@@ -132,22 +133,19 @@ class BaseBinarizer:
 
         meta_data = list(self.meta_data(prefix))
         for m in meta_data:
-            args.append(list(m) + [self.phone_encoder, self.binarization_args])
-        num_workers = int(os.getenv('N_PROC', os.cpu_count() // 3))
+            args.append(list(m) + [self.phone_encoder, hparams])
+        # num_workers = int(os.getenv('N_PROC', os.cpu_count() // 3)) # 线程个数
+        num_workers = 1
         for f_id, (_, item) in enumerate(
                 zip(tqdm(meta_data), chunked_multiprocess_run(self.process_item, args, num_workers=num_workers))):
             if item is None:
                 continue
             item['spk_embed'] = voice_encoder.embed_utterance(item['wav']) \
                 if self.binarization_args['with_spk_embed'] else None
-            if not self.binarization_args['with_wav'] and 'wav' in item:
-                print("del wav")
-                del item['wav']
             builder.add_item(item)
             lengths.append(item['len'])
             total_sec += item['sec']
-            if item.get('f0') is not None:
-                f0s.append(item['f0'])
+            f0s.append(item['f0'])
         builder.finalize()
         np.save(f'{data_dir}/{prefix}_lengths.npy', lengths)
         if len(f0s) > 0:
@@ -157,39 +155,39 @@ class BaseBinarizer:
         print(f"| {prefix} total duration: {total_sec:.3f}s")
 
     @classmethod
-    def process_item(cls, item_name, ph, txt, tg_fn, wav_fn, spk_id, encoder, binarization_args):
+    def process_item(cls, item_name, ph, dur, txt, wav_fn, spk_id, encoder, hparams):
         if hparams['vocoder'] in VOCODERS:
-            wav, mel = VOCODERS[hparams['vocoder']].wav2spec(wav_fn)
+            wav, mel = VOCODERS[hparams['vocoder']].wav2spec(wav_fn, hparams=hparams)
         else:
             wav, mel = VOCODERS[hparams['vocoder'].split('.')[-1]].wav2spec(wav_fn)
         res = {
-            'item_name': item_name, 'txt': txt, 'ph': ph, 'mel': mel, 'wav': wav, 'wav_fn': wav_fn,
-            'sec': len(wav) / hparams['audio_sample_rate'], 'len': mel.shape[0], 'spk_id': spk_id
+            'item_name': item_name, 
+            'txt': txt, 
+            'ph': ph, 
+            'mel': mel,  
+            'wav_fn': wav_fn,
+            'sec': len(wav) / hparams['audio_sample_rate'], # 真实时长
+            'len': mel.shape[0], 
+            'spk_id': spk_id
         }
         try:
-            if binarization_args['with_f0']:
-                cls.get_pitch(wav, mel, res)
-                if binarization_args['with_f0cwt']:
-                    cls.get_f0cwt(res['f0'], res)
-            if binarization_args['with_txt']:
-                try:
-                    phone_encoded = res['phone'] = encoder.encode(ph)
-                except:
-                    traceback.print_exc()
-                    raise BinarizationError(f"Empty phoneme")
-                if binarization_args['with_align']:
-                    cls.get_align(tg_fn, ph, mel, phone_encoded, res)
+            # get ground truth f0
+            cls.get_pitch(wav, mel, res, hparams)
+            try:
+                phone_encoded = res['phone'] = encoder.encode(ph)
+            except:
+                traceback.print_exc()
+                raise BinarizationError(f"Empty phoneme")
+            # get ground truth dur
+            cls.get_align(ph, dur, mel, phone_encoded, res, hparams)
         except BinarizationError as e:
             print(f"| Skip item ({e}). item_name: {item_name}, wav_fn: {wav_fn}")
             return None
         return res
 
     @staticmethod
-    def get_align(tg_fn, ph, mel, phone_encoded, res):
-        if tg_fn is not None and os.path.exists(tg_fn):
-            mel2ph, dur = get_mel2ph(tg_fn, ph, mel, hparams)
-        else:
-            raise BinarizationError(f"Align not found")
+    def get_align(ph, dur, mel, phone_encoded, res, hparams):
+        mel2ph = get_mel2ph_dur(ph, dur, mel, hparams)
         if mel2ph.max() - 1 >= len(phone_encoded):
             raise BinarizationError(
                 f"Align does not match: mel2ph.max() - 1: {mel2ph.max() - 1}, len(phone_encoded): {len(phone_encoded)}")
@@ -197,7 +195,7 @@ class BaseBinarizer:
         res['dur'] = dur
 
     @staticmethod
-    def get_pitch(wav, mel, res):
+    def get_pitch(wav, mel, res, hparams):
         f0, pitch_coarse = get_pitch(wav, mel, hparams)
         if sum(f0) == 0:
             raise BinarizationError("Empty f0")

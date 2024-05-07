@@ -105,7 +105,6 @@ def multiprocess_run(map_func, args, num_workers=None, ordered=True, init_ctx_fu
         for res in manager.get_results():
             yield res
 
-
 def chunked_multiprocess_run(
         map_func, args, num_workers=None, ordered=True,
         init_ctx_func=None, q_max_size=1000, multithread=False):
@@ -113,7 +112,7 @@ def chunked_multiprocess_run(
         from multiprocessing.dummy import Queue, Process
     else:
         from multiprocessing import Queue, Process
-    args = zip(range(len(args)), args)
+    args = zip(range(len(args)), [map_func]*len(args) ,args)
     args = list(args)
     n_jobs = len(args)
     if num_workers is None:
@@ -128,9 +127,12 @@ def chunked_multiprocess_run(
             results_queues.append(results_queue)
     workers = []
     for i in range(num_workers):
-        args_worker = args[i::num_workers]
+        # args_worker = args[i::num_workers]
+        args_worker = Queue(maxsize=q_max_size // num_workers)
+        for j in range(i, len(args), num_workers):
+            args_worker.put(args[j])
         p = Process(target=chunked_worker, args=(
-            i, map_func, args_worker, results_queues[i], init_ctx_func), daemon=True)
+            i, args_worker, results_queues[i], init_ctx_func), daemon=True)
         workers.append(p)
         p.start()
     for n_finished in range(n_jobs):

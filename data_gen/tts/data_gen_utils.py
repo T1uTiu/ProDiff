@@ -18,6 +18,7 @@ import pyloudnorm as pyln
 import re
 import json
 from collections import OrderedDict
+import parselmouth
 
 PUNCS = '!,.?;:'
 
@@ -132,8 +133,8 @@ def process_utterance(wav_path,
 
     if vocoder == 'pwg':
         mel = np.log10(np.maximum(eps, mel))  # (n_mel_bins, T)
-    else:
-        assert False, f'"{vocoder}" is not in ["pwg"].'
+    # else:
+    #     assert False, f'"{vocoder}" is not in ["pwg"].'
 
     l_pad, r_pad = audio.librosa_pad_lr(wav, fft_size, hop_size, 1)
     wav = np.pad(wav, (l_pad, r_pad), mode='constant', constant_values=0.0)
@@ -149,40 +150,33 @@ def process_utterance(wav_path,
 
 def get_pitch(wav_data, mel, hparams):
     """
-
     :param wav_data: [T]
     :param mel: [T, 80]
     :param hparams:
     :return:
     """
-    time_step = hparams['hop_size'] / hparams['audio_sample_rate'] * 1000
-    f0_min = 80
-    f0_max = 750
-
-    if hparams['hop_size'] == 128:
-        pad_size = 4
-    elif hparams['hop_size'] == 256:
-        pad_size = 2
-    else:
-        assert False
+    time_step = hparams['hop_size'] / hparams['audio_sample_rate']
+    f0_min = 65
+    f0_max = 800
 
     f0 = parselmouth.Sound(wav_data, hparams['audio_sample_rate']).to_pitch_ac(
-        time_step=time_step / 1000, voicing_threshold=0.6,
-        pitch_floor=f0_min, pitch_ceiling=f0_max).selected_array['frequency']
-    lpad = pad_size * 2
-    rpad = len(mel) - len(f0) - lpad
-    f0 = np.pad(f0, [[lpad, rpad]], mode='constant')
-    # mel and f0 are extracted by 2 different libraries. we should force them to have the same length.
-    # Attention: we find that new version of some libraries could cause ``rpad'' to be a negetive value...
-    # Just to be sure, we recommend users to set up the same environments as them in requirements_auto.txt (by Anaconda)
-    delta_l = len(mel) - len(f0)
-    assert np.abs(delta_l) <= 8
-    if delta_l > 0:
-        f0 = np.concatenate([f0, [f0[-1]] * delta_l], 0)
-    f0 = f0[:len(mel)]
+        time_step=time_step, voicing_threshold=0.6,
+        pitch_floor=f0_min, pitch_ceiling=f0_max
+    ).selected_array['frequency'].astype(np.float32)
+    f0 = pad_frames(f0, hparams['hop_size'], wav_data.shape[0], mel.shape[0])
     pitch_coarse = f0_to_coarse(f0)
     return f0, pitch_coarse
 
+def pad_frames(frames, hop_size, n_samples, n_expect):
+    n_frames = frames.shape[0]
+    lpad = (int(n_samples // hop_size) - n_frames) // 2
+    rpad = n_expect - n_frames - lpad
+    if rpad < 0:
+        frames = frames[:rpad]
+        rpad = 0
+    if lpad > 0 or rpad > 0:
+        frames = np.pad(frames, (lpad, rpad), mode="constant", constant_values=(frames[0], frames[-1]))
+    return frames
 
 def remove_empty_lines(text):
     """remove empty lines"""
@@ -327,7 +321,7 @@ def get_mel2ph(tg_fn, ph, mel, hparams):
     split[-1] = 1e8
     for i in range(len(split) - 1):
         assert split[i] != -1 and split[i] <= split[i + 1], (split[:-1],)
-    split = [int(s * hparams['audio_sample_rate'] / hparams['hop_size'] + 0.5) for s in split]
+    split = [int(s * hparams['audio_sample_rate'] / hparams['hop_size'] + 0.5) for s in split] # convert time to mel index
     for ph_idx in range(len(ph_list)):
         mel2ph[split[ph_idx]:split[ph_idx + 1]] = ph_idx + 1
     mel2ph_torch = torch.from_numpy(mel2ph)
@@ -336,6 +330,25 @@ def get_mel2ph(tg_fn, ph, mel, hparams):
     dur = dur[1:].numpy()
     return mel2ph, dur
 
+def get_mel2ph_dur(ph, dur, mel, hparams):
+    time_step = hparams['hop_size'] / hparams['audio_sample_rate']
+    mel_len = mel.shape[0]
+    ph_list = ph.split(" ")
+    split = np.ones(len(ph_list) + 1, np.float) * -1
+    split[0] = 0
+    for ph_idx in range(len(ph_list)):
+        split[ph_idx+1] = split[ph_idx] + dur[ph_idx]
+    split = [int(s / time_step + 0.5) for s in split] # convert time to mel index
+    n_frames = split[-1]
+    mel2ph = np.zeros([n_frames], np.int)
+    for ph_idx in range(len(ph_list)):
+        st, ed = split[ph_idx], split[ph_idx + 1]
+        mel2ph[st:ed] = ph_idx + 1
+    if n_frames > mel_len:
+        mel2ph = mel2ph[:mel_len]
+    elif n_frames < mel_len:
+        mel2ph = np.pad(mel2ph, (0, mel_len - n_frames), mode='constant', constant_values=0)
+    return mel2ph
 
 def build_phone_encoder(data_dir):
     phone_list_file = os.path.join(data_dir, 'phone_set.json')

@@ -39,11 +39,11 @@ class ProDiffInfer(BaseTTSInfer):
 
     def forward_model(self, inp):
         sample = self.input_to_batch(inp)
-        txt_tokens = sample['txt_tokens']  # [B, T_t]
-        txt_dur = sample['txt_dur']  # [B, T_t]
-        f0_seq = sample['f0_seq']  # [B, frame]
+        ph_tokens = sample['ph_tokens']  # [B, T_t]
+        ph_durs = sample['ph_durs']  # [B, T_t]
+        f0_seqs = sample['f0_seqs']  # [B, frame]
         with torch.no_grad():
-            output = self.model(txt_tokens, f0=f0_seq, dur=txt_dur, infer=True)
+            output = self.model(ph_tokens, f0=f0_seqs, dur=ph_durs, infer=True)
             mel_out = output['mel_out']
             wav_out = self.run_vocoder(mel_out)
         wav_out = wav_out.squeeze().cpu().numpy()
