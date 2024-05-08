@@ -49,11 +49,11 @@ class ProDiff_teacher_Task(FastSpeech2Task):
 
         losses = {}
         self.add_mel_loss(output['mel_out'], target, losses)
-        self.add_dur_loss(output['dur'], mel2ph, txt_tokens, losses=losses)
-        if hparams['use_pitch_embed']:
-            self.add_pitch_loss(output, sample, losses)
-        if hparams['use_energy_embed']:
-            self.add_energy_loss(output['energy_pred'], energy, losses)
+        # self.add_dur_loss(output['dur'], mel2ph, txt_tokens, losses=losses)
+        # if hparams['use_pitch_embed']:
+        #     self.add_pitch_loss(output, sample, losses)
+        # if hparams['use_energy_embed']:
+        #     self.add_energy_loss(output['energy_pred'], energy, losses)
         if not return_output:
             return losses
         else:

@@ -2,6 +2,7 @@ base_config:
   - egs/egs_bases/tts/fs2.yaml
   - modules/ProDiff/config/base.yaml
 
+
 raw_data_dir: 'data/TiuTiu/raw'
 processed_data_dir: 'data/TiuTiu/processed'
 binary_data_dir: 'data/TiuTiu/binary'
@@ -35,5 +36,7 @@ fmax: 16000
 timesteps: 4
 timescale: 1
 schedule_type: 'vpsde'
+
+use_energy_embed: false
 
 

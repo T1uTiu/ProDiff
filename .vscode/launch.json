@@ -28,6 +28,8 @@
             "console": "internalConsole",
             "args": [
                 "--config", "egs/datasets/audio/tiutiu/config.yaml",
+                "--exp_name", "tiutiu",
+                "--reset"
             ]
         },
         {

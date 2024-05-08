@@ -119,7 +119,9 @@ class FastSpeech2(nn.Module):
             spk_embed_dur = spk_embed_f0 = spk_embed = 0
 
         # 时长预测+音素长度调整
-        mel2ph = self.add_dur(txt_tokens, ret, dur)
+        if infer:
+            mel2ph = self.add_dur(txt_tokens, ret, dur)
+        ret['mel2ph'] = mel2ph
         decoder_inp = F.pad(encoder_out, [0, 0, 1, 0])
         mel2ph_ = mel2ph[..., None].repeat([1, 1, encoder_out.shape[-1]])
         decoder_inp_origin = decoder_inp = torch.gather(decoder_inp, 1, mel2ph_)  # [B, T, H]
@@ -129,7 +131,7 @@ class FastSpeech2(nn.Module):
         # add pitch and energy embed
         pitch_inp = (decoder_inp_origin + spk_embed_f0) * tgt_nonpadding
         if hparams['use_pitch_embed']:
-            decoder_inp = decoder_inp + self.add_pitch_no_predicate(f0, mel2ph, ret)
+            decoder_inp = decoder_inp + self.add_pitch_no_predicate(f0, mel2ph, ret, infer=infer)
         if hparams['use_energy_embed']:
             decoder_inp = decoder_inp + self.add_energy(pitch_inp, energy, ret)
 
@@ -155,7 +157,6 @@ class FastSpeech2(nn.Module):
         ret['dur'] = xs
         ret['dur_choice'] = dur
         mel2ph = self.length_regulator(dur, src_padding).detach()
-        ret['mel2ph'] = mel2ph
         return mel2ph
 
     def add_energy(self, decoder_inp, energy, ret):
@@ -168,10 +169,14 @@ class FastSpeech2(nn.Module):
         return energy_embed
 
 
-    def add_pitch_no_predicate(self, f0:torch.Tensor, mel2ph, ret):
-        ret['f0_denorm'] = f0_denorm  = torch.from_numpy(
-            resample_align_curve(f0.squeeze().cpu().numpy(), hparams['f0_timestep'], self.timestep, mel2ph.shape[1])
-        ).to(self.device)[None]
+    def add_pitch_no_predicate(self, f0:torch.Tensor, mel2ph, ret, infer=False):
+        origin_timestep = hparams.get('f0_timestep', self.timestep)
+        if infer:
+            ret['f0_denorm'] = f0_denorm  = torch.from_numpy(
+                resample_align_curve(f0.squeeze().cpu().numpy(), origin_timestep, self.timestep, mel2ph.shape[1])
+            ).to(self.device)[None]
+        else:
+            ret['f0_denorm'] = f0_denorm = f0
         pitch = f0_to_coarse(f0_denorm)  # start from 0
         pitch_embed = self.pitch_embed(pitch)
         return pitch_embed

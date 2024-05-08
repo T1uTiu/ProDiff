@@ -64,7 +64,10 @@ class FastSpeechDataset(BaseDataset):
         spec = torch.Tensor(item['mel'])[:max_frames]
         energy = (spec.exp() ** 2).sum(-1).sqrt()
         mel2ph = torch.LongTensor(item['mel2ph'])[:max_frames] if 'mel2ph' in item else None
-        f0, uv = norm_interp_f0(item["f0"][:max_frames], hparams)
+        # f0, uv = norm_interp_f0(item["f0"][:max_frames], hparams)
+        f0 = item["f0"][:max_frames]
+        uv = f0 == 0
+        f0, uv = torch.FloatTensor(f0), torch.FloatTensor(uv)
         phone = torch.LongTensor(item['phone'][:hparams['max_input_tokens']])
         pitch = torch.LongTensor(item.get("pitch"))[:max_frames]
         # print(item.keys(), item['mel'].shape, spec.shape)

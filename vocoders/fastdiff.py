@@ -108,7 +108,7 @@ class FastDiff(BaseVocoder):
             print(base_dir)
             config_path = f'{base_dir}/config.yaml'
             ckpt = sorted(glob.glob(f'{base_dir}/model_ckpt_steps_*.ckpt'), key=
-            lambda x: int(re.findall(f'{base_dir}/model_ckpt_steps_(\d+).ckpt', x)[0]))[-1]
+            lambda x: int(re.findall('a*model_ckpt_steps_(\d+).ckpt', x)[0]))[-1]
             print('| load FastDiff: ', ckpt)
             self.scaler = None
             self.model, self.dh, self.noise_schedule, self.config, self.device = load_fastdiff_model(
