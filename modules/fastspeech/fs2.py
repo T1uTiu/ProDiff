@@ -118,9 +118,6 @@ class FastSpeech2(nn.Module):
         else:
             spk_embed_dur = spk_embed_f0 = spk_embed = 0
 
-        # 时长预测+音素长度调整
-        if infer:
-            mel2ph = self.add_dur(txt_tokens, ret, dur)
         ret['mel2ph'] = mel2ph
         decoder_inp = F.pad(encoder_out, [0, 0, 1, 0])
         mel2ph_ = mel2ph[..., None].repeat([1, 1, encoder_out.shape[-1]])
@@ -152,11 +149,11 @@ class FastSpeech2(nn.Module):
         :param ret:
         :return:
         """
-        src_padding = txt_tokens == 0
-        dur = torch.round(torch.cumsum(xs, dim=0) / self.timestep + 0.5).long()
+        ph_acc = torch.round(torch.cumsum(xs, dim=0) / self.timestep + 0.5).long()
+        durations = torch.diff(ph_acc, dim=0, prepend=torch.LongTensor([0]).to(self.device))[None]
+        mel2ph = self.length_regulator(durations, txt_tokens == 0).detach()
         ret['dur'] = xs
-        ret['dur_choice'] = dur
-        mel2ph = self.length_regulator(dur, src_padding).detach()
+        ret['dur_choice'] = durations
         return mel2ph
 
     def add_energy(self, decoder_inp, energy, ret):

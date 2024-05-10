@@ -1,4 +1,6 @@
 import os
+
+import torch
 os.environ["OMP_NUM_THREADS"] = "1"
 
 from modules.fastspeech.tts_modules import LengthRegulator
@@ -27,21 +29,21 @@ class BaseBinarizer:
         self.processed_data_dirs = processed_data_dir.split(",")
         self.binarization_args = hparams['binarization_args']
         self.pre_align_args = hparams['preprocess_args']
-        self.forced_align = self.pre_align_args['forced_align']
-        tg_dir = None
-        if self.forced_align == 'mfa':
-            tg_dir = 'mfa_outputs'
-        if self.forced_align == 'kaldi':
-            tg_dir = 'kaldi_outputs'
+        self.lr = LengthRegulator()
+        self.load_meta_data()
+        if self.binarization_args['shuffle']:
+            random.seed(1234)
+            random.shuffle(self.item_names)
+
+    def load_meta_data(self):
         self.item2txt = {}
         self.item2ph = {}
         self.item2wavfn = {}
-        self.item2tgfn = {} # TextGrid file name
         self.item2spk = {}
         for ds_id, processed_data_dir in enumerate(self.processed_data_dirs):
             self.meta_df = pd.read_csv(f"{processed_data_dir}/metadata_phone.csv", dtype=str)
             for r_idx, r in self.meta_df.iterrows():
-                item_name = raw_item_name = r['item_name']
+                item_name = r['item_name']
                 if len(self.processed_data_dirs) > 1:
                     item_name = f'ds{ds_id}_{item_name}'
                 self.item2txt[item_name] = r['txt']
@@ -50,12 +52,7 @@ class BaseBinarizer:
                 self.item2spk[item_name] = r.get('spk', 'SPK1')
                 if len(self.processed_data_dirs) > 1:
                     self.item2spk[item_name] = f"ds{ds_id}_{self.item2spk[item_name]}"
-                if tg_dir is not None:
-                    self.item2tgfn[item_name] = f"{processed_data_dir}/{tg_dir}/{raw_item_name}.TextGrid"
         self.item_names = sorted(list(self.item2txt.keys()))
-        if self.binarization_args['shuffle']:
-            random.seed(1234)
-            random.shuffle(self.item_names)
 
     @property
     def train_item_names(self):
@@ -133,7 +130,7 @@ class BaseBinarizer:
 
         meta_data = list(self.meta_data(prefix))
         for m in meta_data:
-            args.append(list(m) + [self.phone_encoder, hparams])
+            args.append(list(m) + [self.phone_encoder, self.lr, hparams])
         # num_workers = int(os.getenv('N_PROC', os.cpu_count() // 3)) # 线程个数
         num_workers = 1
         for f_id, (_, item) in enumerate(
@@ -155,7 +152,7 @@ class BaseBinarizer:
         print(f"| {prefix} total duration: {total_sec:.3f}s")
 
     @classmethod
-    def process_item(cls, item_name, ph, dur, txt, wav_fn, spk_id, encoder, hparams):
+    def process_item(cls, item_name, ph, dur, txt, wav_fn, spk_id, encoder, lr, hparams):
         if hparams['vocoder'] in VOCODERS:
             wav, mel = VOCODERS[hparams['vocoder']].wav2spec(wav_fn, hparams=hparams)
         else:
@@ -175,24 +172,21 @@ class BaseBinarizer:
             # get ground truth f0
             cls.get_pitch(wav, mel, res, hparams)
             try:
-                phone_encoded = res['phone'] = encoder.encode(ph)
+                res['phone'] = encoder.encode(ph)
             except:
                 traceback.print_exc()
                 raise BinarizationError(f"Empty phoneme")
             # get ground truth dur
-            cls.get_align(ph, dur, mel, phone_encoded, res, hparams)
+            cls.get_align(dur, mel, lr, res, hparams)
         except BinarizationError as e:
             print(f"| Skip item ({e}). item_name: {item_name}, wav_fn: {wav_fn}")
             return None
         return res
 
     @staticmethod
-    def get_align(ph, dur, mel, phone_encoded, res, hparams):
-        mel2ph = get_mel2ph_dur(ph, dur, mel, hparams)
-        if mel2ph.max() - 1 >= len(phone_encoded):
-            raise BinarizationError(
-                f"Align does not match: mel2ph.max() - 1: {mel2ph.max() - 1}, len(phone_encoded): {len(phone_encoded)}")
-        res['mel2ph'] = mel2ph
+    def get_align(dur, mel, lr, res, hparams):
+        timestep = hparams['hop_size'] / hparams['audio_sample_rate']
+        res['mel2ph'] = get_mel2ph_dur(lr, torch.FloatTensor(dur), mel.shape[0], timestep)
         res['dur'] = dur
 
     @staticmethod

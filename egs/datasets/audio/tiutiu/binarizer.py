@@ -8,13 +8,7 @@ import os
 import random
 
 class AcousticBinarizer(BaseBinarizer):
-    def __init__(self, processed_data_dir=None):
-        if processed_data_dir is None:
-            processed_data_dir = hparams['processed_data_dir']
-        self.processed_data_dirs = processed_data_dir.split(",")
-        self.binarization_args = hparams['binarization_args']
-        self.pre_align_args = hparams['preprocess_args']
-        tg_dir = 'mfa_outputs'
+    def load_meta_data(self):
         self.item2txt = {}
         self.item2ph = {}
         self.item2dur = {}
@@ -35,13 +29,8 @@ class AcousticBinarizer(BaseBinarizer):
                 self.item2dur[item_name] = [float(x) for x in r[5].split(' ')]
                 if len(self.processed_data_dirs) > 1:
                     self.item2spk[item_name] = f"ds{ds_id}_{self.item2spk[item_name]}"
-                if tg_dir is not None:
-                    self.item2tgfn[item_name] = f"{processed_data_dir}/{tg_dir}/{raw_item_name}.TextGrid"
         self.item_names = sorted(list(self.item2txt.keys()))
-        if self.binarization_args['shuffle']:
-            random.seed(1234)
-            random.shuffle(self.item_names)
-    
+
     # override
     def meta_data(self, prefix):
         if prefix == 'valid':

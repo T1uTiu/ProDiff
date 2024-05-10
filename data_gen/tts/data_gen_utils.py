@@ -330,25 +330,16 @@ def get_mel2ph(tg_fn, ph, mel, hparams):
     dur = dur[1:].numpy()
     return mel2ph, dur
 
-def get_mel2ph_dur(ph, dur, mel, hparams):
-    time_step = hparams['hop_size'] / hparams['audio_sample_rate']
-    mel_len = mel.shape[0]
-    ph_list = ph.split(" ")
-    split = np.ones(len(ph_list) + 1, np.float) * -1
-    split[0] = 0
-    for ph_idx in range(len(ph_list)):
-        split[ph_idx+1] = split[ph_idx] + dur[ph_idx]
-    split = [int(s / time_step + 0.5) for s in split] # convert time to mel index
-    n_frames = split[-1]
-    mel2ph = np.zeros([n_frames], np.int)
-    for ph_idx in range(len(ph_list)):
-        st, ed = split[ph_idx], split[ph_idx + 1]
-        mel2ph[st:ed] = ph_idx + 1
-    if n_frames > mel_len:
-        mel2ph = mel2ph[:mel_len]
-    elif n_frames < mel_len:
-        mel2ph = np.pad(mel2ph, (0, mel_len - n_frames), mode='constant', constant_values=0)
-    return mel2ph
+def get_mel2ph_dur(lr, durs, length, timestep, device='cpu'):
+    ph_acc = torch.round(torch.cumsum(durs.to(device), dim=0) / timestep + 0.5).long()
+    ph_dur = torch.diff(ph_acc, dim=0, prepend=torch.LongTensor([0]).to(device))
+    mel2ph = lr(ph_dur[None])[0]
+    num_frames = mel2ph.shape[0]
+    if num_frames < length:
+        mel2ph = torch.cat((mel2ph, torch.full((length - num_frames,), fill_value=mel2ph[-1], device=device)), dim=0)
+    elif num_frames > length:
+        mel2ph = mel2ph[:length]
+    return mel2ph.numpy()
 
 def build_phone_encoder(data_dir):
     phone_list_file = os.path.join(data_dir, 'phone_set.json')

@@ -3,6 +3,7 @@ import os
 
 import torch
 
+from modules.fastspeech.tts_modules import LengthRegulator
 from tasks.tts.dataset_utils import FastSpeechWordDataset
 from tasks.tts.tts_utils import load_data_preprocessor
 import numpy as np
@@ -23,6 +24,8 @@ class BaseTTSInfer:
         if device is None:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.hparams = hparams
+        self.lr = LengthRegulator()
+        self.timestep = hparams['hop_size'] / hparams['audio_sample_rate']
         self.device = device
         self.data_dir = hparams['binary_data_dir']
         self.preprocessor, self.preprocess_args = load_data_preprocessor()
@@ -125,9 +128,11 @@ class BaseTTSInfer:
         spk_id = self.spk_map[spk_name]
 
         ph = inp.get("ph_seq") # 音素
-        ph_token = self.ph_encoder.encode(ph) # 音素编码
-        ph_dur = [float(x) for x in inp.get("ph_dur").split()] # 音素时长
-
+        ph_token = torch.LongTensor(self.ph_encoder.encode(ph)).to(self.device) # 音素编码
+        ph_dur = torch.from_numpy(np.array(inp.get("ph_dur").split(), np.float32)).to(self.device) # 音素时长
+        ph_acc = torch.round(torch.cumsum(ph_dur, dim=0) / self.timestep + 0.5).long()
+        durations = torch.diff(ph_acc, dim=0, prepend=torch.LongTensor([0]).to(self.device))[None]  # => [B=1, T_txt]
+        mel2ph = self.lr(durations, ph_token == 0)  # => [B=1, T]
         f0_seq = np.array(inp.get("f0_seq").split()).astype(float) # F0序列
 
         item = {
@@ -135,7 +140,7 @@ class BaseTTSInfer:
             'spk_id': spk_id, 
             'text': inp.get("text"), 
             'ph_token': ph_token,
-            'ph_dur': ph_dur,
+            'mel2ph': mel2ph,
             'f0_seq': f0_seq
         }
         return item
@@ -144,11 +149,10 @@ class BaseTTSInfer:
         item_names = [item['item_name']]
         texts = [item['text']]
         ph_token = item['ph_token']
-        ph_dur = item['ph_dur']
+        mel2ph = item['mel2ph']
         f0_seq = item['f0_seq']
 
-        ph_tokens = torch.LongTensor(ph_token)[None, :].to(self.device)
-        ph_durs = torch.FloatTensor(ph_dur)[None, :].to(self.device)
+        ph_tokens = ph_token[None, :]
         f0_seqs = torch.FloatTensor(f0_seq)[None, :].to(self.device)
         ph_lens = torch.LongTensor([ph_tokens.shape[1]]).to(self.device)
         spk_ids = torch.LongTensor(item['spk_id'])[None, :].to(self.device)
@@ -158,7 +162,7 @@ class BaseTTSInfer:
             'spk_ids': spk_ids,
             'texts': texts,
             'ph_tokens': ph_tokens,
-            'ph_durs': ph_durs,
+            'mel2phs': mel2ph,
             'f0_seqs': f0_seqs,
             'ph_lens': ph_lens,
         }
