@@ -68,6 +68,7 @@ class ProDiff_teacher_Task(FastSpeech2Task):
         mel2ph = sample['mel2ph']
         f0 = sample['f0']
         uv = sample['uv']
+        dur = sample['dur']
 
         outputs['losses'] = {}
         outputs['losses'], model_out = self.run_model(self.model, sample, return_output=True, infer=False)
@@ -80,8 +81,9 @@ class ProDiff_teacher_Task(FastSpeech2Task):
             #     txt_tokens, spk_embed=spk_embed, mel2ph=None, f0=None, uv=None, energy=None, ref_mels=None, inference=True)
             # self.plot_mel(batch_idx, model_out['mel_out'], model_out['fs2_mel'], name=f'diffspeech_vs_fs2_{batch_idx}')
             model_out = self.model(
-                txt_tokens, spk_embed=spk_embed, mel2ph=mel2ph, f0=f0, uv=uv, energy=energy, ref_mels=None, infer=True)
-            gt_f0 = denorm_f0(sample['f0'], sample['uv'], hparams)
+                txt_tokens, spk_embed=spk_embed, mel2ph=mel2ph, f0=f0, uv=uv, dur=dur, energy=energy, ref_mels=None, infer=True)
+            # gt_f0 = denorm_f0(sample['f0'], sample['uv'], hparams)
+            gt_f0 = f0
             self.plot_wav(batch_idx, sample['mels'], model_out['mel_out'], is_mel=True, gt_f0=gt_f0, f0=model_out.get('f0_denorm'))
             self.plot_mel(batch_idx, sample['mels'], model_out['mel_out'])
         return outputs
