@@ -164,6 +164,7 @@ class BaseBinarizer:
             'item_name': item_name, 
             'txt': txt, 
             'ph': ph, 
+            'dur': dur, 
             'mel': mel,  
             'wav_fn': wav_fn,
             'sec': len(wav) / hparams['audio_sample_rate'], # 真实时长

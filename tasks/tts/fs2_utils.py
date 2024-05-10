@@ -68,6 +68,7 @@ class FastSpeechDataset(BaseDataset):
         f0 = item["f0"][:max_frames]
         uv = f0 == 0
         f0, uv = torch.FloatTensor(f0), torch.FloatTensor(uv)
+        dur = torch.FloatTensor(item['dur'])[:max_frames]
         phone = torch.LongTensor(item['phone'][:hparams['max_input_tokens']])
         pitch = torch.LongTensor(item.get("pitch"))[:max_frames]
         # print(item.keys(), item['mel'].shape, spec.shape)
@@ -76,6 +77,7 @@ class FastSpeechDataset(BaseDataset):
             "item_name": item['item_name'],
             "text": item['txt'],
             "txt_token": phone,
+            'dur': dur,
             "mel": spec,
             "pitch": pitch,
             "energy": energy,
