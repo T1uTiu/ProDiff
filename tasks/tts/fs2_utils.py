@@ -118,6 +118,7 @@ class FastSpeechDataset(BaseDataset):
         pitch = utils.collate_1d([s['pitch'] for s in samples])
         uv = utils.collate_1d([s['uv'] for s in samples])
         energy = utils.collate_1d([s['energy'] for s in samples], 0.0)
+        dur = utils.collate_1d([s['dur'] for s in samples], 0.0)
         mel2ph = utils.collate_1d([s['mel2ph'] for s in samples], 0.0) \
             if samples[0]['mel2ph'] is not None else None
         mels = utils.collate_2d([s['mel'] for s in samples], 0.0)
@@ -135,6 +136,7 @@ class FastSpeechDataset(BaseDataset):
             'mel_lengths': mel_lengths,
             'mel2ph': mel2ph,
             'energy': energy,
+            'dur': dur,
             'pitch': pitch,
             'f0': f0,
             'uv': uv,
