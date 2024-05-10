@@ -84,7 +84,7 @@ class ProDiff_teacher_Task(FastSpeech2Task):
                 txt_tokens, spk_embed=spk_embed, mel2ph=mel2ph, f0=f0, uv=uv, dur=dur, energy=energy, ref_mels=None, infer=True)
             # gt_f0 = denorm_f0(sample['f0'], sample['uv'], hparams)
             gt_f0 = f0
-            self.plot_wav(batch_idx, sample['mels'], model_out['mel_out'], is_mel=True, gt_f0=gt_f0, f0=model_out.get('f0_denorm'))
+            # self.plot_wav(batch_idx, sample['mels'], model_out['mel_out'], is_mel=True, gt_f0=gt_f0, f0=model_out.get('f0_denorm'))
             self.plot_mel(batch_idx, sample['mels'], model_out['mel_out'])
         return outputs
 
