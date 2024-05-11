@@ -12,6 +12,18 @@ import numpy as np
 from vocoders.base_vocoder import VOCODERS
 
 class ProDiffTeacherInfer(BaseTTSInfer):
+    def build_vocoder(self):
+        if hparams['vocoder'] in VOCODERS:
+            vocoder = VOCODERS[hparams['vocoder']]()
+        else:
+            vocoder = VOCODERS[hparams['vocoder'].split('.')[-1]]()
+        vocoder.to_device(self.device)
+        return vocoder, None, None
+    
+    def run_vocoder(self, spec, **kwargs):
+        y = self.vocoder.spec2wav_torch(spec, **kwargs)
+        return y[None]
+
     def build_model(self):
         f0_stats_fn = f'{hparams["binary_data_dir"]}/train_f0s_mean_std.npy'
         if os.path.exists(f0_stats_fn):

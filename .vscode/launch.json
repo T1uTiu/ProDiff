@@ -8,16 +8,42 @@
         
 
         {
-            "name": "inference",
+            "name": "lj_inference",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/inference/Prodiff.py",
             "console": "internalConsole",
             "args": [
-                "--config", "checkpoints/ProDiff/config.yaml",
+                "--config", "modules/ProDiff/config/prodiff.yaml",
                 "--exp_name", "ProDiff",
                 "--reset",
                 "--proj", "samples/test.ds"
+            ]
+        },
+        {
+            "name": "lj_inference_teacher",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/inference/Prodiff_Teacher.py",
+            "console": "internalConsole",
+            "args": [
+                "--config", "modules/ProDiff/config/prodiff_teacher.yaml",
+                "--exp_name", "ProDiff",
+                "--reset",
+                "--proj", "samples/test_teacher.ds"
+            ]
+        },
+        {
+            "name": "acoustic_inference_teacher",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/inference/Prodiff_Teacher_Acoustic.py",
+            "console": "internalConsole",
+            "args": [
+                "--config", "egs/datasets/audio/acoustic/config.yaml",
+                "--exp_name", "tiutiu_teacher",
+                "--reset",
+                "--proj", "samples/test_teacher_chinese.ds"
             ]
         },
         {
@@ -27,8 +53,8 @@
             "program": "${workspaceFolder}/tasks/run.py",
             "console": "internalConsole",
             "args": [
-                "--config", "egs/datasets/audio/tiutiu/config.yaml",
-                "--exp_name", "tiutiu",
+                "--config", "egs/datasets/audio/acoustic/config.yaml",
+                "--exp_name", "tiutiu_teacher",
                 "--reset"
             ]
         },

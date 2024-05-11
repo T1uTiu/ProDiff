@@ -128,7 +128,7 @@ class FastSpeech2(nn.Module):
         # add pitch and energy embed
         pitch_inp = (decoder_inp_origin + spk_embed_f0) * tgt_nonpadding
         if hparams['use_pitch_embed']:
-            decoder_inp = decoder_inp + self.add_pitch_no_predicate(f0, mel2ph, ret, infer=infer)
+            decoder_inp = decoder_inp + self.add_pitch_no_predicate(f0, ret)
         if hparams['use_energy_embed']:
             decoder_inp = decoder_inp + self.add_energy(pitch_inp, energy, ret)
 
@@ -166,14 +166,15 @@ class FastSpeech2(nn.Module):
         return energy_embed
 
 
-    def add_pitch_no_predicate(self, f0:torch.Tensor, mel2ph, ret, infer=False):
-        origin_timestep = hparams.get('f0_timestep', self.timestep)
-        if infer:
-            ret['f0_denorm'] = f0_denorm  = torch.from_numpy(
-                resample_align_curve(f0.squeeze().cpu().numpy(), origin_timestep, self.timestep, mel2ph.shape[1])
-            ).to(self.device)[None]
-        else:
-            ret['f0_denorm'] = f0_denorm = f0
+    def add_pitch_no_predicate(self, f0:torch.Tensor, ret):
+        # origin_timestep = hparams.get('f0_timestep', self.timestep)
+        # if infer:
+        #     ret['f0_denorm'] = f0_denorm  = torch.from_numpy(
+        #         resample_align_curve(f0.squeeze().cpu().numpy(), origin_timestep, self.timestep, mel2ph.shape[1])
+        #     ).to(self.device)[None]
+        # else:
+        #     ret['f0_denorm'] = f0_denorm = f0
+        ret['f0_denorm'] = f0_denorm = f0
         pitch = f0_to_coarse(f0_denorm)  # start from 0
         pitch_embed = self.pitch_embed(pitch)
         return pitch_embed

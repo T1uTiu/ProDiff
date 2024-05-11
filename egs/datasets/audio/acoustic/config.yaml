@@ -13,16 +13,16 @@ preprocess_args:
   forced_align: mfa
   add_eos_bos: false
 
-binarizer_cls: egs.datasets.audio.tiutiu.binarizer.AcousticBinarizer
+binarizer_cls: egs.datasets.audio.acoustic.binarizer.AcousticBinarizer
 test_num: 100
 valid_num: 100
 num_spk: 1
 reset_phone_dict: false
 
 # FastDiff vocoder
-vocoder: fastdiff
+vocoder: nsfhifigan
 N: 4 # denoising steps
-vocoder_ckpt: checkpoints/FastDiff
+vocoder_ckpt: checkpoints/nsf_hifigan/model
 
 audio_sample_rate: 44100
 audio_num_mel_bins: 128

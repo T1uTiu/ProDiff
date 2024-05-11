@@ -36,8 +36,8 @@ class BaseTTSInfer:
         self.model.eval()
         self.model.to(self.device)
         self.vocoder, self.diffusion_hyperparams, self.noise_schedule = self.build_vocoder()
-        self.vocoder.eval()
-        self.vocoder.to(self.device)
+        # self.vocoder.eval()
+        # self.vocoder.to(self.device)
 
     def build_model(self):
         raise NotImplementedError
@@ -109,10 +109,11 @@ class BaseTTSInfer:
 
         if isinstance(noise_schedule, list):
             noise_schedule = torch.FloatTensor(noise_schedule).cuda()
-
+        vocoder.eval()
+        vocoder.to(self.device)
         return vocoder, diffusion_hyperparams, noise_schedule
 
-    def run_vocoder(self, c):
+    def run_vocoder(self, c, **kwargs):
         c = c.transpose(2, 1)
         audio_length = c.shape[-1] * self.hparams["hop_size"]
         y = sampling_given_noise_schedule(
@@ -122,18 +123,26 @@ class BaseTTSInfer:
     def preprocess_input(self, inp):
         from utils.hparams import hparams as hp
         hp["f0_timestep"] = float(inp.get("f0_timestep"))
-        hp["N"] = int(inp.get("N"))
 
         spk_name = inp.get('spk_name', 'SPK1')
         spk_id = self.spk_map[spk_name]
 
         ph = inp.get("ph_seq") # 音素
         ph_token = torch.LongTensor(self.ph_encoder.encode(ph)).to(self.device) # 音素编码
+        
         ph_dur = torch.from_numpy(np.array(inp.get("ph_dur").split(), np.float32)).to(self.device) # 音素时长
         ph_acc = torch.round(torch.cumsum(ph_dur, dim=0) / self.timestep + 0.5).long()
         durations = torch.diff(ph_acc, dim=0, prepend=torch.LongTensor([0]).to(self.device))[None]  # => [B=1, T_txt]
         mel2ph = self.lr(durations, ph_token == 0)  # => [B=1, T]
-        f0_seq = np.array(inp.get("f0_seq").split()).astype(float) # F0序列
+        
+        
+        # f0_seq = np.array(inp.get("f0_seq").split()).astype(float) # F0序列
+        f0_seq = torch.from_numpy(resample_align_curve(
+            np.array(inp.get('f0_seq').split(), np.float32),
+            original_timestep=float(inp.get('f0_timestep')),
+            target_timestep=self.timestep,
+            align_length=mel2ph.shape[1]
+        )).to(self.device)
 
         item = {
             'item_name': inp.get('item_name', '<ITEM_NAME>'), 
@@ -153,7 +162,7 @@ class BaseTTSInfer:
         f0_seq = item['f0_seq']
 
         ph_tokens = ph_token[None, :]
-        f0_seqs = torch.FloatTensor(f0_seq)[None, :].to(self.device)
+        f0_seqs = f0_seq[None, :]
         ph_lens = torch.LongTensor([ph_tokens.shape[1]]).to(self.device)
         spk_ids = torch.LongTensor(item['spk_id'])[None, :].to(self.device)
 
