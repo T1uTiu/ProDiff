@@ -65,7 +65,7 @@
             "program": "${workspaceFolder}/data_gen/tts/bin/binarize.py",
             "console": "internalConsole",
             "args": [
-                "--config", "egs/datasets/audio/tiutiu/config.yaml",
+                "--config", "data/Opencpop/binary/config.yaml",
             ]
         }
     ]

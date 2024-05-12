@@ -94,7 +94,7 @@ class NsfHifiGAN(BaseVocoder):
         return wav_out
 
     @staticmethod
-    def wav2spec(inp_path, keyshift=0, speed=1, device=None):
+    def wav2spec(inp_path, hparams=None, keyshift=0, speed=1, device=None):
         if device is None:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
         sampling_rate = hparams['audio_sample_rate']

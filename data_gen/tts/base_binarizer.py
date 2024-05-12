@@ -132,7 +132,7 @@ class BaseBinarizer:
         for m in meta_data:
             args.append(list(m) + [self.phone_encoder, self.lr, hparams])
         # num_workers = int(os.getenv('N_PROC', os.cpu_count() // 3)) # 线程个数
-        num_workers = 1
+        num_workers = 2
         for f_id, (_, item) in enumerate(
                 zip(tqdm(meta_data), chunked_multiprocess_run(self.process_item, args, num_workers=num_workers))):
             if item is None:
