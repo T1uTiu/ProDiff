@@ -41,7 +41,7 @@
             "console": "internalConsole",
             "args": [
                 "--config", "data/Opencpop/binary/config.yaml",
-                "--exp_name", "Opencpop_Teacher",
+                "--exp_name", "Opencpop_Teacher_t4",
                 "--reset",
                 "--proj", "samples/test_teacher_chinese.ds"
             ],
@@ -57,9 +57,9 @@
             "console": "internalConsole",
             "args": [
                 "--config", "data/Opencpop/binary/config.yaml",
-                "--exp_name", "Opencpop_Teacher",
+                "--exp_name", "Opencpop_Teacher_t4",
                 "--reset"
-            ]
+            ],
         },
         {
             "name": "binary",

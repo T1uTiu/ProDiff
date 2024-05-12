@@ -324,7 +324,7 @@ class FastspeechEncoder(FFTBlocks):
                 hidden_size, self.padding_idx, init_size=DEFAULT_MAX_TARGET_POSITIONS,
             )
 
-    def forward(self, txt_tokens):
+    def forward(self, txt_tokens, extra_embed=None):
         """
 
         :param txt_tokens: [B, T]
@@ -333,13 +333,15 @@ class FastspeechEncoder(FFTBlocks):
         }
         """
         encoder_padding_mask = txt_tokens.eq(self.padding_idx).data
-        x = self.forward_embedding(txt_tokens)  # [B, T, H]
+        x = self.forward_embedding(txt_tokens, extra_embed=extra_embed)  # [B, T, H]
         x = super(FastspeechEncoder, self).forward(x, encoder_padding_mask)
         return x
 
-    def forward_embedding(self, txt_tokens):
+    def forward_embedding(self, txt_tokens, extra_embed=None):
         # embed tokens and positions
         x = self.embed_scale * self.embed_tokens(txt_tokens)
+        if extra_embed is not None:
+            x = x + extra_embed
         if hparams['use_pos_embed']:
             positions = self.embed_positions(txt_tokens)
             x = x + positions

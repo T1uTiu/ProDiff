@@ -1,7 +1,7 @@
 from modules.commons.common_layers import *
 from modules.commons.common_layers import Embedding
 from modules.fastspeech.tts_modules import FastspeechDecoder, DurationPredictor, LengthRegulator, PitchPredictor, \
-    EnergyPredictor, FastspeechEncoder
+    EnergyPredictor, FastspeechEncoder, mel2ph_to_dur
 from utils.cwt import cwt2f0
 from utils.hparams import hparams
 from utils.pitch_utils import f0_to_coarse, denorm_f0, norm_f0, resample_align_curve
@@ -29,6 +29,7 @@ class FastSpeech2(nn.Module):
         self.dec_layers = hparams['dec_layers']
         self.hidden_size = hparams['hidden_size']
         self.encoder_embed_tokens = self.build_embedding(self.dictionary, self.hidden_size)
+        self.dur_embed = Linear(1, self.hidden_size)
         self.encoder = FS_ENCODERS[hparams['encoder_type']](hparams, self.encoder_embed_tokens, self.dictionary)
         self.decoder = FS_DECODERS[hparams['decoder_type']](hparams)
         self.out_dims = out_dims
@@ -97,7 +98,9 @@ class FastSpeech2(nn.Module):
                 ref_mels=None, dur=None, f0=None, uv=None, energy=None, skip_decoder=False,
                 spk_embed_dur_id=None, spk_embed_f0_id=None, infer=False, **kwargs):
         ret = {}
-        encoder_out = self.encoder(txt_tokens)  # [B, T, C]
+        dur = mel2ph_to_dur(mel2ph, txt_tokens.shape[1]).float()
+        dur_embed = self.dur_embed(dur[:, :, None])
+        encoder_out = self.encoder(txt_tokens, dur_embed)  # [B, T, C]
         src_nonpadding = (txt_tokens > 0).float()[:, :, None]
 
         # encoder_out_dur denotes encoder outputs for duration predictor
