@@ -7,7 +7,7 @@ import os
 import torch
 from skimage.transform import resize
 from utils.text_encoder import TokenTextEncoder
-from utils.pitch_utils import f0_to_coarse
+from utils.pitch_utils import f0_to_coarse, interp_f0
 import struct
 import webrtcvad
 from scipy.ndimage.morphology import binary_dilation
@@ -148,7 +148,7 @@ def process_utterance(wav_path,
         return wav, mel, spc
 
 
-def get_pitch(wav_data, mel, hparams):
+def get_pitch(wav_data, mel, hparams, interp_uv=False):
     """
     :param wav_data: [T]
     :param mel: [T, 80]
@@ -164,6 +164,9 @@ def get_pitch(wav_data, mel, hparams):
         pitch_floor=f0_min, pitch_ceiling=f0_max
     ).selected_array['frequency'].astype(np.float32)
     f0 = pad_frames(f0, hparams['hop_size'], wav_data.shape[0], mel.shape[0])
+    uv = f0 == 0
+    if interp_uv:
+        f0, uv = interp_f0(f0, uv, hparams)
     pitch_coarse = f0_to_coarse(f0)
     return f0, pitch_coarse
 

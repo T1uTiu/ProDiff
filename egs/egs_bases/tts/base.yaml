@@ -35,6 +35,7 @@ binarization_args:
   reset_word_dict: true
 word_size: 30000
 pitch_extractor: parselmouth
+interp_uv: true
 
 loud_norm: false
 endless_ds: true

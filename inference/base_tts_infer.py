@@ -197,10 +197,13 @@ class BaseTTSInfer:
         with open(hp["proj"], 'r', encoding='utf-8') as f:
             project = json.load(f)
         result = []
+        total_length = 0
+        offset = 0
         for segment in project:
             out = infer_ins.infer_once(segment)
             os.makedirs('infer_out', exist_ok=True)
             offset = int(segment.get('offset', 0) * hp["audio_sample_rate"])
-            out = np.concatenate([np.zeros(offset), out])
+            out = np.concatenate([np.zeros(offset-total_length), out])
+            total_length += len(out)
             result.append(out)
         save_wav(np.concatenate(result), f'infer_out/{hp["title"]}.wav', hp['audio_sample_rate'])

@@ -40,21 +40,24 @@
             "program": "${workspaceFolder}/inference/Prodiff_Teacher_Acoustic.py",
             "console": "internalConsole",
             "args": [
-                "--config", "egs/datasets/audio/acoustic/config.yaml",
-                "--exp_name", "tiutiu_teacher",
+                "--config", "data/Opencpop/binary/config.yaml",
+                "--exp_name", "Opencpop_Teacher",
                 "--reset",
                 "--proj", "samples/test_teacher_chinese.ds"
-            ]
+            ],
+            "env": {
+                "CUDA_VISIBLE_DEVICES": "0"
+            }
         },
         {
-            "name": "train",
+            "name": "acoustic_train_teacher",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/tasks/run.py",
             "console": "internalConsole",
             "args": [
-                "--config", "egs/datasets/audio/acoustic/config.yaml",
-                "--exp_name", "tiutiu_teacher",
+                "--config", "data/Opencpop/binary/config.yaml",
+                "--exp_name", "Opencpop_Teacher",
                 "--reset"
             ]
         },

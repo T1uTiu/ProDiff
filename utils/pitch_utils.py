@@ -36,11 +36,16 @@ def norm_f0(f0, uv, hparams):
     if hparams['pitch_norm'] == 'standard':
         f0 = (f0 - hparams['f0_mean']) / hparams['f0_std']
     if hparams['pitch_norm'] == 'log':
-        f0 = torch.log2(f0) if is_torch else np.log2(f0)
+        f0 = torch.log2(f0+uv) if is_torch else np.log2(f0+uv)
     if uv is not None and hparams['use_uv']:
         f0[uv > 0] = 0
     return f0
 
+def interp_f0(f0, uv, hparams):
+    f0 = norm_f0(f0, uv, hparams=hparams)
+    if uv.any() and not uv.all():
+        f0[uv] = np.interp(np.where(uv)[0], np.where(~uv)[0], f0[~uv])
+    return denorm_f0(f0, uv=None, hparams=hparams), uv
 
 def norm_interp_f0(f0, hparams):
     is_torch = isinstance(f0, torch.Tensor)

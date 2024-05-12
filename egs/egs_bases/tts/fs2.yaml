@@ -38,7 +38,7 @@ dur_predictor_layers: 2
 predictor_dropout: 0.5
 
 # pitch and energy
-pitch_norm: standard # standard|log
+pitch_norm: log # standard|log
 use_pitch_embed: true
 pitch_type: frame # frame|ph|cwt
 use_uv: true
