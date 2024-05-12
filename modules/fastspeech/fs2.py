@@ -53,8 +53,12 @@ class FastSpeech2(nn.Module):
             dropout_rate=hparams['predictor_dropout'], padding=hparams['ffn_padding'],
             kernel_size=hparams['dur_predictor_kernel'])
         self.length_regulator = LengthRegulator()
+        self.f0_embed_type = hparams.get('f0_embed_type', 'discrete')
         if hparams['use_pitch_embed']:
-            self.pitch_embed = Embedding(300, self.hidden_size, self.padding_idx)
+            if self.f0_embed_type == 'discrete':
+                self.pitch_embed = Embedding(300, self.hidden_size, self.padding_idx)
+            else:
+                self.pitch_embed = Linear(1, self.hidden_size)
             if hparams['pitch_type'] == 'cwt':
                 h = hparams['cwt_hidden_size']
                 cwt_out_dims = 10
@@ -170,9 +174,13 @@ class FastSpeech2(nn.Module):
 
 
     def add_pitch_no_predicate(self, f0:torch.Tensor, ret):
-        ret['f0_denorm'] = f0_denorm = f0
-        pitch = f0_to_coarse(f0_denorm)  # start from 0
-        pitch_embed = self.pitch_embed(pitch)
+        ret['f0_denorm'] = f0
+        if self.f0_embed_type == 'discrete':
+            pitch = f0_to_coarse(f0)  # start from 0
+            pitch_embed = self.pitch_embed(pitch)
+        else:
+            f0_mel = (1 + f0 / 700).log()
+            pitch_embed = self.pitch_embed(f0_mel[:, : , None])
         return pitch_embed
 
     def add_pitch(self, decoder_inp, f0, uv, mel2ph, ret, encoder_out=None):

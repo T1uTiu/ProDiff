@@ -41,6 +41,7 @@ predictor_dropout: 0.5
 pitch_norm: log # standard|log
 use_pitch_embed: true
 pitch_type: frame # frame|ph|cwt
+f0_embed_type: continuous # continuous|discrete
 use_uv: true
 cwt_hidden_size: 128
 cwt_layers: 2
