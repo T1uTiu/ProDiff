@@ -49,7 +49,7 @@ class AcousticBinarizer(BaseBinarizer):
 
     def _phone_encoder(self):
         ph_set_fn = f"{hparams['binary_data_dir']}/phone_set.json"
-        ph_set = []
+        ph_set = ['AP', "SP"]
         if hparams['reset_phone_dict'] or not os.path.exists(ph_set_fn):
             for processed_data_dir in self.processed_data_dirs:
                 for x in open(f'{processed_data_dir}/dict.txt').readlines():

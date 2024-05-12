@@ -167,13 +167,6 @@ class FastSpeech2(nn.Module):
 
 
     def add_pitch_no_predicate(self, f0:torch.Tensor, ret):
-        # origin_timestep = hparams.get('f0_timestep', self.timestep)
-        # if infer:
-        #     ret['f0_denorm'] = f0_denorm  = torch.from_numpy(
-        #         resample_align_curve(f0.squeeze().cpu().numpy(), origin_timestep, self.timestep, mel2ph.shape[1])
-        #     ).to(self.device)[None]
-        # else:
-        #     ret['f0_denorm'] = f0_denorm = f0
         ret['f0_denorm'] = f0_denorm = f0
         pitch = f0_to_coarse(f0_denorm)  # start from 0
         pitch_embed = self.pitch_embed(pitch)

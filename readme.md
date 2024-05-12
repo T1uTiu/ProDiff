@@ -1,3 +1,13 @@
+### Training Teacher of ProDiff 
+```bash
+CUDA_VISIBLE_DEVICES=$GPU python tasks/run.py --config ./data/$your_dataset/binary/config_teacher.yaml  --exp_name $your_exp_name --reset
+```
+
+### Training ProDiff
+```bash
+CUDA_VISIBLE_DEVICES=$GPU python tasks/run.py --config ./data/$your_dataset/binary/config.yaml  --exp_name $your_exp_name --reset
+```
+---
 # ProDiff: Progressive Fast Diffusion Model For High-Quality Text-to-Speech
 
 #### Rongjie Huang, Zhou Zhao, Huadai Liu, Jinglin Liu, Chenye Cui, Yi Ren
