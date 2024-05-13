@@ -41,9 +41,9 @@
             "console": "internalConsole",
             "args": [
                 "--config", "data/Opencpop/binary/config.yaml",
-                "--exp_name", "Opencpop_Teacher_t10_dur_embed_f0_continuous",
+                "--exp_name", "Opencpop_Teacher",
                 "--reset",
-                "--proj", "samples/test_teacher_chinese.ds"
+                "--proj", "samples/00_我多想说再见啊.ds"
             ],
         },
         {

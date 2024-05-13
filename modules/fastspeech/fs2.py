@@ -139,7 +139,7 @@ class FastSpeech2(nn.Module):
         # add pitch and energy embed
         pitch_inp = (decoder_inp_origin + spk_embed_f0) * tgt_nonpadding
         if hparams['use_pitch_embed']:
-            decoder_inp = decoder_inp + self.add_pitch_no_predicate(f0, ret)
+            decoder_inp = decoder_inp + self.add_pitch(f0, ret)
         if hparams['use_energy_embed']:
             decoder_inp = decoder_inp + self.add_energy(pitch_inp, energy, ret)
 
@@ -153,13 +153,6 @@ class FastSpeech2(nn.Module):
 
 
     def add_dur(self, txt_tokens, ret, xs):
-        """
-        :param dur_input: [B, T_txt, H]
-        :param mel2ph: [B, T_mel]
-        :param txt_tokens: [B, T_txt]
-        :param ret:
-        :return:
-        """
         ph_acc = torch.round(torch.cumsum(xs, dim=0) / self.timestep + 0.5).long()
         durations = torch.diff(ph_acc, dim=0, prepend=torch.LongTensor([0]).to(self.device))[None]
         mel2ph = self.length_regulator(durations, txt_tokens == 0).detach()
@@ -177,7 +170,7 @@ class FastSpeech2(nn.Module):
         return energy_embed
 
 
-    def add_pitch_no_predicate(self, f0:torch.Tensor, ret):
+    def add_pitch(self, f0:torch.Tensor, ret):
         ret['f0_denorm'] = f0
         if self.f0_embed_type == 'discrete':
             pitch = f0_to_coarse(f0)  # start from 0
@@ -185,54 +178,6 @@ class FastSpeech2(nn.Module):
         else:
             f0_mel = (1 + f0 / 700).log()
             pitch_embed = self.pitch_embed(f0_mel[:, : , None])
-        return pitch_embed
-
-    def add_pitch(self, decoder_inp, f0, uv, mel2ph, ret, encoder_out=None):
-        if hparams['pitch_type'] == 'ph': # 音素级别
-            pitch_pred_inp = encoder_out.detach() + hparams['predictor_grad'] * (encoder_out - encoder_out.detach())
-            pitch_padding = encoder_out.sum().abs() == 0
-            ret['pitch_pred'] = pitch_pred = self.pitch_predictor(pitch_pred_inp)
-            if f0 is None:
-                f0 = pitch_pred[:, :, 0]
-            ret['f0_denorm'] = f0_denorm = denorm_f0(f0, None, hparams, pitch_padding=pitch_padding)
-            pitch = f0_to_coarse(f0_denorm)  # start from 0 [B, T_txt]
-            pitch = F.pad(pitch, [1, 0])
-            pitch = torch.gather(pitch, 1, mel2ph)  # [B, T_mel]
-            pitch_embed = self.pitch_embed(pitch)
-            return pitch_embed
-        decoder_inp = decoder_inp.detach() + hparams['predictor_grad'] * (decoder_inp - decoder_inp.detach())
-
-        pitch_padding = mel2ph == 0
-
-        if hparams['pitch_type'] == 'cwt': # 连续小波变换
-            pitch_padding = None
-            ret['cwt'] = cwt_out = self.cwt_predictor(decoder_inp)
-            stats_out = self.cwt_stats_layers(encoder_out[:, 0, :])  # [B, 2]
-            mean = ret['f0_mean'] = stats_out[:, 0]
-            std = ret['f0_std'] = stats_out[:, 1]
-            cwt_spec = cwt_out[:, :, :10]
-            if f0 is None:
-                std = std * hparams['cwt_std_scale']
-                f0 = self.cwt2f0_norm(cwt_spec, mean, std, mel2ph)
-                if hparams['use_uv']:
-                    assert cwt_out.shape[-1] == 11
-                    uv = cwt_out[:, :, -1] > 0
-        elif hparams['pitch_ar']:
-            ret['pitch_pred'] = pitch_pred = self.pitch_predictor(decoder_inp, f0 if self.training else None)
-            if f0 is None:
-                f0 = pitch_pred[:, :, 0]
-        else: # 帧级别
-            ret['pitch_pred'] = pitch_pred = self.pitch_predictor(decoder_inp)
-            if f0 is None:
-                f0 = pitch_pred[:, :, 0]
-            if hparams['use_uv'] and uv is None:
-                uv = pitch_pred[:, :, 1] > 0
-        ret['f0_denorm'] = f0_denorm = denorm_f0(f0, uv, hparams, pitch_padding=pitch_padding)
-        if pitch_padding is not None:
-            f0[pitch_padding] = 0
-
-        pitch = f0_to_coarse(f0_denorm)  # start from 0
-        pitch_embed = self.pitch_embed(pitch)
         return pitch_embed
 
     def run_decoder(self, decoder_inp, tgt_nonpadding, ret, infer, **kwargs):

@@ -203,7 +203,7 @@ class BaseTTSInfer:
             out = infer_ins.infer_once(segment)
             os.makedirs('infer_out', exist_ok=True)
             offset = int(segment.get('offset', 0) * hp["audio_sample_rate"])
-            out = np.concatenate([np.zeros(offset-total_length), out])
+            out = np.concatenate([np.zeros(max(offset-total_length, 0)), out])
             total_length += len(out)
             result.append(out)
         save_wav(np.concatenate(result), f'infer_out/{hp["title"]}.wav', hp['audio_sample_rate'])
