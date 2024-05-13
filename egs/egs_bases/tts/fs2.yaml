@@ -30,6 +30,7 @@ dec_kernel_size: 5
 dur_loss: mse # huber|mol
 
 # duration
+use_dur_embed: true
 predictor_hidden: -1
 predictor_kernel: 5
 predictor_layers: 2
@@ -50,7 +51,6 @@ cwt_add_f0_loss: false
 cwt_std_scale: 0.8
 
 pitch_ar: false
-pitch_embed_type: 0
 pitch_loss: 'l1' # l1|l2|ssim
 pitch_ssim_win: 11
 use_energy_embed: false

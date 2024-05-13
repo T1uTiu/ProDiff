@@ -41,13 +41,10 @@
             "console": "internalConsole",
             "args": [
                 "--config", "data/Opencpop/binary/config.yaml",
-                "--exp_name", "Opencpop_Teacher_t4",
+                "--exp_name", "Opencpop_Teacher_t10_dur_embed_f0_continuous",
                 "--reset",
                 "--proj", "samples/test_teacher_chinese.ds"
             ],
-            "env": {
-                "CUDA_VISIBLE_DEVICES": "0"
-            }
         },
         {
             "name": "acoustic_train_teacher",
@@ -57,7 +54,7 @@
             "console": "internalConsole",
             "args": [
                 "--config", "data/Opencpop/binary/config.yaml",
-                "--exp_name", "Opencpop_Teacher_t4",
+                "--exp_name", "Opencpop_Teacher_t10_dur_embed_f0_continuous",
                 "--reset"
             ],
         },

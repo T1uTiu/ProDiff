@@ -60,7 +60,7 @@ text: the invention of movable metal letters in the middle of the fifteenth cent
 pitch_type: frame
 pitch_extractor: 'parselmouth'
 use_pitch_embed: true
-use_energy_embed: true
+use_energy_embed: false
 mel_loss: "ssim:0.5|l1:0.5"
 
 
