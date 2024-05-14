@@ -47,6 +47,19 @@
             ],
         },
         {
+            "name": "acoustic_inference",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/inference/Prodiff_Acoustic.py",
+            "console": "internalConsole",
+            "args": [
+                "--config", "data/Opencpop/binary/config.yaml",
+                "--exp_name", "Opencpop_Teacher",
+                "--reset",
+                "--proj", "samples/00_我多想说再见啊.ds"
+            ],
+        },
+        {
             "name": "acoustic_train_teacher",
             "type": "debugpy",
             "request": "launch",
