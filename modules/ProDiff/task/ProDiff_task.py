@@ -48,6 +48,7 @@ class ProDiff_Task(FastSpeech2Task):
         self.model = GaussianDiffusion(
             phone_encoder=self.phone_encoder,
             out_dims=mel_bins, denoise_fn=DIFF_DECODERS[hparams['diff_decoder_type']](hparams),
+            teacher_steps = teacher_timesteps,
             timesteps=student_timesteps, time_scale=student_timescales,
             loss_type=hparams['diff_loss_type'],
             spec_min=hparams['spec_min'], spec_max=hparams['spec_max'],
@@ -83,7 +84,7 @@ class ProDiff_Task(FastSpeech2Task):
 
         losses = {}
         losses['l1'] = output['mel_out']
-        self.add_dur_loss(output['dur'], mel2ph, txt_tokens, losses=losses)
+        # self.add_dur_loss(output['dur'], mel2ph, txt_tokens, losses=losses)
         # if hparams['use_pitch_embed']:
         #     self.add_pitch_loss(output, sample, losses)
         # if hparams['use_energy_embed']:

@@ -88,8 +88,16 @@ def resample_align_curve(points: np.ndarray, original_timestep: float, target_ti
         points
     ).astype(points.dtype)
     delta_l = align_length - len(curve_interp)
-    if delta_l < 0:
+    if delta_l < 0: # 插值后的长度大于align_length
         curve_interp = curve_interp[:align_length]
     elif delta_l > 0:
         curve_interp = np.concatenate((curve_interp, np.full(delta_l, fill_value=curve_interp[-1])), axis=0)
     return curve_interp
+
+def setuv_f0(f0, ph, durations, phone_uv_set):
+    time_start = 0
+    for i, phone in enumerate(ph):
+        if phone in phone_uv_set:
+            f0[time_start:min(time_start + durations[i], len(f0))] = 0.0
+        time_start += durations[i]
+    return f0

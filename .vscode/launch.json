@@ -40,10 +40,10 @@
             "program": "${workspaceFolder}/inference/Prodiff_Teacher_Acoustic.py",
             "console": "internalConsole",
             "args": [
-                "--config", "data/Opencpop/binary/config.yaml",
+                "--config", "data/Opencpop/binary/config_teacher.yaml",
                 "--exp_name", "Opencpop_Teacher",
                 "--reset",
-                "--proj", "samples/00_我多想说再见啊.ds"
+                "--proj", "samples/01_故事的最结尾.ds"
             ],
         },
         {
@@ -53,8 +53,20 @@
             "program": "${workspaceFolder}/tasks/run.py",
             "console": "internalConsole",
             "args": [
-                "--config", "data/Opencpop/binary/config.yaml",
+                "--config", "data/Opencpop/binary/config_teacger.yaml",
                 "--exp_name", "Opencpop_Teacher_t10_dur_embed_f0_continuous",
+                "--reset"
+            ],
+        },
+        {
+            "name": "acoustic_train",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tasks/run.py",
+            "console": "internalConsole",
+            "args": [
+                "--config", "data/Opencpop/binary/config.yaml",
+                "--exp_name", "Opencpop",
                 "--reset"
             ],
         },

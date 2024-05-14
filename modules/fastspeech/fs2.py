@@ -109,41 +109,18 @@ class FastSpeech2(nn.Module):
             encoder_out = self.encoder(txt_tokens, dur_embed)  # [B, T, C]
         else:
             encoder_out = self.encoder(txt_tokens)
-        # src_nonpadding = (txt_tokens > 0).float()[:, :, None]
-
-        # encoder_out_dur denotes encoder outputs for duration predictor
-        # in speech adaptation, duration predictor use old speaker embedding
-        if hparams['use_spk_embed']:
-            spk_embed_dur = spk_embed_f0 = spk_embed = self.spk_embed_proj(spk_embed)[:, None, :]
-        elif hparams['use_spk_id']:
-            spk_embed_id = spk_embed
-            if spk_embed_dur_id is None:
-                spk_embed_dur_id = spk_embed_id
-            if spk_embed_f0_id is None:
-                spk_embed_f0_id = spk_embed_id
-            spk_embed = self.spk_embed_proj(spk_embed_id)[:, None, :]
-            spk_embed_dur = spk_embed_f0 = spk_embed
-            if hparams['use_split_spk_id']:
-                spk_embed_dur = self.spk_embed_dur(spk_embed_dur_id)[:, None, :]
-                spk_embed_f0 = self.spk_embed_f0(spk_embed_f0_id)[:, None, :]
-        else:
-            spk_embed_dur = spk_embed_f0 = spk_embed = 0
 
         ret['mel2ph'] = mel2ph
         decoder_inp = F.pad(encoder_out, [0, 0, 1, 0])
         mel2ph_ = mel2ph[..., None].repeat([1, 1, encoder_out.shape[-1]])
-        decoder_inp_origin = decoder_inp = torch.gather(decoder_inp, 1, mel2ph_)  # [B, T, H]
+        decoder_inp = torch.gather(decoder_inp, 1, mel2ph_)  # [B, T, H]
 
         tgt_nonpadding = (mel2ph > 0).float()[:, :, None]
 
-        # add pitch and energy embed
-        pitch_inp = (decoder_inp_origin + spk_embed_f0) * tgt_nonpadding
-        if hparams['use_pitch_embed']:
-            decoder_inp = decoder_inp + self.add_pitch(f0, ret)
-        if hparams['use_energy_embed']:
-            decoder_inp = decoder_inp + self.add_energy(pitch_inp, energy, ret)
+        # add pitch embed
+        decoder_inp = decoder_inp + self.add_pitch(f0, ret)
 
-        ret['decoder_inp'] = decoder_inp = (decoder_inp + spk_embed) * tgt_nonpadding
+        ret['decoder_inp'] = decoder_inp = decoder_inp * tgt_nonpadding
 
         if skip_decoder:
             return ret

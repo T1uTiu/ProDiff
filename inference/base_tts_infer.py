@@ -16,7 +16,7 @@ import torch
 from modules.FastDiff.module.FastDiff_model import FastDiff
 from utils.ckpt_utils import load_ckpt
 from utils.hparams import set_hparams
-from utils.pitch_utils import resample_align_curve
+from utils.pitch_utils import resample_align_curve, setuv_f0
 
 
 class BaseTTSInfer:
@@ -137,12 +137,13 @@ class BaseTTSInfer:
         
         
         # f0_seq = np.array(inp.get("f0_seq").split()).astype(float) # F0序列
-        f0_seq = torch.from_numpy(resample_align_curve(
+        f0_seq = resample_align_curve(
             np.array(inp.get('f0_seq').split(), np.float32),
             original_timestep=float(inp.get('f0_timestep')),
             target_timestep=self.timestep,
             align_length=mel2ph.shape[1]
-        )).to(self.device)
+        )
+        f0_seq = setuv_f0(f0_seq, ph.split(), durations.cpu().numpy().squeeze(), hp['phone_uv_set'])
 
         item = {
             'item_name': inp.get('item_name', '<ITEM_NAME>'), 
@@ -162,7 +163,7 @@ class BaseTTSInfer:
         f0_seq = item['f0_seq']
 
         ph_tokens = ph_token[None, :]
-        f0_seqs = f0_seq[None, :]
+        f0_seqs = torch.from_numpy(f0_seq)[None, :].to(self.device)
         ph_lens = torch.LongTensor([ph_tokens.shape[1]]).to(self.device)
         spk_ids = torch.LongTensor(item['spk_id'])[None, :].to(self.device)
 
@@ -194,11 +195,13 @@ class BaseTTSInfer:
 
         set_hparams()
         infer_ins = cls(hp)
+        with open(hp['binary_data_dir'] + '/phone_uv_set.json', 'r', encoding='utf-8') as f:
+            phone_uv_set = json.load(f)
+            hp['phone_uv_set'] = set(phone_uv_set)
         with open(hp["proj"], 'r', encoding='utf-8') as f:
             project = json.load(f)
         result = []
         total_length = 0
-        offset = 0
         for segment in project:
             out = infer_ins.infer_once(segment)
             os.makedirs('infer_out', exist_ok=True)
