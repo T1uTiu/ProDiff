@@ -1,11 +1,11 @@
 ### Training Teacher of ProDiff 
 ```bash
-CUDA_VISIBLE_DEVICES=$GPU python tasks/run.py --config ./data/$your_dataset/binary/config_teacher.yaml  --exp_name $your_exp_name --reset
+CUDA_VISIBLE_DEVICES=$GPU python tasks/run.py --config ./data/$your_dataset/binary/config_teacher.yaml  --task_cls ProDiff_Teacher --exp_name $your_exp_name --reset
 ```
 
 ### Training ProDiff
 ```bash
-CUDA_VISIBLE_DEVICES=$GPU python tasks/run.py --config ./data/$your_dataset/binary/config.yaml  --exp_name $your_exp_name --reset
+CUDA_VISIBLE_DEVICES=$GPU python tasks/run.py --config ./data/$your_dataset/binary/config.yaml --task_cls ProDiff --exp_name $your_exp_name --reset
 ```
 ---
 # ProDiff: Progressive Fast Diffusion Model For High-Quality Text-to-Speech

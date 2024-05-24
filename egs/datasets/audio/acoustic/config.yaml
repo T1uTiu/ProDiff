@@ -1,25 +1,16 @@
 base_config: 
-  - egs/egs_bases/tts/fs2.yaml
   - modules/ProDiff/config/base.yaml
-
 
 raw_data_dir: 'data/TiuTiu/raw'
 processed_data_dir: 'data/TiuTiu/processed'
 binary_data_dir: 'data/TiuTiu/binary'
 
-task_cls: modules.ProDiff.task.ProDiff_teacher_task.ProDiff_teacher_Task
-
-preprocess_args:
-  forced_align: mfa
-  add_eos_bos: false
-
 binarizer_cls: egs.datasets.audio.acoustic.binarizer.AcousticBinarizer
 test_num: 100
 valid_num: 100
 num_spk: 1
-reset_phone_dict: false
 
-# FastDiff vocoder
+# vocoder
 vocoder: nsfhifigan
 N: 4 # denoising steps
 vocoder_ckpt: checkpoints/nsf_hifigan/model
@@ -28,7 +19,7 @@ audio_sample_rate: 44100
 audio_num_mel_bins: 128
 hop_size: 512            # Hop size.
 fft_size: 2048           # FFT size.
-win_size: 2048           # FFT size.
+win_size: 2048           # WIN size.
 fmin: 40
 fmax: 16000
 
@@ -36,7 +27,5 @@ fmax: 16000
 timesteps: 4
 timescale: 1
 schedule_type: 'vpsde'
-
-use_energy_embed: false
 
 

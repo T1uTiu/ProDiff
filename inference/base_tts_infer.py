@@ -209,4 +209,4 @@ class BaseTTSInfer:
             out = np.concatenate([np.zeros(max(offset-total_length, 0)), out])
             total_length += len(out)
             result.append(out)
-        save_wav(np.concatenate(result), f'infer_out/{hp["title"]}.wav', hp['audio_sample_rate'])
+        save_wav(np.concatenate(result), f'infer_out/{hp["title"]}【{hp["exp_name"]}】.wav', hp['audio_sample_rate'])

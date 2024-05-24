@@ -24,7 +24,7 @@ preprocess_args:
   with_phsep: true
   reset_phone_dict: true
   reset_word_dict: true
-  add_eos_bos: true
+  add_eos_bos: false
   # mfa
   mfa_group_shuffle: false
   mfa_offset: 0.02

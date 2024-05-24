@@ -27,6 +27,7 @@ class BaseBinarizer:
         if processed_data_dir is None:
             processed_data_dir = hparams['processed_data_dir']
         self.processed_data_dirs = processed_data_dir.split(",")
+        self.raw_data_dirs = hparams['raw_data_dir'].split(",")
         self.binarization_args = hparams['binarization_args']
         self.pre_align_args = hparams['preprocess_args']
         self.lr = LengthRegulator()

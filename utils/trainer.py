@@ -111,7 +111,7 @@ class Trainer:
         在开始实际训练之前，要检查几件事。 
         :param task:
         """
-        # 构建模型、优化器和加载检查点
+        # 构建模型、优化器和加载权重
         model = task.build_model()
         if model is not None:
             task.model = model

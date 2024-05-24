@@ -40,10 +40,11 @@
             "program": "${workspaceFolder}/inference/Prodiff_Teacher_Acoustic.py",
             "console": "internalConsole",
             "args": [
-                "--config", "data/Opencpop/binary/config_teacher.yaml",
+                "--config", "data/Opencpop/binary/config.yaml",
+                "--task_clr", "Prodiff_Teacher",
                 "--exp_name", "Opencpop_Teacher",
                 "--reset",
-                "--proj", "samples/01_故事的最结尾.ds"
+                "--proj", "samples/光年之外.ds"
             ],
         },
         {
@@ -54,9 +55,10 @@
             "console": "internalConsole",
             "args": [
                 "--config", "data/Opencpop/binary/config.yaml",
-                "--exp_name", "Opencpop_Teacher",
+                "--task_clr", "Prodiff",
+                "--exp_name", "Opencpop",
                 "--reset",
-                "--proj", "samples/00_我多想说再见啊.ds"
+                "--proj", "samples/光年之外.ds"
             ],
         },
         {
@@ -90,7 +92,7 @@
             "program": "${workspaceFolder}/data_gen/tts/bin/binarize.py",
             "console": "internalConsole",
             "args": [
-                "--config", "data/Opencpop/binary/config.yaml",
+                "--config", "data/TiuTiu/binary/config.yaml",
             ]
         }
     ]

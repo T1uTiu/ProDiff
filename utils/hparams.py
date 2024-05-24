@@ -5,6 +5,10 @@ import subprocess
 import yaml
 
 global_print_hparams = True
+task_cls_mapping = {
+    "ProDiff_Teacher": "modules.ProDiff.task.ProDiff_teacher_task.ProDiff_teacher_Task",
+    "ProDiff": "modules.ProDiff.task.ProDiff_task.ProDiff_Task",
+}
 hparams = {}
 
 
@@ -27,7 +31,7 @@ def set_hparams(config='', exp_name='', hparams_str='', print_hparams=True, glob
         parser = argparse.ArgumentParser(description='')
         parser.add_argument('--config', type=str, default='configs/config_base.yaml',
                             help='location of the data corpus')
-        parser.add_argument('--exp_name', type=str, default='', help='exp_name')
+        parser.add_argument('--exp_name', type=str, default='', help='exp_name') # 模型名称
         parser.add_argument('--hparams', type=str, default='',
                             help='location of the data corpus')
         parser.add_argument('--infer', action='store_true', help='infer')
@@ -35,12 +39,13 @@ def set_hparams(config='', exp_name='', hparams_str='', print_hparams=True, glob
         parser.add_argument('--reset', action='store_true', help='reset hparams')
         parser.add_argument('--remove', action='store_true', help='remove old ckpt')
         parser.add_argument('--debug', action='store_true', help='debug')
-        parser.add_argument("--proj", type=str)
-        parser.add_argument("--title", type=str)
+        parser.add_argument("--proj", type=str) # project name
+        parser.add_argument("--key", type=str, default="0") # key shift
+        parser.add_argument("--task_cls", type=str, default="ProDiff") # teacher/student
         args, unknown = parser.parse_known_args()
     else:
-        args = Args(config=config, exp_name=exp_name, hparams=hparams_str,
-                    infer=False, validate=False, reset=False, debug=False, proj='', title=None)
+        args = Args(config=config, exp_name=exp_name, task_cls="ProDiff", hparams=hparams_str,
+                    infer=False, validate=False, reset=False, debug=False, proj='', key='0')
     global hparams
     assert args.config != '' or args.exp_name != ''
 
@@ -113,10 +118,11 @@ def set_hparams(config='', exp_name='', hparams_str='', print_hparams=True, glob
     hparams_['validate'] = args.validate
     hparams_['exp_name'] = args.exp_name
     hparams_['proj'] = args.proj
+    hparams_['key'] = int(args.key)
+    assert args.task_cls in task_cls_mapping, f"task_cls should be in {task_cls_mapping.keys()}"
+    hparams_["task_cls"] = task_cls_mapping[args.task_cls]
     if args.proj:
         hparams_['title'] = args.proj.split('/')[-1].split('.')[0]
-    if args.title:
-        hparams_['title'] = args.title
     global global_print_hparams
     if global_hparams:
         hparams.clear()

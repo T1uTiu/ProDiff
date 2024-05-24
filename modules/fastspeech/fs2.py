@@ -40,12 +40,8 @@ class FastSpeech2(nn.Module):
         self.timestep = hparams["hop_size"] / hparams["audio_sample_rate"]
 
         if hparams['use_spk_id']:
-            self.spk_embed_proj = Embedding(hparams['num_spk'] + 1, self.hidden_size)
-            if hparams['use_split_spk_id']:
-                self.spk_embed_f0 = Embedding(hparams['num_spk'] + 1, self.hidden_size)
-                self.spk_embed_dur = Embedding(hparams['num_spk'] + 1, self.hidden_size)
-        elif hparams['use_spk_embed']:
-            self.spk_embed_proj = Linear(256, self.hidden_size, bias=True)
+            self.spk_embed = Embedding(hparams['num_spk'], self.hidden_size)
+
         predictor_hidden = hparams['predictor_hidden'] if hparams['predictor_hidden'] > 0 else self.hidden_size
         self.dur_predictor = DurationPredictor(
             self.hidden_size,
@@ -53,7 +49,9 @@ class FastSpeech2(nn.Module):
             n_layers=hparams['dur_predictor_layers'],
             dropout_rate=hparams['predictor_dropout'], padding=hparams['ffn_padding'],
             kernel_size=hparams['dur_predictor_kernel'])
+        
         self.length_regulator = LengthRegulator()
+
         self.f0_embed_type = hparams.get('f0_embed_type', 'discrete')
         if hparams['use_pitch_embed']:
             if self.f0_embed_type == 'discrete':
@@ -85,6 +83,7 @@ class FastSpeech2(nn.Module):
                     dropout_rate=hparams['predictor_dropout'],
                     odim=2 if hparams['pitch_type'] == 'frame' else 1,
                     padding=hparams['ffn_padding'], kernel_size=hparams['predictor_kernel'])
+        
         if hparams['use_energy_embed']:
             self.energy_embed = Embedding(256, self.hidden_size, self.padding_idx)
             self.energy_predictor = EnergyPredictor(
@@ -99,9 +98,7 @@ class FastSpeech2(nn.Module):
         emb = Embedding(num_embeddings, embed_dim, self.padding_idx)
         return emb
 
-    def forward(self, txt_tokens, mel2ph=None, spk_embed=None,
-                ref_mels=None, dur=None, f0=None, uv=None, energy=None, skip_decoder=False,
-                spk_embed_dur_id=None, spk_embed_f0_id=None, infer=False, **kwargs):
+    def forward(self, txt_tokens, mel2ph=None, f0=None, infer=False, **kwargs):
         ret = {}
         if hparams['use_dur_embed']:
             dur = mel2ph_to_dur(mel2ph, txt_tokens.shape[1]).float()
@@ -118,16 +115,11 @@ class FastSpeech2(nn.Module):
         tgt_nonpadding = (mel2ph > 0).float()[:, :, None]
 
         # add pitch embed
-        decoder_inp = decoder_inp + self.add_pitch(f0, ret)
+        decoder_inp += self.add_pitch(f0, ret)
 
         ret['decoder_inp'] = decoder_inp = decoder_inp * tgt_nonpadding
 
-        if skip_decoder:
-            return ret
-        ret['mel_out'] = self.run_decoder(decoder_inp, tgt_nonpadding, ret, infer=infer, **kwargs)
-
         return ret
-
 
     def add_dur(self, txt_tokens, ret, xs):
         ph_acc = torch.round(torch.cumsum(xs, dim=0) / self.timestep + 0.5).long()
@@ -146,6 +138,8 @@ class FastSpeech2(nn.Module):
         energy_embed = self.energy_embed(energy)
         return energy_embed
 
+    def add_spk_embed(self, spk_embed, ret):
+        pass
 
     def add_pitch(self, f0:torch.Tensor, ret):
         ret['f0_denorm'] = f0

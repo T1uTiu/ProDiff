@@ -13,18 +13,17 @@ class AcousticBinarizer(BaseBinarizer):
         self.item2ph = {}
         self.item2dur = {}
         self.item2wavfn = {}
-        self.item2tgfn = {} # TextGrid file name
         self.item2spk = {}
         for ds_id, processed_data_dir in enumerate(self.processed_data_dirs):
             self.meta_df = open(f"{processed_data_dir}/transcriptions.txt", 'r', encoding='utf-8')
             for _r in self.meta_df.readlines():
                 r = _r.split('|')
-                item_name = raw_item_name = r[0]
+                item_name = r[0]
                 if len(self.processed_data_dirs) > 1:
                     item_name = f'ds{ds_id}_{item_name}'
                 self.item2txt[item_name] = r[1]
                 self.item2ph[item_name] = r[2]
-                self.item2wavfn[item_name] = f"{hparams['raw_data_dir']}/wav/{raw_item_name}.wav"
+                self.item2wavfn[item_name] = f"{self.raw_data_dirs[ds_id]}/wav/{item_name}.wav"
                 self.item2spk[item_name] = 'SPK1'
                 self.item2dur[item_name] = [float(x) for x in r[5].split(' ')]
                 if len(self.processed_data_dirs) > 1:
