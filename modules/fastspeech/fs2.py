@@ -42,15 +42,15 @@ class FastSpeech2(nn.Module):
         if hparams['use_spk_id']:
             self.spk_embed = Embedding(hparams['num_spk'], self.hidden_size)
 
-        predictor_hidden = hparams['predictor_hidden'] if hparams['predictor_hidden'] > 0 else self.hidden_size
-        self.dur_predictor = DurationPredictor(
-            self.hidden_size,
-            n_chans=predictor_hidden,
-            n_layers=hparams['dur_predictor_layers'],
-            dropout_rate=hparams['predictor_dropout'], padding=hparams['ffn_padding'],
-            kernel_size=hparams['dur_predictor_kernel'])
+        # predictor_hidden = hparams['predictor_hidden'] if hparams['predictor_hidden'] > 0 else self.hidden_size
+        # self.dur_predictor = DurationPredictor(
+        #     self.hidden_size,
+        #     n_chans=predictor_hidden,
+        #     n_layers=hparams['dur_predictor_layers'],
+        #     dropout_rate=hparams['predictor_dropout'], padding=hparams['ffn_padding'],
+        #     kernel_size=hparams['dur_predictor_kernel'])
         
-        self.length_regulator = LengthRegulator()
+        # self.length_regulator = LengthRegulator()
 
         self.f0_embed_type = hparams.get('f0_embed_type', 'discrete')
         if hparams['use_pitch_embed']:
@@ -58,40 +58,40 @@ class FastSpeech2(nn.Module):
                 self.pitch_embed = Embedding(300, self.hidden_size, self.padding_idx)
             else:
                 self.pitch_embed = Linear(1, self.hidden_size)
-            if hparams['pitch_type'] == 'cwt':
-                h = hparams['cwt_hidden_size']
-                cwt_out_dims = 10
-                if hparams['use_uv']:
-                    cwt_out_dims = cwt_out_dims + 1
-                self.cwt_predictor = nn.Sequential(
-                    nn.Linear(self.hidden_size, h),
-                    PitchPredictor(
-                        h,
-                        n_chans=predictor_hidden,
-                        n_layers=hparams['predictor_layers'],
-                        dropout_rate=hparams['predictor_dropout'], odim=cwt_out_dims,
-                        padding=hparams['ffn_padding'], kernel_size=hparams['predictor_kernel']))
-                self.cwt_stats_layers = nn.Sequential(
-                    nn.Linear(self.hidden_size, h), nn.ReLU(),
-                    nn.Linear(h, h), nn.ReLU(), nn.Linear(h, 2)
-                )
-            else:
-                self.pitch_predictor = PitchPredictor(
-                    self.hidden_size,
-                    n_chans=predictor_hidden,
-                    n_layers=hparams['predictor_layers'],
-                    dropout_rate=hparams['predictor_dropout'],
-                    odim=2 if hparams['pitch_type'] == 'frame' else 1,
-                    padding=hparams['ffn_padding'], kernel_size=hparams['predictor_kernel'])
+        #     if hparams['pitch_type'] == 'cwt':
+        #         h = hparams['cwt_hidden_size']
+        #         cwt_out_dims = 10
+        #         if hparams['use_uv']:
+        #             cwt_out_dims = cwt_out_dims + 1
+        #         self.cwt_predictor = nn.Sequential(
+        #             nn.Linear(self.hidden_size, h),
+        #             PitchPredictor(
+        #                 h,
+        #                 n_chans=predictor_hidden,
+        #                 n_layers=hparams['predictor_layers'],
+        #                 dropout_rate=hparams['predictor_dropout'], odim=cwt_out_dims,
+        #                 padding=hparams['ffn_padding'], kernel_size=hparams['predictor_kernel']))
+        #         self.cwt_stats_layers = nn.Sequential(
+        #             nn.Linear(self.hidden_size, h), nn.ReLU(),
+        #             nn.Linear(h, h), nn.ReLU(), nn.Linear(h, 2)
+        #         )
+        #     else:
+        #         self.pitch_predictor = PitchPredictor(
+        #             self.hidden_size,
+        #             n_chans=predictor_hidden,
+        #             n_layers=hparams['predictor_layers'],
+        #             dropout_rate=hparams['predictor_dropout'],
+        #             odim=2 if hparams['pitch_type'] == 'frame' else 1,
+        #             padding=hparams['ffn_padding'], kernel_size=hparams['predictor_kernel'])
         
-        if hparams['use_energy_embed']:
-            self.energy_embed = Embedding(256, self.hidden_size, self.padding_idx)
-            self.energy_predictor = EnergyPredictor(
-                self.hidden_size,
-                n_chans=predictor_hidden,
-                n_layers=hparams['predictor_layers'],
-                dropout_rate=hparams['predictor_dropout'], odim=1,
-                padding=hparams['ffn_padding'], kernel_size=hparams['predictor_kernel'])
+        # if hparams['use_energy_embed']:
+        #     self.energy_embed = Embedding(256, self.hidden_size, self.padding_idx)
+        #     self.energy_predictor = EnergyPredictor(
+        #         self.hidden_size,
+        #         n_chans=predictor_hidden,
+        #         n_layers=hparams['predictor_layers'],
+        #         dropout_rate=hparams['predictor_dropout'], odim=1,
+        #         padding=hparams['ffn_padding'], kernel_size=hparams['predictor_kernel'])
 
     
     def build_embedding(self, dictionary, embed_dim):
@@ -126,22 +126,22 @@ class FastSpeech2(nn.Module):
 
         return ret
 
-    def add_dur(self, txt_tokens, ret, xs):
-        ph_acc = torch.round(torch.cumsum(xs, dim=0) / self.timestep + 0.5).long()
-        durations = torch.diff(ph_acc, dim=0, prepend=torch.LongTensor([0]).to(self.device))[None]
-        mel2ph = self.length_regulator(durations, txt_tokens == 0).detach()
-        ret['dur'] = xs
-        ret['dur_choice'] = durations
-        return mel2ph
+    # def add_dur(self, txt_tokens, ret, xs):
+    #     ph_acc = torch.round(torch.cumsum(xs, dim=0) / self.timestep + 0.5).long()
+    #     durations = torch.diff(ph_acc, dim=0, prepend=torch.LongTensor([0]).to(self.device))[None]
+    #     mel2ph = self.length_regulator(durations, txt_tokens == 0).detach()
+    #     ret['dur'] = xs
+    #     ret['dur_choice'] = durations
+    #     return mel2ph
 
-    def add_energy(self, decoder_inp, energy, ret):
-        decoder_inp = decoder_inp.detach() + hparams['predictor_grad'] * (decoder_inp - decoder_inp.detach())
-        ret['energy_pred'] = energy_pred = self.energy_predictor(decoder_inp)[:, :, 0]
-        if energy is None:
-            energy = energy_pred
-        energy = torch.clamp(energy * 256 // 4, max=255).long()
-        energy_embed = self.energy_embed(energy)
-        return energy_embed
+    # def add_energy(self, decoder_inp, energy, ret):
+    #     decoder_inp = decoder_inp.detach() + hparams['predictor_grad'] * (decoder_inp - decoder_inp.detach())
+    #     ret['energy_pred'] = energy_pred = self.energy_predictor(decoder_inp)[:, :, 0]
+    #     if energy is None:
+    #         energy = energy_pred
+    #     energy = torch.clamp(energy * 256 // 4, max=255).long()
+    #     energy_embed = self.energy_embed(energy)
+    #     return energy_embed
 
     def add_spk_embed(self, spk_embed_id, spk_mix_embed):
         if spk_mix_embed is not None:
