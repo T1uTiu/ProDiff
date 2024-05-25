@@ -40,12 +40,10 @@ class ProDiff_teacher_Task(FastSpeech2Task):
         target = sample['mels']  # [B, T_s, 80]
         mel2ph = sample['mel2ph']
         f0 = sample['f0']
-        uv = sample['uv']
-        energy = sample['energy']
-        spk_embed = sample.get('spk_embed') if not hparams['use_spk_id'] else sample.get('spk_ids')
+        spk_embed_id = sample.get('spk_ids') if hparams['use_spk_id'] else None
         # 模型输出
-        output = model(txt_tokens, mel2ph=mel2ph, spk_embed=spk_embed,
-                       ref_mels=target, f0=f0, uv=uv, energy=energy, infer=infer)
+        output = model(txt_tokens, mel2ph=mel2ph, spk_embed_id=spk_embed_id,
+                       ref_mels=target, f0=f0, infer=infer)
 
         losses = {}
         self.add_mel_loss(output['mel_out'], target, losses)
@@ -58,11 +56,9 @@ class ProDiff_teacher_Task(FastSpeech2Task):
         outputs = {}
         txt_tokens = sample['txt_tokens']  # [B, T_t]
 
-        energy = sample['energy']
-        spk_embed = sample.get('spk_embed') if not hparams['use_spk_id'] else sample.get('spk_ids')
+        spk_embed_id = sample.get('spk_ids') if hparams['use_spk_id'] else None
         mel2ph = sample['mel2ph']
         f0 = sample['f0']
-        uv = sample['uv']
 
         outputs['losses'] = {}
         outputs['losses'], model_out = self.run_model(self.model, sample, return_output=True, infer=False)
@@ -72,7 +68,7 @@ class ProDiff_teacher_Task(FastSpeech2Task):
         outputs = utils.tensors_to_scalars(outputs)
         if batch_idx < hparams['num_valid_plots']:
             model_out = self.model(
-                txt_tokens, spk_embed=spk_embed, mel2ph=mel2ph, f0=f0, uv=uv, energy=energy, ref_mels=None, infer=True)
+                txt_tokens, mel2ph=mel2ph, spk_embed_id=spk_embed_id, f0=f0, ref_mels=None, infer=True)
             self.plot_mel(batch_idx, sample['mels'], model_out['mel_out'])
         return outputs
 

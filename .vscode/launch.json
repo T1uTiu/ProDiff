@@ -68,8 +68,9 @@
             "program": "${workspaceFolder}/tasks/run.py",
             "console": "internalConsole",
             "args": [
-                "--config", "data/Opencpop/binary/config_teacger.yaml",
-                "--exp_name", "Opencpop_Teacher_t10_dur_embed_f0_continuous",
+                "--config", "data/Opencpop+TiuTiu/config.yaml",
+                "--exp_name", "Opencpop+TiuTiu_Teacher",
+                "--task_cls", "ProDiff_Teacher",
                 "--reset"
             ],
         },
@@ -92,7 +93,7 @@
             "program": "${workspaceFolder}/data_gen/tts/bin/binarize.py",
             "console": "internalConsole",
             "args": [
-                "--config", "data/TiuTiu/binary/config.yaml",
+                "--config", "data/Opencpop+TiuTiu/config.yaml",
             ]
         }
     ]

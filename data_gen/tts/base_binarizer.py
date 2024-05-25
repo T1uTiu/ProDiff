@@ -23,37 +23,23 @@ class BinarizationError(Exception):
 
 
 class BaseBinarizer:
-    def __init__(self, processed_data_dir=None):
-        if processed_data_dir is None:
-            processed_data_dir = hparams['processed_data_dir']
-        self.processed_data_dirs = processed_data_dir.split(",")
-        self.raw_data_dirs = hparams['raw_data_dir'].split(",")
+    def __init__(self):
+        self.processed_data_dirs = hparams['processed_data_dir']
+        self.raw_data_dirs = hparams['raw_data_dir']
+        self.binary_data_dir = hparams['binary_data_dir']
+        os.makedirs(self.binary_data_dir, exist_ok=True)
         self.binarization_args = hparams['binarization_args']
-        self.pre_align_args = hparams['preprocess_args']
+
+        self.speakers = hparams['speakers']
+        self.spk_map, self.spk_ids = self.build_spk_map()
+
+        self.phone_encoder = self.build_phone_encoder()
+
         self.lr = LengthRegulator()
         self.load_meta_data()
         if self.binarization_args['shuffle']:
             random.seed(1234)
             random.shuffle(self.item_names)
-
-    def load_meta_data(self):
-        self.item2txt = {}
-        self.item2ph = {}
-        self.item2wavfn = {}
-        self.item2spk = {}
-        for ds_id, processed_data_dir in enumerate(self.processed_data_dirs):
-            self.meta_df = pd.read_csv(f"{processed_data_dir}/metadata_phone.csv", dtype=str)
-            for r_idx, r in self.meta_df.iterrows():
-                item_name = r['item_name']
-                if len(self.processed_data_dirs) > 1:
-                    item_name = f'ds{ds_id}_{item_name}'
-                self.item2txt[item_name] = r['txt']
-                self.item2ph[item_name] = r['ph']
-                self.item2wavfn[item_name] = os.path.join(hparams['raw_data_dir'], 'wavs', os.path.basename(r['wav_fn']).split('_')[1])
-                self.item2spk[item_name] = r.get('spk', 'SPK1')
-                if len(self.processed_data_dirs) > 1:
-                    self.item2spk[item_name] = f"ds{ds_id}_{self.item2spk[item_name]}"
-        self.item_names = sorted(list(self.item2txt.keys()))
 
     @property
     def train_item_names(self):
@@ -66,25 +52,30 @@ class BaseBinarizer:
     @property
     def test_item_names(self):
         return self.item_names[0: hparams['test_num']]  # Audios for MOS testing are in 'test_ids'
+    
+    def load_meta_data(self):
+        raise NotImplementedError
+    
+    def meta_data(self, prefix):
+        raise NotImplementedError
 
     def build_spk_map(self):
-        spk_map = set()
-        for item_name in self.item_names:
-            spk_name = self.item2spk[item_name]
-            spk_map.add(spk_name)
-        spk_map = {x: i for i, x in enumerate(sorted(list(spk_map)))}
-        assert len(spk_map) == 0 or len(spk_map) <= hparams['num_spk'], len(spk_map)
-        return spk_map
+        spk_ids = list(range(len(self.speakers)))
+        spk_map = {x: i for i, x in zip(spk_ids, self.speakers)}
+        print("| spk_map: ", spk_map)
+        spk_map_fn = f"{hparams['binary_data_dir']}/spk_map.json"
+        json.dump(spk_map, open(spk_map_fn, 'w'))
+        return spk_map, spk_ids
 
     def item_name2spk_id(self, item_name):
         return self.spk_map[self.item2spk[item_name]]
 
-    def _phone_encoder(self):
+    def build_phone_encoder(self):
         ph_set_fn = f"{hparams['binary_data_dir']}/phone_set.json"
-        ph_set = []
-        if hparams['reset_phone_dict'] or not os.path.exists(ph_set_fn):
-            for processed_data_dir in self.processed_data_dirs:
-                ph_set += [x.split(' ')[0] for x in open(f'{processed_data_dir}/dict.txt').readlines()]
+        ph_set = ['AP', "SP"]
+        if not os.path.exists(ph_set_fn):
+            for x in open(hparams['dictionary']).readlines():
+                ph_set += x.split("\n")[0].split('\t')[1].split(' ') 
             ph_set = sorted(set(ph_set))
             json.dump(ph_set, open(ph_set_fn, 'w'))
         else:
@@ -92,50 +83,25 @@ class BaseBinarizer:
         print("| phone set: ", ph_set)
         return build_phone_encoder(hparams['binary_data_dir'])
 
-    def meta_data(self, prefix):
-        if prefix == 'valid':
-            item_names = self.valid_item_names
-        elif prefix == 'test':
-            item_names = self.test_item_names
-        else:
-            item_names = self.train_item_names
-        for item_name in item_names:
-            ph = self.item2ph[item_name] # Phoneme
-            txt = self.item2txt[item_name] # Text
-            tg_fn = self.item2tgfn.get(item_name) # TextGrid file name
-            wav_fn = self.item2wavfn[item_name] # Audio file name
-            spk_id = self.item_name2spk_id(item_name)
-            yield item_name, ph, txt, tg_fn, wav_fn, spk_id
 
     def process(self):
-        os.makedirs(hparams['binary_data_dir'], exist_ok=True)
-        self.spk_map = self.build_spk_map()
-        print("| spk_map: ", self.spk_map)
-        spk_map_fn = f"{hparams['binary_data_dir']}/spk_map.json"
-        json.dump(self.spk_map, open(spk_map_fn, 'w'))
-
-        self.phone_encoder = self._phone_encoder()
         self.process_data('valid')
         self.process_data('test')
         self.process_data('train')
 
     def process_data(self, prefix):
         data_dir = hparams['binary_data_dir']
-        args = []
         builder = IndexedDatasetBuilder(f'{data_dir}/{prefix}')
-        lengths = []
-        f0s = []
-        total_sec = 0
+        lengths, f0s, total_sec = [], [], 0 # 统计信息
         if self.binarization_args['with_spk_embed']:
             voice_encoder = VoiceEncoder().cuda()
 
-        meta_data = list(self.meta_data(prefix))
-        for m in meta_data:
-            args.append(list(m) + [self.phone_encoder, self.lr, hparams])
-        # num_workers = int(os.getenv('N_PROC', os.cpu_count() // 3)) # 线程个数
+        meta_data = self.meta_data(prefix)
+        args = [list(m) + [self.phone_encoder, self.lr, hparams] for m in meta_data]
+
         num_workers = 2
         for f_id, (_, item) in enumerate(
-                zip(tqdm(meta_data), chunked_multiprocess_run(self.process_item, args, num_workers=num_workers))):
+                zip(tqdm(args), chunked_multiprocess_run(self.process_item, args, num_workers=num_workers))):
             if item is None:
                 continue
             item['spk_embed'] = voice_encoder.embed_utterance(item['wav']) \
@@ -166,7 +132,7 @@ class BaseBinarizer:
             'mel': mel,  
             'wav_fn': wav_fn,
             'sec': len(wav) / hparams['audio_sample_rate'], # 真实时长
-            'len': mel.shape[0], 
+            'len': mel.shape[0], # 梅尔帧数
             'spk_id': spk_id
         }
         try:

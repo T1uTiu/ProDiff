@@ -151,10 +151,10 @@ class GaussianDiffusion(nn.Module):
         out[zero_idx] = x_start[zero_idx] # set x_{-1} as the gt mel
         return out
 
-    def forward(self, txt_tokens, mel2ph=None, spk_embed=None,
-                ref_mels=None, f0=None, uv=None, energy=None, dur=None, infer=False):
+    def forward(self, txt_tokens, mel2ph=None, spk_embed_id=None,
+                ref_mels=None, f0=None, infer=False, **kwargs):
         b, *_, device = *txt_tokens.shape, txt_tokens.device
-        ret = self.fs2(txt_tokens, mel2ph, f0, infer=infer)
+        ret = self.fs2(txt_tokens, mel2ph, f0, spk_embed_id, **kwargs)
         nonpadding = (ret['mel2ph'] != 0).float().unsqueeze(1).unsqueeze(1) # [B, T]
         cond = ret['decoder_inp'].transpose(1, 2)
         if not infer: # 训练

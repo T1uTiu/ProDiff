@@ -136,12 +136,12 @@ class FastSpeechDataset(BaseTTSDataset):
             _, hparams['cwt_scales'] = get_lf0_cwt(np.ones(10))
 
     def __getitem__(self, index):
-        sample = super(FastSpeechDataset, self).__getitem__(index)
-        item = self._get_item(index)
+        sample = super(FastSpeechDataset, self).__getitem__(index) # {id, item_name, text, txt_token, mel, mel_nonpadding}
+        item = self._get_item(index) # {item_name, txt, ph, dur, mel2ph, mel, wav_fn, sec, len, spk_id, f0, pitch}
         hparams = self.hparams
         max_frames = hparams['max_frames']
         spec = sample['mel']
-        T = spec.shape[0]
+        T = spec.shape[0] # mel帧数
         phone = sample['txt_token']
         sample['energy'] = (spec.exp() ** 2).sum(-1).sqrt()
         sample['mel2ph'] = mel2ph = torch.LongTensor(item['mel2ph'])[:T] if 'mel2ph' in item else None

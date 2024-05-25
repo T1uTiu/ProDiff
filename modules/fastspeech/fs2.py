@@ -93,12 +93,13 @@ class FastSpeech2(nn.Module):
                 dropout_rate=hparams['predictor_dropout'], odim=1,
                 padding=hparams['ffn_padding'], kernel_size=hparams['predictor_kernel'])
 
+    
     def build_embedding(self, dictionary, embed_dim):
         num_embeddings = len(dictionary)
         emb = Embedding(num_embeddings, embed_dim, self.padding_idx)
         return emb
 
-    def forward(self, txt_tokens, mel2ph=None, f0=None, infer=False, **kwargs):
+    def forward(self, txt_tokens, mel2ph=None, f0=None, spk_embed_id=None, **kwargs):
         ret = {}
         if hparams['use_dur_embed']:
             dur = mel2ph_to_dur(mel2ph, txt_tokens.shape[1]).float()
@@ -116,6 +117,10 @@ class FastSpeech2(nn.Module):
 
         # add pitch embed
         decoder_inp += self.add_pitch(f0, ret)
+
+        # add spk embed
+        if hparams['use_spk_id']:
+            decoder_inp += self.add_spk_embed(spk_embed_id, kwargs.get('spk_mix_embed'))
 
         ret['decoder_inp'] = decoder_inp = decoder_inp * tgt_nonpadding
 
@@ -138,8 +143,12 @@ class FastSpeech2(nn.Module):
         energy_embed = self.energy_embed(energy)
         return energy_embed
 
-    def add_spk_embed(self, spk_embed, ret):
-        pass
+    def add_spk_embed(self, spk_embed_id, spk_mix_embed):
+        if spk_mix_embed is not None:
+            spk_embed = spk_mix_embed
+        else:
+            spk_embed = self.spk_embed(spk_embed_id)[:, None, :]
+        return spk_embed
 
     def add_pitch(self, f0:torch.Tensor, ret):
         ret['f0_denorm'] = f0

@@ -6,15 +6,17 @@ processed_data_dir: 'data/TiuTiu/processed'
 binary_data_dir: 'data/TiuTiu/binary'
 
 binarizer_cls: egs.datasets.audio.acoustic.binarizer.AcousticBinarizer
+dictionary: dictionaries/opencpop-strict.txt
 test_num: 100
 valid_num: 100
+
 num_spk: 1
+use_spk_id: true
+speakers: [spk1, ]
 
 # vocoder
 vocoder: nsfhifigan
-N: 4 # denoising steps
 vocoder_ckpt: checkpoints/nsf_hifigan/model
-
 audio_sample_rate: 44100
 audio_num_mel_bins: 128
 hop_size: 512            # Hop size.

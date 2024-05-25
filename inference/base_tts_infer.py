@@ -3,6 +3,7 @@ import os
 
 import torch
 
+from data_gen.tts.data_gen_utils import build_phone_encoder
 from modules.fastspeech.tts_modules import LengthRegulator
 from tasks.tts.dataset_utils import FastSpeechWordDataset
 from tasks.tts.tts_utils import load_data_preprocessor
@@ -28,16 +29,21 @@ class BaseTTSInfer:
         self.timestep = hparams['hop_size'] / hparams['audio_sample_rate']
         self.device = device
         self.data_dir = hparams['binary_data_dir']
-        self.preprocessor, self.preprocess_args = load_data_preprocessor()
-        self.ph_encoder = self.preprocessor.load_dict(self.data_dir)
-        self.spk_map = self.preprocessor.load_spk_map(self.data_dir)
+        self.ph_encoder = self.build_phone_encoder()
+        self.spk_map = self.build_spk_map()
         self.ds_cls = FastSpeechWordDataset
         self.model = self.build_model()
         self.model.eval()
         self.model.to(self.device)
         self.vocoder, self.diffusion_hyperparams, self.noise_schedule = self.build_vocoder()
-        # self.vocoder.eval()
-        # self.vocoder.to(self.device)
+
+    def build_phone_encoder(self):
+        return build_phone_encoder(self.data_dir)
+
+    def build_spk_map(self):
+        spk_map_fn = os.path.join(self.data_dir, 'spk_map.json')
+        spk_map = json.load(open(spk_map_fn, 'r'))
+        return spk_map
 
     def build_model(self):
         raise NotImplementedError
@@ -120,63 +126,41 @@ class BaseTTSInfer:
             self.vocoder, (1, 1, audio_length), self.diffusion_hyperparams, self.noise_schedule, condition=c, ddim=False, return_sequence=False)
         return y
 
+    def load_speaker_mix():
+        pass
+    
     def preprocess_input(self, inp):
-        from utils.hparams import hparams as hp
-        hp["f0_timestep"] = float(inp.get("f0_timestep"))
+        hparams = self.hparams
 
-        spk_name = inp.get('spk_name', 'SPK1')
-        spk_id = self.spk_map[spk_name]
+        if hparams["use_spk_id"]:
+            spk_name = inp.get('spk_name', 'SPK1')
+            spk_id = self.spk_map[spk_name]
+            spk_mix_id, spk_mix_value = self.load_speaker_mix(spk_id)
 
         ph = inp.get("ph_seq") # 音素
-        ph_token = torch.LongTensor(self.ph_encoder.encode(ph)).to(self.device) # 音素编码
+        ph_token = torch.LongTensor(self.ph_encoder.encode(ph)).to(self.device)[None, :] # [B=1, T_txt]
         
         ph_dur = torch.from_numpy(np.array(inp.get("ph_dur").split(), np.float32)).to(self.device) # 音素时长
         ph_acc = torch.round(torch.cumsum(ph_dur, dim=0) / self.timestep + 0.5).long()
         durations = torch.diff(ph_acc, dim=0, prepend=torch.LongTensor([0]).to(self.device))[None]  # => [B=1, T_txt]
         mel2ph = self.lr(durations, ph_token == 0)  # => [B=1, T]
         
-        
-        # f0_seq = np.array(inp.get("f0_seq").split()).astype(float) # F0序列
         f0_seq = resample_align_curve(
             np.array(inp.get('f0_seq').split(), np.float32),
             original_timestep=float(inp.get('f0_timestep')),
             target_timestep=self.timestep,
             align_length=mel2ph.shape[1]
         )
-        f0_seq = setuv_f0(f0_seq, ph.split(), durations.cpu().numpy().squeeze(), hp['phone_uv_set'])
+        f0_seq = setuv_f0(f0_seq, ph.split(), durations.cpu().numpy().squeeze(), hparams['phone_uv_set'])
+        f0_seq = torch.from_numpy(f0_seq)[None, :].to(self.device) # [B=1, T_mel]
 
         item = {
-            'item_name': inp.get('item_name', '<ITEM_NAME>'), 
-            'spk_id': spk_id, 
-            'text': inp.get("text"), 
-            'ph_token': ph_token,
-            'mel2ph': mel2ph,
-            'f0_seq': f0_seq
+            'ph_tokens': ph_token,
+            'mel2phs': mel2ph,
+            'f0_seqs': f0_seq
         }
         return item
 
-    def input_to_batch(self, item):
-        item_names = [item['item_name']]
-        texts = [item['text']]
-        ph_token = item['ph_token']
-        mel2ph = item['mel2ph']
-        f0_seq = item['f0_seq']
-
-        ph_tokens = ph_token[None, :]
-        f0_seqs = torch.from_numpy(f0_seq)[None, :].to(self.device)
-        ph_lens = torch.LongTensor([ph_tokens.shape[1]]).to(self.device)
-        spk_ids = torch.LongTensor(item['spk_id'])[None, :].to(self.device)
-
-        batch = {
-            'item_names': item_names,
-            'spk_ids': spk_ids,
-            'texts': texts,
-            'ph_tokens': ph_tokens,
-            'mel2phs': mel2ph,
-            'f0_seqs': f0_seqs,
-            'ph_lens': ph_lens,
-        }
-        return batch
 
     def postprocess_output(self, output):
         return output

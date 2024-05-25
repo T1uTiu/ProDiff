@@ -107,7 +107,7 @@ def multiprocess_run(map_func, args, num_workers=None, ordered=True, init_ctx_fu
 
 def chunked_multiprocess_run(
         map_func, args, num_workers=None, ordered=True,
-        init_ctx_func=None, q_max_size=4000, multithread=False):
+        init_ctx_func=None, q_max_size=5000, multithread=False):
     if multithread:
         from multiprocessing.dummy import Queue, Process
     else:

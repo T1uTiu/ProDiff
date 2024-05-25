@@ -141,11 +141,10 @@ class GaussianDiffusion(nn.Module):
         out[zero_idx] = x_start[zero_idx] # set x_{-1} as the gt mel
         return out
 
-    def forward(self, txt_tokens, teacher_fn=None, mel2ph=None, spk_embed=None,
-                ref_mels=None, f0=None, uv=None, energy=None, dur=None, infer=False):
+    def forward(self, txt_tokens, teacher_fn=None, mel2ph=None, spk_embed_id=None,
+                ref_mels=None, f0=None, infer=False, **kwargs):
         b, *_, device = *txt_tokens.shape, txt_tokens.device
-        ret = self.fs2(txt_tokens, mel2ph, spk_embed, ref_mels, dur, f0, uv, energy,
-                       skip_decoder=True, infer=infer)
+        ret = self.fs2(txt_tokens, mel2ph, f0, spk_embed_id, **kwargs)
         cond = ret['decoder_inp'].transpose(1, 2)
         if not infer:
             with torch.no_grad():
