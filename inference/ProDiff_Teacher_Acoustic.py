@@ -46,8 +46,17 @@ class ProDiffTeacherInfer(BaseTTSInfer):
         ph_tokens = inp['ph_tokens']  # [B, T_t]
         mel2phs = inp['mel2phs']  # [B, T_mel]
         f0_seqs = inp['f0_seqs']  # [B, T_mel]
+        if hparams['use_spk_id']:
+            spk_mix_id = inp['spk_mix_id']
+            spk_mix_value = inp['spk_mix_value']
+            spk_mix_embed = torch.sum(
+                self.model.fs2.spk_embed(spk_mix_id) * spk_mix_value.unsqueeze(3), 
+                dim=2, keepdim=False
+            )
+        else:
+            spk_mix_embed = None
         with torch.no_grad():
-            output = self.model(ph_tokens, f0=f0_seqs, mel2ph=mel2phs, infer=True)
+            output = self.model(ph_tokens, f0=f0_seqs, mel2ph=mel2phs, infer=True, spk_mix_embed=spk_mix_embed)
             mel_out = output['mel_out']
             wav_out = self.run_vocoder(mel_out, f0=f0_seqs)
         wav_out = wav_out.squeeze().cpu().numpy()

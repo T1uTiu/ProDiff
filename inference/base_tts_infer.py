@@ -1,5 +1,6 @@
 import json
 import os
+import time
 
 import torch
 
@@ -126,16 +127,30 @@ class BaseTTSInfer:
             self.vocoder, (1, 1, audio_length), self.diffusion_hyperparams, self.noise_schedule, condition=c, ddim=False, return_sequence=False)
         return y
 
-    def load_speaker_mix():
-        pass
+    def load_speaker_mix(self):
+        hparams = self.hparams
+        spk_name = hparams['spk_name'] # "spk0:0.5|spk1:0.5 ..."
+        if spk_name == '':
+            # Get the first speaker
+            spk_mix_map = {self.spk_map.keys()[0]: 1.0}
+        else:
+            spk_mix_map = dict([x.split(':') for x in spk_name.split('|')])
+            for k in spk_mix_map:
+                spk_mix_map[k] = float(spk_mix_map[k])
+        spk_mix_id_list = []
+        spk_mix_value_list = []
+        for name, value in spk_mix_map.items():
+            assert name in self.spk_map, f"Speaker name {name} not found in spk_map"
+            spk_mix_id_list.append(self.spk_map[name])
+            spk_mix_value_list.append(value)
+        spk_mix_id = torch.LongTensor(spk_mix_id_list).to(self.device)[None, None]
+        spk_mix_value = torch.FloatTensor(spk_mix_value_list).to(self.device)[None, None]
+        spk_mix_value_sum = spk_mix_value.sum()
+        spk_mix_value /= spk_mix_value_sum # Normalize
+        return spk_mix_id, spk_mix_value
     
     def preprocess_input(self, inp):
         hparams = self.hparams
-
-        if hparams["use_spk_id"]:
-            spk_name = inp.get('spk_name', 'SPK1')
-            spk_id = self.spk_map[spk_name]
-            spk_mix_id, spk_mix_value = self.load_speaker_mix(spk_id)
 
         ph = inp.get("ph_seq") # 音素
         ph_token = torch.LongTensor(self.ph_encoder.encode(ph)).to(self.device)[None, :] # [B=1, T_txt]
@@ -159,6 +174,12 @@ class BaseTTSInfer:
             'mel2phs': mel2ph,
             'f0_seqs': f0_seq
         }
+
+        if hparams["use_spk_id"]:
+            spk_name = inp.get('spk_name', 'SPK1')
+            spk_mix_id, spk_mix_value = self.load_speaker_mix()
+            item["spk_mix_id"] = spk_mix_id
+            item["spk_mix_value"] = spk_mix_value
         return item
 
 
@@ -186,11 +207,15 @@ class BaseTTSInfer:
             project = json.load(f)
         result = []
         total_length = 0
-        for segment in project:
+        
+        for i, segment in enumerate(project):
+            start_time = time.time()
             out = infer_ins.infer_once(segment)
+            print(f'Segment: {i} Inference time: {time.time() - start_time:.2f}s')
             os.makedirs('infer_out', exist_ok=True)
             offset = int(segment.get('offset', 0) * hp["audio_sample_rate"])
             out = np.concatenate([np.zeros(max(offset-total_length, 0)), out])
             total_length += len(out)
             result.append(out)
+        
         save_wav(np.concatenate(result), f'infer_out/{hp["title"]}【{hp["exp_name"]}】.wav', hp['audio_sample_rate'])

@@ -40,11 +40,11 @@
             "program": "${workspaceFolder}/inference/Prodiff_Teacher_Acoustic.py",
             "console": "internalConsole",
             "args": [
-                "--config", "data/Opencpop/binary/config.yaml",
-                "--task_clr", "Prodiff_Teacher",
-                "--exp_name", "Opencpop_Teacher",
+                "--config", "data/Opencpop+TiuTiu/config.yaml",
+                "--exp_name", "Opencpop+TiuTiu_Teacher",
+                "--spk_name", "Opencpop:0.5|TiuTiu:0.5",
                 "--reset",
-                "--proj", "samples/光年之外.ds"
+                "--proj", "samples/02_一生之幸.ds"
             ],
         },
         {
@@ -55,8 +55,7 @@
             "console": "internalConsole",
             "args": [
                 "--config", "data/Opencpop/binary/config.yaml",
-                "--task_clr", "Prodiff",
-                "--exp_name", "Opencpop",
+                "--exp_name", "opencpop",
                 "--reset",
                 "--proj", "samples/光年之外.ds"
             ],
