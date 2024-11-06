@@ -51,14 +51,14 @@
             "name": "acoustic_inference",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/inference/Prodiff_Acoustic.py",
+            "program": "${workspaceFolder}/script/infer.py",
             "console": "internalConsole",
             "args": [
+                "student",
+                "E:/Project/贴唱混音/怎配/Raw/怎配_chen.ds",
                 "--config", "data/Opencpop+TiuTiu/config_new.yaml",
                 "--exp_name", "Opencpop+TiuTiu",
-                "--spk_name", "TiuTiu:0.3|Opencpop:0.7",
-                "--reset",
-                "--proj", "E:/Project/贴唱混音/怎配/Raw/怎配_chen.ds"
+                "--spk_name", "TiuTiu:0.3|Opencpop:0.7"
             ],
         },
         {

@@ -26,7 +26,7 @@ def override_config(old_config: dict, new_config: dict):
             old_config[k] = v
 
 
-def set_hparams(config='', exp_name='', spk_name='',proj='', hparams_str='', print_hparams=True, global_hparams=True):
+def set_hparams(config='', exp_name='', spk_name='', hparams_str='', print_hparams=True, global_hparams=True):
     if config == '' and exp_name == '':
         parser = argparse.ArgumentParser(description='')
         parser.add_argument('--config', type=str, default='configs/config_base.yaml',
@@ -45,9 +45,9 @@ def set_hparams(config='', exp_name='', spk_name='',proj='', hparams_str='', pri
         args, unknown = parser.parse_known_args()
     else:
         args = Args(config=config, exp_name=exp_name, task_cls="ProDiff", hparams=hparams_str,
-                    infer=False, validate=False, reset=False, remove=False, debug=False, proj=proj, spk_name=spk_name)
+                    infer=False, validate=False, reset=True, remove=False, debug=False, spk_name=spk_name)
     global hparams
-    assert args.config != '' or args.exp_name != ''
+    assert args.config != '' and args.exp_name != ''
 
     config_chains = []
     loaded_config = set()
@@ -74,18 +74,17 @@ def set_hparams(config='', exp_name='', spk_name='',proj='', hparams_str='', pri
         config_chains.append(config_fn)
         return ret_hparams
 
-    saved_hparams = {}
-    args_work_dir = ''
-    if args.exp_name != '':
-        args_work_dir = f'checkpoints/{args.exp_name}'
-        ckpt_config_path = f'{args_work_dir}/config.yaml'
-        if os.path.exists(ckpt_config_path):
-            with open(ckpt_config_path) as f:
-                saved_hparams.update(yaml.safe_load(f))
+    args_work_dir = f'checkpoints/{args.exp_name}'
+    ckpt_config_path = f'{args_work_dir}/config.yaml'
+    
     hparams_ = {}
     if args.config != '':
         hparams_.update(load_config(args.config))
     if not args.reset:
+        saved_hparams = {}
+        if os.path.exists(ckpt_config_path):
+            with open(ckpt_config_path) as f:
+                saved_hparams.update(yaml.safe_load(f))
         hparams_.update(saved_hparams)
     hparams_['work_dir'] = args_work_dir
 
@@ -117,12 +116,10 @@ def set_hparams(config='', exp_name='', spk_name='',proj='', hparams_str='', pri
     hparams_['debug'] = args.debug
     hparams_['validate'] = args.validate
     hparams_['exp_name'] = args.exp_name
-    hparams_['proj'] = args.proj
     hparams_['spk_name'] = args.spk_name
     assert args.task_cls in task_cls_mapping, f"task_cls should be in {task_cls_mapping.keys()}"
     hparams_["task_cls"] = task_cls_mapping[args.task_cls]
-    if args.proj:
-        hparams_['title'] = args.proj.split('/')[-1].split('.')[0]
+        
     global global_print_hparams
     if global_hparams:
         hparams.clear()

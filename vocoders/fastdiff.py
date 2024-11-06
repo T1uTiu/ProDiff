@@ -1,16 +1,21 @@
 import glob
 import re
+
 import librosa
+import numpy as np
 import torch
 import yaml
 from sklearn.preprocessing import StandardScaler
 from torch import nn
+
 from modules.FastDiff.module.FastDiff_model import FastDiff as FastDiff_model
-from utils.hparams import hparams
+from modules.FastDiff.module.util import (compute_hyperparams_given_schedule,
+                                          sampling_given_noise_schedule,
+                                          theta_timestep_loss)
 from modules.parallel_wavegan.utils import read_hdf5
+from utils.hparams import hparams
 from vocoders.base_vocoder import BaseVocoder, register_vocoder
-import numpy as np
-from modules.FastDiff.module.util import theta_timestep_loss, compute_hyperparams_given_schedule, sampling_given_noise_schedule
+
 
 def load_fastdiff_model(config_path, checkpoint_path):
     # load config

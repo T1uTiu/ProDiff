@@ -1,18 +1,22 @@
 import os
 
 import torch
+
 os.environ["OMP_NUM_THREADS"] = "1"
 
-from modules.fastspeech.tts_modules import LengthRegulator
-from utils.multiprocess_utils import chunked_multiprocess_run
+import json
 import random
 import traceback
-import json
-from tqdm import tqdm
-from preprocess.data_gen_utils import get_mel2ph_dur, get_pitch, build_phone_encoder
-from utils.hparams import set_hparams, hparams
+
 import numpy as np
+from tqdm import tqdm
+
+from modules.fastspeech.tts_modules import LengthRegulator
+from preprocess.data_gen_utils import (build_phone_encoder, get_mel2ph_dur,
+                                       get_pitch)
+from utils.hparams import hparams, set_hparams
 from utils.indexed_datasets import IndexedDatasetBuilder
+from utils.multiprocess_utils import chunked_multiprocess_run
 from vocoders.base_vocoder import VOCODERS
 
 
