@@ -18,7 +18,6 @@ trainer_map = {
 def train(trainer, config, exp_name):
     assert trainer in trainer_map, f"Invalid trainer: {trainer}, use one of {list(trainer_map.keys())}"
     set_hparams(config=config, exp_name=exp_name)
-
     trainer_instance = trainer_map[trainer]
     trainer_instance.start()
 
