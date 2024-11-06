@@ -1,4 +1,4 @@
-from data_gen.tts.data_gen_utils import is_sil_phoneme
+from preprocess.data_gen_utils import is_sil_phoneme
 
 REGISTERED_TEXT_PROCESSORS = {}
 

@@ -15,7 +15,7 @@ from utils.hparams import hparams
 from utils.pitch_utils import norm_interp_f0
 from resemblyzer import VoiceEncoder
 import json
-from data_gen.tts.data_gen_utils import build_phone_encoder
+from preprocess.data_gen_utils import build_phone_encoder
 
 class BaseTTSDataset(BaseDataset):
     def __init__(self, prefix, shuffle=False, test_items=None, test_sizes=None, data_dir=None):
@@ -211,7 +211,7 @@ class FastSpeechDataset(BaseTTSDataset):
         return batch
 
     def load_test_inputs(self):
-        binarizer_cls = hparams.get("binarizer_cls", 'data_gen.tts.base_binarizerr.BaseBinarizer')
+        binarizer_cls = hparams.get("binarizer_cls", 'preprocess.base_binarizerr.BaseBinarizer')
         pkg = ".".join(binarizer_cls.split(".")[:-1])
         cls_name = binarizer_cls.split(".")[-1]
         binarizer_cls = getattr(importlib.import_module(pkg), cls_name)

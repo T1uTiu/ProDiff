@@ -129,7 +129,7 @@ class FastDiff(BaseVocoder):
 
     @staticmethod
     def wav2spec(wav_fn, hparams=None, return_linear=False):
-        from data_gen.tts.data_gen_utils import process_utterance
+        from preprocess.data_gen_utils import process_utterance
         res = process_utterance(
             wav_fn, fft_size=hparams['fft_size'],
             hop_size=hparams['hop_size'],

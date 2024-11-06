@@ -10,7 +10,7 @@ from utils.hparams import set_hparams
 from utils.hparams import hparams as hp
 import numpy as np
 
-from data_gen.tts.data_gen_utils import is_sil_phoneme, PUNCS
+from preprocess.data_gen_utils import is_sil_phoneme, PUNCS
 
 class GradioInfer:
     def __init__(self, exp_name, config, inference_cls, title, description, article, example_inputs):

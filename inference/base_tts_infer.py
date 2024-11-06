@@ -4,10 +4,9 @@ import time
 
 import torch
 
-from data_gen.tts.data_gen_utils import build_phone_encoder
+from preprocess.data_gen_utils import build_phone_encoder
 from modules.fastspeech.tts_modules import LengthRegulator
 from tasks.tts.dataset_utils import FastSpeechWordDataset
-from tasks.tts.tts_utils import load_data_preprocessor
 import numpy as np
 from modules.FastDiff.module.util import compute_hyperparams_given_schedule, sampling_given_noise_schedule
 

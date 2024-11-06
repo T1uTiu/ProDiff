@@ -159,7 +159,7 @@ class FastSpeechDataset(BaseDataset):
         sizes = []
         items = []
 
-        binarizer_cls = hparams.get("binarizer_cls", 'data_gen.tts.base_binarizerr.BaseBinarizer')
+        binarizer_cls = hparams.get("binarizer_cls", 'preprocess.base_binarizerr.BaseBinarizer')
         pkg = ".".join(binarizer_cls.split(".")[:-1])
         cls_name = binarizer_cls.split(".")[-1]
         binarizer_cls = getattr(importlib.import_module(pkg), cls_name)

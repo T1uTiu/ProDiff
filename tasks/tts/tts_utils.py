@@ -1,8 +1,7 @@
 import importlib
 
-from data_gen.tts.base_binarizer import BaseBinarizer
-from data_gen.tts.base_preprocess import BasePreprocessor
-from data_gen.tts.txt_processors.base_text_processor import get_txt_processor_cls
+from preprocess.base_binarizer import BaseBinarizer
+from preprocess.txt_processors.base_text_processor import get_txt_processor_cls
 from utils.hparams import hparams
 
 
@@ -32,17 +31,6 @@ def parse_mel_losses():
         loss_and_lambda[l] = lbd
     print("| Mel losses:", loss_and_lambda)
     return loss_and_lambda
-
-
-def load_data_preprocessor():
-    preprocess_cls = hparams["preprocess_cls"]
-    pkg = ".".join(preprocess_cls.split(".")[:-1])
-    cls_name = preprocess_cls.split(".")[-1]
-    preprocessor: BasePreprocessor = getattr(importlib.import_module(pkg), cls_name)()
-    preprocess_args = {}
-    preprocess_args.update(hparams['preprocess_args'])
-    return preprocessor, preprocess_args
-
 
 def load_data_binarizer():
     binarizer_cls = hparams['binarizer_cls']

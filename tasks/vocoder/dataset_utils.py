@@ -169,7 +169,7 @@ class VocoderDataset(BaseDataset):
         sizes = []
         items = []
 
-        binarizer_cls = hparams.get("binarizer_cls", 'data_gen.tts.base_binarizer.BaseBinarizer')
+        binarizer_cls = hparams.get("binarizer_cls", 'preprocess.base_binarizer.BaseBinarizer')
         pkg = ".".join(binarizer_cls.split(".")[:-1])
         cls_name = binarizer_cls.split(".")[-1]
         binarizer_cls = getattr(importlib.import_module(pkg), cls_name)
@@ -188,7 +188,7 @@ class VocoderDataset(BaseDataset):
         sizes = []
         items = []
 
-        binarizer_cls = hparams.get("binarizer_cls", 'data_gen.tts.base_binarizer.BaseBinarizer')
+        binarizer_cls = hparams.get("binarizer_cls", 'preprocess.base_binarizer.BaseBinarizer')
         pkg = ".".join(binarizer_cls.split(".")[:-1])
         cls_name = binarizer_cls.split(".")[-1]
         binarizer_cls = getattr(importlib.import_module(pkg), cls_name)

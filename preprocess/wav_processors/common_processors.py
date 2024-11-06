@@ -2,8 +2,8 @@ import os
 import subprocess
 import librosa
 import numpy as np
-from data_gen.tts.wav_processors.base_processor import BaseWavProcessor, register_wav_processors
-from data_gen.tts.data_gen_utils import trim_long_silences
+from data_gen.wav_processors.base_processor import BaseWavProcessor, register_wav_processors
+from data_gen.data_gen_utils import trim_long_silences
 from utils.audio import save_wav
 from utils.rnnoise import rnnoise
 from utils.hparams import hparams

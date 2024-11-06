@@ -6,8 +6,8 @@ from g2p_en.expand import normalize_numbers
 from nltk import pos_tag
 from nltk.tokenize import TweetTokenizer
 
-from data_gen.tts.txt_processors.base_text_processor import BaseTxtProcessor, register_txt_processors
-from data_gen.tts.data_gen_utils import is_sil_phoneme, PUNCS
+from preprocess.txt_processors.base_text_processor import BaseTxtProcessor, register_txt_processors
+from preprocess.data_gen_utils import is_sil_phoneme, PUNCS
 
 class EnG2p(G2p):
     word_tokenize = TweetTokenizer().tokenize

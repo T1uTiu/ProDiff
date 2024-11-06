@@ -9,7 +9,7 @@ import random
 import traceback
 import json
 from tqdm import tqdm
-from data_gen.tts.data_gen_utils import get_mel2ph_dur, get_pitch, build_phone_encoder
+from preprocess.data_gen_utils import get_mel2ph_dur, get_pitch, build_phone_encoder
 from utils.hparams import set_hparams, hparams
 import numpy as np
 from utils.indexed_datasets import IndexedDatasetBuilder

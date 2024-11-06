@@ -8,7 +8,7 @@ from utils.hparams import set_hparams, hparams
 
 
 def binarize():
-    binarizer_cls = hparams.get("binarizer_cls", 'data_gen.tts.base_binarizer.BaseBinarizer').split(".")
+    binarizer_cls = hparams.get("binarizer_cls", 'preprocess.base_binarizer.BaseBinarizer').split(".")
     pkg, cls_name = ".".join(binarizer_cls[:-1]), binarizer_cls[-1]
     binarizer_cls = getattr(importlib.import_module(pkg), cls_name)
     print("| Binarizer: ", binarizer_cls)
