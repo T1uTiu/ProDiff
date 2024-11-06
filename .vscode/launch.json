@@ -54,9 +54,9 @@
             "program": "${workspaceFolder}/inference/Prodiff_Acoustic.py",
             "console": "internalConsole",
             "args": [
-                "--config", "data/Opencpop+TiuTiu/config.yaml",
+                "--config", "data/Opencpop+TiuTiu/config_new.yaml",
                 "--exp_name", "Opencpop+TiuTiu",
-                "--spk_name", "TiuTiu:0.2|Opencpop:0.8",
+                "--spk_name", "TiuTiu:0.3|Opencpop:0.7",
                 "--reset",
                 "--proj", "E:/Project/贴唱混音/怎配/Raw/怎配_chen.ds"
             ],
@@ -95,13 +95,6 @@
             "args": [
                 "--config", "data/Opencpop+TiuTiu/config.yaml",
             ]
-        },
-        {
-            "name": "web launch",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/web/server.py",
-            "console": "internalConsole",
         }
     ]
 }
