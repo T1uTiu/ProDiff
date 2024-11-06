@@ -29,13 +29,16 @@ class AcousticBinarizer(BaseBinarizer):
             item_names = self.test_item_names
         else:
             item_names = self.train_item_names
-        
-        for item_name in item_names:
-            ph = self.item2ph[item_name] # Phoneme
-            txt = self.item2txt[item_name] # Text
-            wav_fn = self.item2wavfn[item_name] # Audio file name
-            spk_id = self.item_name2spk_id(item_name)
-            dur = self.item2dur[item_name]
-            yield item_name, ph, dur, txt, wav_fn, spk_id
+        key_shift = int(self.binarization_args.get('key_shift', -1))
+        key_shifts = [-key_shift, 0, key_shift] if key_shift != -1 else [0]
+        for ks in key_shifts:
+            for item_name in item_names:
+                ph = self.item2ph[item_name] # Phoneme
+                txt = self.item2txt[item_name] # Text
+                wav_fn = self.item2wavfn[item_name] # Audio file name
+                spk_id = self.item_name2spk_id(item_name)
+                dur = self.item2dur[item_name]
+
+                yield item_name, ph, dur, txt, wav_fn, spk_id, ks
     
     

@@ -26,7 +26,7 @@ def override_config(old_config: dict, new_config: dict):
             old_config[k] = v
 
 
-def set_hparams(config='', exp_name='', hparams_str='', print_hparams=True, global_hparams=True):
+def set_hparams(config='', exp_name='', spk_name='',proj='', hparams_str='', print_hparams=True, global_hparams=True):
     if config == '' and exp_name == '':
         parser = argparse.ArgumentParser(description='')
         parser.add_argument('--config', type=str, default='configs/config_base.yaml',
@@ -45,7 +45,7 @@ def set_hparams(config='', exp_name='', hparams_str='', print_hparams=True, glob
         args, unknown = parser.parse_known_args()
     else:
         args = Args(config=config, exp_name=exp_name, task_cls="ProDiff", hparams=hparams_str,
-                    infer=False, validate=False, reset=False, debug=False, proj='', spk_name='')
+                    infer=False, validate=False, reset=False, remove=False, debug=False, proj=proj, spk_name=spk_name)
     global hparams
     assert args.config != '' or args.exp_name != ''
 

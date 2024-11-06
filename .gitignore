@@ -162,3 +162,5 @@ dmypy.json
 /.vscode
 
 /samples
+
+/web

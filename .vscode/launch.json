@@ -42,9 +42,9 @@
             "args": [
                 "--config", "data/Opencpop+TiuTiu/config.yaml",
                 "--exp_name", "Opencpop+TiuTiu_Teacher",
-                "--spk_name", "Opencpop:0.5|TiuTiu:0.5",
+                "--spk_name", "TiuTiu:0.9|Opencpop:0.1",
                 "--reset",
-                "--proj", "samples/02_一生之幸.ds"
+                "--proj", "samples/光年之外.ds"
             ],
         },
         {
@@ -54,10 +54,11 @@
             "program": "${workspaceFolder}/inference/Prodiff_Acoustic.py",
             "console": "internalConsole",
             "args": [
-                "--config", "data/Opencpop/binary/config.yaml",
-                "--exp_name", "opencpop",
+                "--config", "data/Opencpop+TiuTiu/config.yaml",
+                "--exp_name", "Opencpop+TiuTiu",
+                "--spk_name", "TiuTiu:0.2|Opencpop:0.8",
                 "--reset",
-                "--proj", "samples/光年之外.ds"
+                "--proj", "E:/Project/贴唱混音/怎配/Raw/怎配_chen.ds"
             ],
         },
         {
@@ -94,6 +95,13 @@
             "args": [
                 "--config", "data/Opencpop+TiuTiu/config.yaml",
             ]
+        },
+        {
+            "name": "web launch",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/web/server.py",
+            "console": "internalConsole",
         }
     ]
 }

@@ -1,4 +1,5 @@
 import sys, os
+import time
 sys.path.append(os.getcwd())
 
 from vocoders.base_vocoder import VOCODERS
@@ -66,7 +67,9 @@ class ProDiffInfer(BaseTTSInfer):
         else:
             spk_mix_embed = None
         with torch.no_grad():
+            start_time = time.time()
             output = self.model(ph_tokens, f0=f0_seqs, mel2ph=mel2phs, infer=True,spk_mix_embed=spk_mix_embed)
+            print(f"Inference Time: {time.time() - start_time}")
             mel_out = output['mel_out']
             wav_out = self.run_vocoder(mel_out, f0=f0_seqs)
         wav_out = wav_out.squeeze().cpu().numpy()

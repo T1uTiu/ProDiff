@@ -93,8 +93,6 @@ class BaseBinarizer:
         data_dir = hparams['binary_data_dir']
         builder = IndexedDatasetBuilder(f'{data_dir}/{prefix}')
         lengths, f0s, total_sec = [], [], 0 # 统计信息
-        if self.binarization_args['with_spk_embed']:
-            voice_encoder = VoiceEncoder().cuda()
 
         meta_data = self.meta_data(prefix)
         args = [list(m) + [self.phone_encoder, self.lr, hparams] for m in meta_data]
@@ -104,8 +102,7 @@ class BaseBinarizer:
                 zip(tqdm(args), chunked_multiprocess_run(self.process_item, args, num_workers=num_workers))):
             if item is None:
                 continue
-            item['spk_embed'] = voice_encoder.embed_utterance(item['wav']) \
-                if self.binarization_args['with_spk_embed'] else None
+            item['spk_embed'] =  None
             builder.add_item(item)
             lengths.append(item['len'])
             total_sec += item['sec']
@@ -119,7 +116,7 @@ class BaseBinarizer:
         print(f"| {prefix} total duration: {total_sec:.3f}s")
 
     @classmethod
-    def process_item(cls, item_name, ph, dur, txt, wav_fn, spk_id, encoder, lr, hparams):
+    def process_item(cls, item_name, ph, dur, txt, wav_fn, spk_id, key_shift, encoder, lr, hparams):
         if hparams['vocoder'] in VOCODERS:
             wav, mel = VOCODERS[hparams['vocoder']].wav2spec(wav_fn, hparams=hparams)
         else:

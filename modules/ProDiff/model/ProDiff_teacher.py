@@ -159,10 +159,10 @@ class GaussianDiffusion(nn.Module):
         cond = ret['decoder_inp'].transpose(1, 2)
         if not infer: # 训练
             t = torch.randint(0, self.num_timesteps + 1, (b,), device=device).long()
-            # Diffusion
+            # Diffusion forward process
             x_t = self.diffuse_fn(ref_mels, t) * nonpadding
 
-            # Predict x_{start}
+            # Diffusion reverse process: directly predict x_0
             x_0_pred = self.denoise_fn(x_t, t, cond) * nonpadding
 
             ret['mel_out'] = x_0_pred[:, 0].transpose(1, 2) # [B, T, 80]

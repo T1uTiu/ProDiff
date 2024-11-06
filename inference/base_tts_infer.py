@@ -176,7 +176,6 @@ class BaseTTSInfer:
         }
 
         if hparams["use_spk_id"]:
-            spk_name = inp.get('spk_name', 'SPK1')
             spk_mix_id, spk_mix_value = self.load_speaker_mix()
             item["spk_mix_id"] = spk_mix_id
             item["spk_mix_value"] = spk_mix_value
@@ -193,14 +192,16 @@ class BaseTTSInfer:
         return output
 
     @classmethod
-    def example_run(cls):
+    def example_run(cls, save_audio=True, return_audio=False):
         from utils.hparams import set_hparams
         from utils.hparams import hparams as hp
         from utils.audio import save_wav
 
+        torch.manual_seed(time.time())
+
         set_hparams()
         infer_ins = cls(hp)
-        with open(hp['binary_data_dir'] + '/phone_uv_set.json', 'r', encoding='utf-8') as f:
+        with open('dictionaries/phone_uv_set.json', 'r', encoding='utf-8') as f:
             phone_uv_set = json.load(f)
             hp['phone_uv_set'] = set(phone_uv_set)
         with open(hp["proj"], 'r', encoding='utf-8') as f:
@@ -209,13 +210,15 @@ class BaseTTSInfer:
         total_length = 0
         
         for i, segment in enumerate(project):
-            start_time = time.time()
             out = infer_ins.infer_once(segment)
-            print(f'Segment: {i} Inference time: {time.time() - start_time:.2f}s')
             os.makedirs('infer_out', exist_ok=True)
             offset = int(segment.get('offset', 0) * hp["audio_sample_rate"])
             out = np.concatenate([np.zeros(max(offset-total_length, 0)), out])
             total_length += len(out)
             result.append(out)
         
-        save_wav(np.concatenate(result), f'infer_out/{hp["title"]}【{hp["exp_name"]}】.wav', hp['audio_sample_rate'])
+        audio = np.concatenate(result)
+        if save_audio:
+            save_wav(np.concatenate(result), f'infer_out/{hp["title"]}【{hp["exp_name"]}】.wav', hp['audio_sample_rate'])
+        if return_audio:
+            return audio

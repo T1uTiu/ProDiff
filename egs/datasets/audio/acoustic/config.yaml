@@ -6,6 +6,8 @@ processed_data_dir: 'data/TiuTiu/processed'
 binary_data_dir: 'data/TiuTiu/binary'
 
 binarizer_cls: egs.datasets.audio.acoustic.binarizer.AcousticBinarizer
+binarization_args:
+  key_shift: 2
 dictionary: dictionaries/opencpop-strict.txt
 test_num: 100
 valid_num: 100
