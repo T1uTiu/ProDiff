@@ -159,6 +159,6 @@ dmypy.json
 # 数据
 /data
 
-/.vscode/
+.vscode
 
 /samples

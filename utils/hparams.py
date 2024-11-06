@@ -5,10 +5,6 @@ import subprocess
 import yaml
 
 global_print_hparams = True
-task_cls_mapping = {
-    "ProDiff_Teacher": "modules.ProDiff.task.ProDiff_teacher_task.ProDiff_teacher_Task",
-    "ProDiff": "modules.ProDiff.task.ProDiff_task.ProDiff_Task",
-}
 hparams = {}
 
 
@@ -117,8 +113,7 @@ def set_hparams(config='', exp_name='', spk_name='', hparams_str='', print_hpara
     hparams_['validate'] = args.validate
     hparams_['exp_name'] = args.exp_name
     hparams_['spk_name'] = args.spk_name
-    assert args.task_cls in task_cls_mapping, f"task_cls should be in {task_cls_mapping.keys()}"
-    hparams_["task_cls"] = task_cls_mapping[args.task_cls]
+
         
     global global_print_hparams
     if global_hparams:
