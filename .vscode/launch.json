@@ -65,6 +65,18 @@
             "args": [
                 "--config", "data/Opencpop+TiuTiu/config.yaml",
             ]
+        },
+        {
+            "name": "vocode",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/script/vocode.py",
+            "console": "internalConsole",
+            "args": [
+                "wav2wav",
+                "E:/Project/贴唱混音/吹梦24/已导入文件/test.wav",
+                "--config", "preprocess/config.yaml",
+            ]
         }
     ]
 }
