@@ -194,7 +194,7 @@ class TokenTextEncoder(TextEncoder):
         self.unk_index = self._token_to_id[UNK]
         self.seg_index = self._token_to_id[SEG] if SEG in self._token_to_id else self.eos_index
 
-    def encode(self, s):
+    def encode(self, s, lang ='zh'):
         """Converts a space-separated string of tokens to a list of ids."""
         sentence = s
         tokens = sentence.strip().split()

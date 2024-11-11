@@ -57,6 +57,7 @@ class ProDiffInfer(BaseTTSInfer):
         ph_tokens = inp['ph_tokens']  # [B, T_t]
         mel2phs = inp['mel2phs']  # [B, T_t]
         f0_seqs = inp['f0_seqs']  # [B, frame]
+        language = inp['language']
         if hparams['use_spk_id']:
             spk_mix_id = inp['spk_mix_id']
             spk_mix_value = inp['spk_mix_value']
@@ -68,7 +69,7 @@ class ProDiffInfer(BaseTTSInfer):
             spk_mix_embed = None
         with torch.no_grad():
             start_time = time.time()
-            output = self.model(ph_tokens, f0=f0_seqs, mel2ph=mel2phs, infer=True,spk_mix_embed=spk_mix_embed)
+            output = self.model(ph_tokens, f0=f0_seqs, mel2ph=mel2phs, infer=True,spk_mix_embed=spk_mix_embed, language=language)
             print(f"Inference Time: {time.time() - start_time}")
             mel_out = output['mel_out']
             wav_out = self.run_vocoder(mel_out, f0=f0_seqs)

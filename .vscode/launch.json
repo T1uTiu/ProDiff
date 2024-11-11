@@ -4,47 +4,18 @@
     // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-
-        
-
-        {
-            "name": "lj_inference",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/inference/Prodiff.py",
-            "console": "internalConsole",
-            "args": [
-                "--config", "modules/ProDiff/config/prodiff.yaml",
-                "--exp_name", "ProDiff",
-                "--reset",
-                "--proj", "samples/test.ds"
-            ]
-        },
-        {
-            "name": "lj_inference_teacher",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/inference/Prodiff_Teacher.py",
-            "console": "internalConsole",
-            "args": [
-                "--config", "modules/ProDiff/config/prodiff_teacher.yaml",
-                "--exp_name", "ProDiff",
-                "--reset",
-                "--proj", "samples/test_teacher.ds"
-            ]
-        },
         {
             "name": "acoustic_inference_teacher",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/inference/Prodiff_Teacher_Acoustic.py",
+            "program": "${workspaceFolder}/script/infer.py",
             "console": "internalConsole",
             "args": [
+                "teacher",
+                "samples/光年之外.ds",
                 "--config", "data/Opencpop+TiuTiu/config.yaml",
                 "--exp_name", "Opencpop+TiuTiu_Teacher",
                 "--spk_name", "TiuTiu:0.9|Opencpop:0.1",
-                "--reset",
-                "--proj", "samples/光年之外.ds"
             ],
         },
         {
@@ -65,32 +36,31 @@
             "name": "acoustic_train_teacher",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/tasks/run.py",
+            "program": "${workspaceFolder}/script/train.py",
             "console": "internalConsole",
             "args": [
+                "teacher",
                 "--config", "data/Opencpop+TiuTiu/config.yaml",
                 "--exp_name", "Opencpop+TiuTiu_Teacher",
-                "--task_cls", "ProDiff_Teacher",
-                "--reset"
             ],
         },
         {
             "name": "acoustic_train",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/tasks/run.py",
+            "program": "${workspaceFolder}/script/train.py",
             "console": "internalConsole",
             "args": [
+                "student",
                 "--config", "data/Opencpop/binary/config.yaml",
                 "--exp_name", "Opencpop",
-                "--reset"
             ],
         },
         {
             "name": "binary",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/data_gen/tts/bin/binarize.py",
+            "program": "${workspaceFolder}/script/binarize.py",
             "console": "internalConsole",
             "args": [
                 "--config", "data/Opencpop+TiuTiu/config.yaml",

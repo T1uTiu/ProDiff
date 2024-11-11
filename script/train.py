@@ -2,7 +2,7 @@ import os, sys
 sys.path.append(os.getcwd())
 
 import click
-from utils.hparams import set_hparams, hparams
+from utils.hparams import set_hparams
 from modules.ProDiff.task.ProDiff_teacher_task import ProDiff_teacher_Task
 from modules.ProDiff.task.ProDiff_task import ProDiff_Task
 

@@ -27,6 +27,7 @@ class BaseTTSInfer:
         self.data_dir = hparams['binary_data_dir']
         self.ph_encoder = build_phone_encoder(self.data_dir)
         self.spk_map = self.build_spk_map()
+        self.lang_map = self.build_lang_map()
         self.ds_cls = FastSpeechWordDataset
         self.model = self.build_model()
         self.model.eval()
@@ -35,8 +36,17 @@ class BaseTTSInfer:
 
     def build_spk_map(self):
         spk_map_fn = os.path.join(self.data_dir, 'spk_map.json')
-        spk_map = json.load(open(spk_map_fn, 'r'))
+        assert os.path.exists(spk_map_fn), f"Speaker map file {spk_map_fn} not found"
+        with open(spk_map_fn, 'r') as f:
+            spk_map = json.load(f)
         return spk_map
+    
+    def build_lang_map(self):
+        lang_map_fn = os.path.join(self.data_dir, 'lang_map.json')
+        assert os.path.exists(lang_map_fn), f"Language map file {lang_map_fn} not found"
+        with open(lang_map_fn, 'r') as f:
+            lang_map = json.load(f)
+        return lang_map
 
     def build_model(self):
         raise NotImplementedError
@@ -73,15 +83,34 @@ class BaseTTSInfer:
         return spk_mix_id, spk_mix_value
     
     def preprocess_input(self, inp):
+        """
+        :param inp: one segment in the .ds file, dict type
+        :return: batch of the model inputs
+        """
         hparams = self.hparams
+        res = {}
 
         ph = inp.get("ph_seq") # 音素
-        ph_token = torch.LongTensor(self.ph_encoder.encode(ph)).to(self.device)[None, :] # [B=1, T_txt]
+
+        lang = inp.get("lang")
+        if lang is None:
+            lang = "zh"
+        if hparams["use_lang_id"]:
+            language = torch.LongTensor(
+                [self.lang_map[lang]] * len(ph.split())
+            ).to(self.device)[None, :] # [B=1, T_txt]
+            res["language"] = language
+
+        ph_token = torch.LongTensor(
+            self.ph_encoder.encode(ph, lang)
+        ).to(self.device)[None, :] # [B=1, T_txt]
+        res["ph_tokens"] = ph_token
         
         ph_dur = torch.from_numpy(np.array(inp.get("ph_dur").split(), np.float32)).to(self.device) # 音素时长
         ph_acc = torch.round(torch.cumsum(ph_dur, dim=0) / self.timestep + 0.5).long()
         durations = torch.diff(ph_acc, dim=0, prepend=torch.LongTensor([0]).to(self.device))[None]  # => [B=1, T_txt]
         mel2ph = self.lr(durations, ph_token == 0)  # => [B=1, T]
+        res["mel2phs"] = mel2ph
         
         f0_seq = resample_align_curve(
             np.array(inp.get('f0_seq').split(), np.float32),
@@ -91,24 +120,19 @@ class BaseTTSInfer:
         )
         f0_seq = setuv_f0(f0_seq, ph.split(), durations.cpu().numpy().squeeze(), hparams['phone_uv_set'])
         f0_seq = torch.from_numpy(f0_seq)[None, :].to(self.device) # [B=1, T_mel]
-
-        item = {
-            'ph_tokens': ph_token,
-            'mel2phs': mel2ph,
-            'f0_seqs': f0_seq
-        }
+        res["f0_seqs"] = f0_seq
 
         if hparams["use_spk_id"]:
             spk_mix_id, spk_mix_value = self.load_speaker_mix()
-            item["spk_mix_id"] = spk_mix_id
-            item["spk_mix_value"] = spk_mix_value
-        return item
+            res["spk_mix_id"] = spk_mix_id
+            res["spk_mix_value"] = spk_mix_value
+        return res
 
 
     def postprocess_output(self, output):
         return output
 
-    def infer_once(self, inp):
+    def infer_once(self, inp: dict):
         inp = self.preprocess_input(inp)
         output = self.forward_model(inp)
         output = self.postprocess_output(output)
