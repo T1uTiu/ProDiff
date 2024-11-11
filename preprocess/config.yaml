@@ -1,0 +1,235 @@
+#############
+# basic
+#############
+teacher_ckpt: checkpoints\Opencpop+TiuTiu_Teacher\model_ckpt_steps_48000.ckpt
+work_dir: '' # experiment directory.
+infer: false # inference
+amp: false
+seed: 1234
+debug: false
+save_codes: []
+
+#############
+# dataset
+#############
+raw_data_dir: [data/TiuTiu/raw, data/Opencpop/raw]
+processed_data_dir: [data/TiuTiu/processed, data/Opencpop/processed]
+binary_data_dir: 'data/Opencpop+TiuTiu/binary'
+dictionary: dictionaries/opencpop-strict.txt
+num_spk: 2
+speakers: [Opencpop, TiuTiu]
+ds_workers: 2
+test_num: 6
+valid_num: 6
+endless_ds: true
+sort_by_len: true
+binarizer_cls: egs.datasets.audio.acoustic.binarizer.AcousticBinarizer
+binarization_args:
+  shuffle: false
+  with_txt: true
+  with_wav: false
+  with_align: true
+  with_spk_embed: false
+  with_spk_id: true
+  with_f0: true
+  with_f0cwt: false
+  with_linear: false
+  with_word: true
+  trim_sil: false
+  trim_eos_bos: false
+  reset_phone_dict: true
+  reset_word_dict: true
+  key_shift: 2
+word_size: 30000
+pitch_extractor: parselmouth
+interp_uv: true
+loud_norm: false
+min_frames: 0
+max_frames: 1548
+frames_multiple: 1
+max_input_tokens: 1550
+audio_num_mel_bins: 128
+audio_sample_rate: 44100
+hop_size: 512  # For 22050Hz, 275 ~= 12.5 ms (0.0125 * sample_rate)
+win_size: 2048  # For 22050Hz, 1100 ~= 50 ms (If None, win_size: fft_size) (0.05 * sample_rate)
+fmin: 40  # Set this to 55 if your speaker is male! if female, 95 should help taking off noise. (To test depending on dataset. Pitch info: male~[65, 260], female~[100, 525])
+fmax: 16000  # To be increased/reduced depending on data.
+fft_size: 2048  # Extra window size is filled with 0 paddings to match this parameter
+min_level_db: -100
+ref_level_db: 20
+griffin_lim_iters: 60
+mel_vmin: -6
+mel_vmax: 1.5
+
+#########
+# train and eval
+#########
+task_cls: modules.ProDiff.task.ProDiff_task.ProDiff_Task
+print_nan_grads: false
+load_ckpt: ''
+save_best: true
+num_ckpt_keep: 3
+clip_grad_norm: 1
+accumulate_grad_batches: 1
+tb_log_interval: 10
+num_sanity_val_steps: -1  # steps of validation at the beginning
+check_val_every_n_epoch: 10
+val_check_interval: 2000
+valid_monitor_key: 'val_loss'
+valid_monitor_mode: 'min'
+max_epochs: 1000
+max_updates: 200000
+max_tokens: 32000
+max_sentences: 48
+max_valid_tokens: -1
+max_valid_sentences: 1
+test_input_dir: ''
+resume_from_checkpoint: 0
+rename_tmux: true
+
+valid_infer_interval: 10000
+train_set_name: 'train'
+train_sets: ''
+valid_set_name: 'valid'
+test_set_name: 'test'
+num_test_samples: 20
+num_valid_plots: 10
+test_ids: [ ]
+vocoder_denoise_c: 0.0
+profile_infer: false
+out_wav_norm: false
+save_gt: true
+save_f0: false
+gen_dir_name: ''
+
+pretrain_fs_ckpt: ''
+use_gt_dur: false
+use_gt_f0: false
+
+
+#########
+# model
+#########
+dropout: 0.1
+encoder_type: fft # rel_fft|fft|tacotron|tacotron2|conformer
+decoder_type: fft # fft|rnn|conv|conformer|wn
+
+# rnn enc/dec
+encoder_K: 8
+decoder_rnn_dim: 0 # for rnn decoder, 0 -> hidden_size * 2
+
+# fft enc/dec
+dec_num_heads: 2
+enc_layers: 4
+dec_layers: 4
+ffn_hidden_size: 1024
+hidden_size: 256
+num_heads: 2
+enc_ffn_kernel_size: 9
+dec_ffn_kernel_size: 9
+ffn_act: gelu
+ffn_padding: 'SAME'
+use_spk_id: true
+use_split_spk_id: false
+use_spk_embed: false
+use_pos_embed: true
+
+# conv enc/dec
+enc_dec_norm: ln
+conv_use_pos: false
+layers_in_block: 2
+enc_dilations: [ 1, 1, 1, 1 ]
+enc_kernel_size: 5
+dec_dilations: [ 1, 1, 1, 1 ] # for conv decoder
+dec_kernel_size: 5
+dur_loss: mse # huber|mol
+
+# duration
+use_dur_embed: true
+predictor_hidden: -1
+predictor_kernel: 5
+predictor_layers: 2
+dur_predictor_kernel: 3
+dur_predictor_layers: 2
+predictor_dropout: 0.5
+
+# pitch and energy
+pitch_norm: log # standard|log
+use_pitch_embed: true
+pitch_type: frame # frame|ph|cwt
+f0_embed_type: continuous # continuous|discrete
+use_uv: true
+cwt_hidden_size: 128
+cwt_layers: 2
+cwt_loss: l1
+cwt_add_f0_loss: false
+cwt_std_scale: 0.8
+
+pitch_ar: false
+pitch_loss: 'l1' # l1|l2|ssim
+pitch_ssim_win: 11
+use_energy_embed: false
+
+# reference encoder and speaker embedding
+use_ref_enc: false
+use_var_enc: false
+lambda_commit: 0.25
+var_enc_vq_codes: 64
+ref_norm_layer: bn
+dec_inp_add_noise: false
+sil_add_noise: false
+ref_hidden_stride_kernel:
+  - 0,3,5 # conv_hidden_size, conv_stride, conv_kernel_size. conv_hidden_size=0: use hidden_size
+  - 0,3,5
+  - 0,2,5
+  - 0,2,5
+  - 0,2,5
+pitch_enc_hidden_stride_kernel:
+  - 0,2,5 # conv_hidden_size, conv_stride, conv_kernel_size. conv_hidden_size=0: use hidden_size
+  - 0,2,5
+  - 0,2,5
+dur_enc_hidden_stride_kernel:
+  - 0,2,3 # conv_hidden_size, conv_stride, conv_kernel_size. conv_hidden_size=0: use hidden_size
+  - 0,2,3
+  - 0,1,3
+
+# mel
+mel_loss: l1:0.5|ssim:0.5 # l1|l2|gdl|ssim or l1:0.5|ssim:0.5
+
+# loss lambda
+lambda_f0: 1.0
+lambda_uv: 1.0
+lambda_energy: 0.1
+lambda_ph_dur: 0.1
+lambda_sent_dur: 1.0
+lambda_word_dur: 1.0
+predictor_grad: 0.1
+
+# vocoder
+vocoder: nsfhifigan
+vocoder_ckpt: checkpoints/nsf_hifigan/model
+
+# diffusion
+diff_decoder_type: 'wavenet'
+dilation_cycle_length: 1
+residual_layers: 20
+residual_channels: 256
+keep_bins: 80
+spec_min: [ ]
+spec_max: [ ]
+diff_loss_type: l1
+max_beta: 0.06
+timesteps: 4
+timescale: 1
+schedule_type: 'vpsde'
+
+###########
+# optimization
+###########
+lr: 1.0
+scheduler: rsqrt # rsqrt|none
+warmup_updates: 2000
+optimizer_adam_beta1: 0.9
+optimizer_adam_beta2: 0.98
+weight_decay: 0
+clip_grad_value: 0
