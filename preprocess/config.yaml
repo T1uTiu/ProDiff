@@ -12,10 +12,24 @@ save_codes: []
 #############
 # dataset
 #############
-raw_data_dir: [data/TiuTiu/raw, data/Opencpop/raw]
-processed_data_dir: [data/TiuTiu/processed, data/Opencpop/processed]
+datasets:
+  - raw_data_dir : data/Opencpop/raw
+    processed_data_dir : data/Opencpop/processed
+    speaker: Opencpop
+    language: zh
+  - raw_data_dir : data/TiuTiu/raw
+    processed_data_dir : data/TiuTiu/processed
+    speaker: TiuTiu
+    language: zh
+  - raw_data_dir : data/kiritan/raw
+    processed_data_dir : data/kiritan/processed
+    speaker: kiritan
+    language: jp
 binary_data_dir: 'data/Opencpop+TiuTiu/binary'
-dictionary: dictionaries/opencpop-strict.txt
+dictionary: 
+  zh: dictionaries/zh.txt
+  jp: dictionaries/jp.txt
+  merge: dictionaries/merge.json
 num_spk: 2
 speakers: [Opencpop, TiuTiu]
 ds_workers: 2
@@ -133,6 +147,7 @@ use_spk_id: true
 use_split_spk_id: false
 use_spk_embed: false
 use_pos_embed: true
+use_lang_id: true
 
 # conv enc/dec
 enc_dec_norm: ln

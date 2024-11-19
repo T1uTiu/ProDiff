@@ -4,15 +4,9 @@ import time
 
 import numpy as np
 import torch
-
-from modules.FastDiff.module.FastDiff_model import FastDiff
-from modules.FastDiff.module.util import (compute_hyperparams_given_schedule,
-                                          sampling_given_noise_schedule)
 from modules.fastspeech.tts_modules import LengthRegulator
 from preprocess.data_gen_utils import build_phone_encoder
 from tasks.tts.dataset_utils import FastSpeechWordDataset
-from utils.ckpt_utils import load_ckpt
-from utils.hparams import set_hparams
 from utils.pitch_utils import resample_align_curve, setuv_f0
 
 
