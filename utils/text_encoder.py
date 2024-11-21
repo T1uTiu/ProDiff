@@ -197,7 +197,7 @@ class TokenTextEncoder(TextEncoder):
     def encode(self, s, lang ='zh'):
         """Converts a space-separated string of tokens to a list of ids."""
         sentence = s
-        tokens = sentence.strip().split()
+        tokens = sentence.strip().split() if type(sentence) == str else sentence
         if self._replace_oov is not None:
             tokens = [t if t in self._token_to_id else self._replace_oov
                         for t in tokens]

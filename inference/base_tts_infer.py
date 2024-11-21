@@ -5,7 +5,7 @@ import time
 import numpy as np
 import torch
 from modules.fastspeech.tts_modules import LengthRegulator
-from preprocess.data_gen_utils import build_phone_encoder
+from utils.data_gen_utils import build_phone_encoder
 from tasks.tts.dataset_utils import FastSpeechWordDataset
 from utils.pitch_utils import resample_align_curve, setuv_f0
 

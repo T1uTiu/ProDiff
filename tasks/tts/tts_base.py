@@ -6,7 +6,7 @@ from utils.plot import spec_to_figure
 
 matplotlib.use('Agg')
 
-from preprocess.data_gen_utils import get_pitch
+from utils.data_gen_utils import get_pitch
 from modules.fastspeech.tts_modules import mel2ph_to_dur
 from tasks.tts.dataset_utils import BaseTTSDataset
 from utils.tts_utils import sequence_mask

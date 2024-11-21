@@ -60,22 +60,26 @@
             "name": "binary",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/script/binarize.py",
+            "program": "${workspaceFolder}/main.py",
             "console": "internalConsole",
             "args": [
-                "--config", "data/Opencpop+TiuTiu/config.yaml",
+                "binarize",
+                "--config", "data/opencpop_tiutiu_kiritan/config.yaml",
+                "--exp_name", "opencpop_tiutiu_kiritan",
             ]
         },
         {
             "name": "vocode",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/script/vocode.py",
+            "program": "${workspaceFolder}/main.py",
             "console": "internalConsole",
             "args": [
+                "vocode",
                 "wav2wav",
-                "E:/Project/贴唱混音/吹梦24/已导入文件/test.wav",
+                "C:\\Users\\suish\\Desktop/song_1_0.wav",
                 "--config", "preprocess/config.yaml",
+                "--keyshift", "2"
             ]
         }
     ]

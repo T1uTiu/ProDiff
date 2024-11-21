@@ -25,19 +25,16 @@ datasets:
     processed_data_dir : data/kiritan/processed
     speaker: kiritan
     language: jp
-binary_data_dir: 'data/Opencpop+TiuTiu/binary'
+binary_data_dir: 'data/test/binary'
 dictionary: 
-  zh: dictionaries/zh.txt
-  jp: dictionaries/jp.txt
-  merge: dictionaries/merge.json
-num_spk: 2
-speakers: [Opencpop, TiuTiu]
+  zh: dictionary/zh.txt
+  jp: dictionary/jp.txt
+merged_phoneme_dict: dictionary/merged_phoneme_dict.json
 ds_workers: 2
 test_num: 6
 valid_num: 6
 endless_ds: true
 sort_by_len: true
-binarizer_cls: egs.datasets.audio.acoustic.binarizer.AcousticBinarizer
 binarization_args:
   shuffle: false
   with_txt: true
@@ -53,7 +50,6 @@ binarization_args:
   trim_eos_bos: false
   reset_phone_dict: true
   reset_word_dict: true
-  key_shift: 2
 word_size: 30000
 pitch_extractor: parselmouth
 interp_uv: true

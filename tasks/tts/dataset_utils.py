@@ -15,7 +15,7 @@ from utils.hparams import hparams
 from utils.pitch_utils import norm_interp_f0
 from resemblyzer import VoiceEncoder
 import json
-from preprocess.data_gen_utils import build_phone_encoder
+from utils.data_gen_utils import build_phone_encoder
 
 class BaseTTSDataset(BaseDataset):
     def __init__(self, prefix, shuffle=False, test_items=None, test_sizes=None, data_dir=None):

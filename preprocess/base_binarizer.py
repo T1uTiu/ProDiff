@@ -3,6 +3,8 @@ from typing import List
 
 import torch
 
+from utils.text_encoder import TokenTextEncoder
+
 os.environ["OMP_NUM_THREADS"] = "1"
 
 import json
@@ -46,16 +48,13 @@ class BinarizationError(Exception):
 class BaseBinarizer:
     def __init__(self):
         self.datasets: dict = hparams['datasets']
-        self.raw_data_dirs = hparams['raw_data_dir']
-        self.processed_data_dirs = hparams['processed_data_dir']
         self.binary_data_dir = hparams['binary_data_dir']
         self.binarization_args = hparams['binarization_args']
         os.makedirs(self.binary_data_dir, exist_ok=True)
 
-        self.speakers = hparams['speakers']
         self.spk_map, self.spk_ids = self.build_spk_map()
 
-        self.phone_encoder = self.build_phone_encoder()
+        self.ph2merged, self.phone_encoder = self.build_phone_encoder()
 
         self.lr = LengthRegulator()
         self.load_meta_data()
@@ -74,7 +73,11 @@ class BaseBinarizer:
     @property
     def test_items(self):
         return self.transcription_item_list[0: hparams['test_num']]  # Audios for MOS testing are in 'test_ids'
-    
+
+    def get_ph_name(self, ph, language):
+        ph = f"{ph}/{language}"
+        return ph if ph not in self.ph2merged else self.ph2merged[ph]
+
     def load_meta_data(self):
         self.transcription_item_list: List[TranscriptionItem] = []
         for ds_id, dataset in enumerate(self.datasets):
@@ -88,7 +91,7 @@ class BaseBinarizer:
                 item = TranscriptionItem(
                     item_name=item_name,
                     text=r[1],
-                    phoneme_raw=r[2],
+                    phoneme_raw=[self.get_ph_name(p, dataset["language"]) for p in r[2].split(' ')],
                     duration=[float(x) for x in r[5].split(' ')],
                     wav_fn=f"{raw_data_dir}/wav/{raw_item_name}.wav",
                     speaker_id=self.spk_map[dataset["speaker"]]
@@ -106,7 +109,7 @@ class BaseBinarizer:
         return items
 
     def build_spk_map(self):
-        spk_ids = list(range(len(self.speakers)))
+        spk_ids = list(range(len(self.datasets)))
         spk_map = {ds["speaker"]: i for i, ds in enumerate(self.datasets)}
         print("| spk_map: ", spk_map)
         spk_map_fn = f"{hparams['binary_data_dir']}/spk_map.json"
@@ -115,32 +118,31 @@ class BaseBinarizer:
         return spk_map, spk_ids
 
     def build_phone_encoder(self):
+        ph2merged = {}
+        if hparams["merged_phoneme_dict"] is not None and hparams["merged_phoneme_dict"] != "":
+            f = open(hparams["merged_phoneme_dict"], 'r')
+            merge_dict = json.load(f)
+            for merged, phs in merge_dict.items():
+                for ph in phs:
+                    ph2merged[ph] = merged
+            f.close()
+
         ph_set_fn = f"{hparams['binary_data_dir']}/phone_set.json"
         ph_set = set(['AP', "SP"])
         if not os.path.exists(ph_set_fn):
-            merge_ph = {}
-            if "merge" in hparams["dictionary"]:
-                f = open(hparams["dictionary"]["merge"], 'r')
-                merge_dict = json.load(f)
-                for merged, original in merge_dict.items():
-                    merge_ph[original] = merged
+            for lang, dictionary in hparams["dictionary"].items():
+                f = open(dictionary, 'r')
+                for x in f.readlines():
+                    ph_list = x.split("\n")[0].split('\t')[1].split(' ')
+                    for ph in ph_list:
+                        ph = f"{ph}/{lang}"
+                        ph_set.add(ph2merged[ph] if ph in ph2merged else ph)
                 f.close()
-            for dictionary in hparams[["dictionary"]]:
-                with open(dictionary, 'r') as f:
-                    for x in f.readlines():
-                        ph_list = x.split("\n")[0].split('\t')[1].split(' ')
-                        for ph in ph_list:
-                            if ph in merge_ph:
-                                ph_set.add(merge_ph[ph])
-                            else:
-                                ph_set.add(ph)
-            ph_set = sorted(set(ph_set))
-            json.dump(ph_set, open(ph_set_fn, 'w'))
+            json.dump(sorted(ph_set), open(ph_set_fn, 'w'))
         else:
             ph_set = json.load(open(ph_set_fn, 'r'))
         print("| phone set: ", ph_set)
-        return build_phone_encoder(hparams['binary_data_dir'])
-
+        return ph2merged, build_phone_encoder(hparams['binary_data_dir'])
 
     def process(self):
         self.process_data('valid')
@@ -155,7 +157,7 @@ class BaseBinarizer:
         meta_data = self.get_transcription_item_list(prefix)
         args = [[m, self.phone_encoder, self.lr, hparams] for m in meta_data]
 
-        num_workers = 2
+        num_workers = 1
         for _, (_, precessed_item) in enumerate(
                 zip(tqdm(args), chunked_multiprocess_run(self.process_item, args, num_workers=num_workers))):
             if precessed_item is None:
@@ -176,7 +178,7 @@ class BaseBinarizer:
         print(f"| {prefix} total duration: {total_sec:.3f}s")
 
     @classmethod
-    def process_item(cls, item: TranscriptionItem, encoder, lr, hparams):
+    def process_item(cls, item: TranscriptionItem, encoder: TokenTextEncoder, lr: LengthRegulator, hparams: dict):
         if hparams['vocoder'] in VOCODERS:
             wav, mel = VOCODERS[hparams['vocoder']].wav2spec(item.wav_fn, hparams=hparams)
         else:
@@ -185,21 +187,18 @@ class BaseBinarizer:
         item.sec = len(wav) / hparams['audio_sample_rate']
         item.mel_len = mel.shape[0]
         
-        try:
-            f0, pitch = get_pitch(wav, mel, hparams)
-            if sum(f0) == 0:
-                raise BinarizationError("Empty f0")
-            item.f0 = f0
-            item.pitch = pitch
-
-            item.phoneme = encoder.encode(item.phoneme_raw)
-
-            timestep = hparams['hop_size'] / hparams['audio_sample_rate']
-            mel2ph = get_mel2ph_dur(lr, torch.FloatTensor(item.duration), item.mel_len, timestep)
-            item.mel2ph = mel2ph
-        except BinarizationError as e:
-            print(f"| Skip item ({e}). item_name: {item.item_name}, wav_fn: {item.wav_fn}")
+        f0, pitch = get_pitch(wav, mel, hparams)
+        if sum(f0) == 0:
+            print(f"| Skip item (sum of f0 is 0). item_name: {item.item_name}, wav_fn: {item.wav_fn}")
             return None
+        item.f0 = f0
+        item.pitch = pitch
+
+        item.phoneme = encoder.encode(item.phoneme_raw)
+
+        timestep = hparams['hop_size'] / hparams['audio_sample_rate']
+        mel2ph = get_mel2ph_dur(lr, torch.FloatTensor(item.duration), item.mel_len, timestep)
+        item.mel2ph = mel2ph
         return item
 
 if __name__ == "__main__":

@@ -101,3 +101,6 @@ def setuv_f0(f0, ph, durations, phone_uv_set):
             f0[time_start:min(time_start + durations[i], len(f0))] = 0.0
         time_start += durations[i]
     return f0
+
+def shift_pitch(f0, n):
+    return f0 * (2** (n / 12))

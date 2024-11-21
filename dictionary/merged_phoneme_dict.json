@@ -1,0 +1,23 @@
+{
+    "a": ["a/zh", "a/jp"],
+    "o": ["o/zh", "o/jp"],
+    "i": ["i/zh", "i/jp"],
+
+    "b": ["b/zh", "b/jp"],
+    "d": ["d/zh", "d/jp"],
+    "f": ["f/zh", "f/jp"],
+    "g": ["g/zh", "g/jp"],
+    "h": ["h/zh", "h/jp"],
+    "k": ["k/zh", "k/jp"],
+    "m": ["m/zh", "m/jp"],
+    "n": ["n/zh", "n/jp"],
+    "p": ["p/zh", "p/jp"],
+    "t": ["t/zh", "t/jp"],
+    "s": ["s/zh", "s/jp"],
+    "w": ["w/zh", "w/jp"],
+    "z": ["z/zh", "z/jp"],
+    "y": ["y/zh", "y/jp"],
+
+    "AP": ["AP/zh", "AP/jp"],
+    "SP": ["SP/zh", "SP/jp"]
+}
