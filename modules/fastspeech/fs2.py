@@ -37,10 +37,10 @@ class FastSpeech2(nn.Module):
         self.timestep = hparams["hop_size"] / hparams["audio_sample_rate"]
 
         if hparams['use_spk_id']:
-            self.spk_embed = Embedding(hparams['num_spk'], self.hidden_size)
+            self.spk_embed = Embedding(len(hparams['datasets']), self.hidden_size)
 
         if hparams['use_lang_id']:
-            self.lang_embed = Embedding(hparams['num_lang'], self.hidden_size)
+            self.lang_embed = Embedding(len(hparams["dictionary"]), self.hidden_size, padding_idx=0)
 
         self.f0_embed_type = hparams.get('f0_embed_type', 'discrete')
         if hparams['use_pitch_embed']:
@@ -54,7 +54,7 @@ class FastSpeech2(nn.Module):
         emb = Embedding(num_embeddings, embed_dim, self.padding_idx)
         return emb
 
-    def forward(self, txt_tokens, mel2ph=None, f0=None, spk_embed_id=None, **kwargs):
+    def forward(self, txt_tokens, mel2ph=None, f0=None, **kwargs):
         ret = {}
 
         dur = mel2ph_to_dur(mel2ph, txt_tokens.shape[1]).float()
@@ -80,7 +80,7 @@ class FastSpeech2(nn.Module):
 
         # add spk embed
         if hparams['use_spk_id']:
-            decoder_inp += self.add_spk_embed(spk_embed_id, kwargs.get('spk_mix_embed'))
+            decoder_inp += self.add_spk_embed(kwargs.get('spk_embed_id'), kwargs.get('spk_mix_embed'))
 
         ret['decoder_inp'] = decoder_inp = decoder_inp * tgt_nonpadding
 

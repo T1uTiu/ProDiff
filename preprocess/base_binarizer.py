@@ -1,6 +1,5 @@
 import os
 from typing import List
-
 import torch
 
 from utils.text_encoder import TokenTextEncoder
@@ -9,8 +8,7 @@ os.environ["OMP_NUM_THREADS"] = "1"
 
 import json
 import random
-import traceback
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 
 import numpy as np
 from tqdm import tqdm
@@ -25,20 +23,28 @@ from vocoders.base_vocoder import VOCODERS
 
 @dataclass
 class TranscriptionItem:
-    item_name: str
-    text: str
-    phoneme_raw: str
-    duration: list
     wav_fn: str
-    speaker_id: int
-    
-    phoneme: np.ndarray = None
-    mel: np.ndarray = None
-    mel_len: int = None
-    mel2ph: np.ndarray = None
-    sec: float = None
-    f0: np.ndarray = None
-    pitch: np.ndarray = None
+    spk_id: int
+    lang_id: int
+    ph_seq: List[int]
+    ph_dur: List[float]
+    lang_seq: List[int]
+
+class PreprocessedItem:
+    mel: np.ndarray
+
+    spk_id: int
+    ph_seq: np.ndarray
+    ph_dur: np.ndarray
+    lang_seq: np.ndarray
+    mel2ph: np.ndarray
+    f0: np.ndarray
+
+    sec: float
+
+    @property
+    def mel_len(self):
+        return self.mel.shape[0]
 
 
 class BinarizationError(Exception):
@@ -56,11 +62,13 @@ class BaseBinarizer:
 
         self.ph2merged, self.phone_encoder = self.build_phone_encoder()
 
+        self.lang_map, self.lang_ids = self.build_lang_map()
+
         self.lr = LengthRegulator()
         self.load_meta_data()
         if self.binarization_args['shuffle']:
-            random.seed(1234)
-            random.shuffle(self.item_names)
+            random.seed(3407)
+            random.shuffle(self.transcription_item_list)
 
     @property
     def train_items(self):
@@ -79,22 +87,24 @@ class BaseBinarizer:
         return ph if ph not in self.ph2merged else self.ph2merged[ph]
 
     def load_meta_data(self):
+        # TODO: lang_id, lange_encoder
         self.transcription_item_list: List[TranscriptionItem] = []
-        for ds_id, dataset in enumerate(self.datasets):
+        for dataset in self.datasets:
             raw_data_dir, processed_data_dir = dataset["raw_data_dir"], dataset["processed_data_dir"]
             transcription_file = open(f"{processed_data_dir}/transcriptions.txt", 'r', encoding='utf-8')
             for _r in transcription_file.readlines():
                 r = _r.split('|') # item_name | txt | ph | unknown | spk_id | dur_list
-                item_name = raw_item_name =  r[0]
-                if len(self.datasets) > 1:
-                    item_name = f'ds{ds_id}_{item_name}'
+                item_name = r[0]
+                ph_text = [self.get_ph_name(p, dataset["language"]) for p in r[2].split(' ')]
+                ph_seq = self.phone_encoder.encode(ph_text)
+                lang_id = self.lang_map[dataset["language"]]
                 item = TranscriptionItem(
-                    item_name=item_name,
-                    text=r[1],
-                    phoneme_raw=[self.get_ph_name(p, dataset["language"]) for p in r[2].split(' ')],
-                    duration=[float(x) for x in r[5].split(' ')],
-                    wav_fn=f"{raw_data_dir}/wav/{raw_item_name}.wav",
-                    speaker_id=self.spk_map[dataset["speaker"]]
+                    ph_seq = ph_seq,
+                    ph_dur = [float(x) for x in r[5].split(' ')],
+                    wav_fn = f"{raw_data_dir}/wav/{item_name}.wav",
+                    spk_id = self.spk_map[dataset["speaker"]],
+                    lang_id = lang_id,
+                    lang_seq = [lang_id]*len(ph_seq)
                 )
                 self.transcription_item_list.append(item) 
             transcription_file.close()
@@ -116,6 +126,15 @@ class BaseBinarizer:
         with open(spk_map_fn, 'w') as f:
             json.dump(spk_map, f)
         return spk_map, spk_ids
+    
+    def build_lang_map(self):
+        lang_ids = list(range(len(self.datasets)))
+        lang_map = {ds["language"]: i for i, ds in enumerate(hparams["dictionary"])}
+        print("| lang_map: ", lang_map)
+        lang_map_fn = f"{hparams['binary_data_dir']}/lang_map.json"
+        with open(lang_map_fn, 'w') as f:
+            json.dump(lang_map, f)
+        return lang_map, lang_ids
 
     def build_phone_encoder(self):
         ph2merged = {}
@@ -151,22 +170,19 @@ class BaseBinarizer:
 
     def process_data(self, prefix):
         data_dir = hparams['binary_data_dir']
-        builder = IndexedDatasetBuilder(f'{data_dir}/{prefix}')
+        builder = IndexedDatasetBuilder(path=f'{data_dir}/{prefix}')
         lengths, f0s, total_sec = [], [], 0 # 统计信息
 
         meta_data = self.get_transcription_item_list(prefix)
-        args = [[m, self.phone_encoder, self.lr, hparams] for m in meta_data]
+        args = [[m, self.lr, hparams] for m in meta_data]
 
         num_workers = 1
-        for _, (_, precessed_item) in enumerate(
-                zip(tqdm(args), chunked_multiprocess_run(self.process_item, args, num_workers=num_workers))):
-            if precessed_item is None:
-                continue
-            builder.add_item(asdict(precessed_item))
+        for _, processed_item in zip(tqdm(args), chunked_multiprocess_run(self.process_item, args, num_workers=num_workers)):
+            builder.add_item(processed_item)
 
-            total_sec += precessed_item.sec
-            lengths.append(precessed_item.mel_len)
-            f0s.append(precessed_item.f0)
+            total_sec += processed_item.sec
+            lengths.append(processed_item.mel_len)
+            f0s.append(processed_item.f0)
 
         builder.finalize()
 
@@ -178,28 +194,28 @@ class BaseBinarizer:
         print(f"| {prefix} total duration: {total_sec:.3f}s")
 
     @classmethod
-    def process_item(cls, item: TranscriptionItem, encoder: TokenTextEncoder, lr: LengthRegulator, hparams: dict):
+    def process_item(cls, item: TranscriptionItem, lr: LengthRegulator, hparams: dict):
         if hparams['vocoder'] in VOCODERS:
             wav, mel = VOCODERS[hparams['vocoder']].wav2spec(item.wav_fn, hparams=hparams)
         else:
             wav, mel = VOCODERS[hparams['vocoder'].split('.')[-1]].wav2spec(item.wav_fn)
-        item.mel = mel
-        item.sec = len(wav) / hparams['audio_sample_rate']
-        item.mel_len = mel.shape[0]
-        
-        f0, pitch = get_pitch(wav, mel, hparams)
-        if sum(f0) == 0:
-            print(f"| Skip item (sum of f0 is 0). item_name: {item.item_name}, wav_fn: {item.wav_fn}")
-            return None
-        item.f0 = f0
-        item.pitch = pitch
 
-        item.phoneme = encoder.encode(item.phoneme_raw)
+        f0, _ = get_pitch(wav, mel, hparams)
+        assert sum(f0) != 0, f"sum of f0 is 0. item_name: {item.item_name}, wav_fn: {item.wav_fn}"
 
         timestep = hparams['hop_size'] / hparams['audio_sample_rate']
-        mel2ph = get_mel2ph_dur(lr, torch.FloatTensor(item.duration), item.mel_len, timestep)
-        item.mel2ph = mel2ph
-        return item
+        return PreprocessedItem(
+            mel = mel,
+
+            spk_id = item.spk_id,
+            ph_seq = np.array(item.ph_seq, dtype=np.int64),
+            ph_dur = np.array(item.ph_dur, dtype=np.float32),
+            lang_seq = np.array(item.lang_seq, dtype=np.int64),
+            mel2ph = get_mel2ph_dur(lr, torch.FloatTensor(item.ph_dur), item.mel_len, timestep),
+            f0 = f0,
+
+            sec = len(wav) / hparams['audio_sample_rate'],
+        )
 
 if __name__ == "__main__":
     set_hparams()
