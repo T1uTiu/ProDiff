@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "acoustic_inference_teacher",
+            "name": "inference_teacher",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/script/infer.py",
@@ -19,7 +19,7 @@
             ],
         },
         {
-            "name": "acoustic_inference",
+            "name": "inference",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/script/infer.py",
@@ -33,27 +33,28 @@
             ],
         },
         {
-            "name": "acoustic_train_teacher",
+            "name": "train_teacher",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/script/train.py",
+            "program": "${workspaceFolder}/main.py",
             "console": "internalConsole",
             "args": [
+                "train",
                 "teacher",
-                "--config", "data/Opencpop+TiuTiu/config.yaml",
-                "--exp_name", "Opencpop+TiuTiu_Teacher",
+                "--config", "data/opencpop_tiutiu_kiritan/config.yaml",
+                "--exp_name", "opencpop_tiutiu_kiritan_teacher",
             ],
         },
         {
-            "name": "acoustic_train",
+            "name": "train",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/script/train.py",
             "console": "internalConsole",
             "args": [
                 "student",
-                "--config", "data/Opencpop/binary/config.yaml",
-                "--exp_name", "Opencpop",
+                "--config", "data/opencpop_tiutiu_kiritan/config.yaml",
+                "--exp_name", "opencpop_tiutiu_kiritan",
             ],
         },
         {

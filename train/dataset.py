@@ -26,13 +26,13 @@ class ProDiffDatasetBatchItem:
 
     spk_id: torch.LongTensor = None
     lang_seq: torch.LongTensor = None
-    ph_seq: torch.LongTensor
-    mel2ph: torch.LongTensor
-    f0: torch.FloatTensor
-    txt_lengths: torch.LongTensor
-    mel_lengths: torch.LongTensor
+    ph_seq: torch.LongTensor = None
+    mel2ph: torch.LongTensor = None
+    f0: torch.FloatTensor = None
+    txt_lengths: torch.LongTensor = None
+    mel_lengths: torch.LongTensor = None
 
-    mel: torch.Tensor
+    mel: torch.Tensor = None
 
 
 
@@ -43,7 +43,7 @@ class ProDiffDataset(BaseDataset):
         self.prefix = prefix
         self.hparams = hparams
         self.sizes = np.load(f'{self.data_dir}/{self.prefix}_lengths.npy')
-        self.indexed_ds = IndexedDataset(f'{self.data_dir}/{self.prefix}')
+        self.indexed_ds = None
         # self.name2spk_id={}
 
         # pitch stats
@@ -69,6 +69,8 @@ class ProDiffDataset(BaseDataset):
     def __getitem__(self, index) -> PreprocessedItem:
         if hasattr(self, 'avail_idxs') and self.avail_idxs is not None:
             index = self.avail_idxs[index]
+        if self.indexed_ds is None:
+            self.indexed_ds = IndexedDataset(f'{self.data_dir}/{self.prefix}')
         return self.indexed_ds[index]
 
     def collater(self, samples: List[PreprocessedItem]):
@@ -84,8 +86,8 @@ class ProDiffDataset(BaseDataset):
             mel = utils.collate_2d([torch.Tensor(s.mel) for s in samples], 0.0)
         )
 
-        batch_item.txt_lengths = torch.LongTensor([s.ph_seq.size() for s in samples])
-        batch_item.mel_lengths = torch.LongTensor([s.mel.size(0) for s in samples])
+        batch_item.txt_lengths = torch.LongTensor([s.ph_seq.size for s in samples])
+        batch_item.mel_lengths = torch.LongTensor([s.mel.shape[0] for s in samples])
         
         if self.hparams['use_spk_id']:
             batch_item.spk_id = torch.LongTensor([s.spk_id for s in samples])

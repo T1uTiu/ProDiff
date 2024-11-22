@@ -42,7 +42,7 @@ class ProDiffTeacherTask(FastSpeech2Task):
         spk_embed_id = sample.spk_id
         lang_seq = sample.lang_seq
         # 模型输出
-        output = model(txt_tokens, mel2ph=mel2ph, ref_mels=target, f0=f0, infer=infer, spk_embed_id=spk_embed_id)
+        output = model(txt_tokens, mel2ph=mel2ph, ref_mels=target, f0=f0, infer=infer, spk_embed_id=spk_embed_id, lang_seq=lang_seq)
 
         losses = {}
         self.add_mel_loss(output['mel_out'], target, losses)
@@ -51,13 +51,13 @@ class ProDiffTeacherTask(FastSpeech2Task):
         else:
             return losses, output
 
-    def validation_step(self, sample, batch_idx):
+    def validation_step(self, sample: ProDiffDatasetBatchItem, batch_idx):
         outputs = {}
-        txt_tokens = sample['txt_tokens']  # [B, T_t]
+        txt_tokens = sample.ph_seq  # [B, T_t]
 
-        spk_embed_id = sample.get('spk_ids') if hparams['use_spk_id'] else None
-        mel2ph = sample['mel2ph']
-        f0 = sample['f0']
+        spk_embed_id = sample.spk_id
+        mel2ph = sample.mel2ph
+        f0 = sample.f0
 
         outputs['losses'] = {}
         outputs['losses'], model_out = self.run_model(self.model, sample, return_output=True, infer=False)

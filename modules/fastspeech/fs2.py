@@ -61,7 +61,7 @@ class FastSpeech2(nn.Module):
         dur_embed = self.dur_embed(dur[:, :, None])
 
         if hparams['use_lang_id']:
-            lang_embed = self.lang_embed(kwargs.get('language'))
+            lang_embed = self.lang_embed(kwargs.get('lang_seq'))
             extra_embed = dur_embed + lang_embed
         else:
             extra_embed = dur_embed

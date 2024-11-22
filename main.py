@@ -8,9 +8,9 @@ import torch
 from inference.ProDiff_Acoustic import ProDiffInfer
 from inference.ProDiff_Teacher_Acoustic import ProDiffTeacherInfer
 from inference.base_tts_infer import BaseTTSInfer
-from modules.ProDiff.task.ProDiff_task import ProDiff_Task
-from modules.ProDiff.task.ProDiff_teacher_task import ProDiff_teacher_Task
 from preprocess.base_binarizer import BaseBinarizer
+from train.prodiff_task import ProDiffTask
+from train.prodiff_teacher_task import ProDiffTeacherTask
 from utils.data_gen_utils import get_pitch
 from tasks.base_task import BaseTask
 from utils.audio import save_wav
@@ -31,8 +31,8 @@ def binarize(config, exp_name):
     binarizer.process()
 
 trainer_map: Dict[str, BaseTask] = {
-    "teacher": ProDiff_teacher_Task,
-    "student": ProDiff_Task,
+    "teacher": ProDiffTeacherTask,
+    "student": ProDiffTask,
 }
 
 @main.command()

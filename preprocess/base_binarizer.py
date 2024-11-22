@@ -30,17 +30,18 @@ class TranscriptionItem:
     ph_dur: List[float]
     lang_seq: List[int]
 
+@dataclass
 class PreprocessedItem:
-    mel: np.ndarray
+    mel: np.ndarray = None
 
-    spk_id: int
-    ph_seq: np.ndarray
-    ph_dur: np.ndarray
-    lang_seq: np.ndarray
-    mel2ph: np.ndarray
-    f0: np.ndarray
+    spk_id: int = -1
+    ph_seq: np.ndarray = None
+    ph_dur: np.ndarray = None
+    lang_seq: np.ndarray = None
+    mel2ph: np.ndarray = None
+    f0: np.ndarray = None
 
-    sec: float
+    sec: float = -1
 
     @property
     def mel_len(self):
@@ -129,7 +130,7 @@ class BaseBinarizer:
     
     def build_lang_map(self):
         lang_ids = list(range(len(self.datasets)))
-        lang_map = {ds["language"]: i for i, ds in enumerate(hparams["dictionary"])}
+        lang_map = {ds: i for i, ds in enumerate(hparams["dictionary"].keys())}
         print("| lang_map: ", lang_map)
         lang_map_fn = f"{hparams['binary_data_dir']}/lang_map.json"
         with open(lang_map_fn, 'w') as f:
@@ -200,22 +201,23 @@ class BaseBinarizer:
         else:
             wav, mel = VOCODERS[hparams['vocoder'].split('.')[-1]].wav2spec(item.wav_fn)
 
-        f0, _ = get_pitch(wav, mel, hparams)
-        assert sum(f0) != 0, f"sum of f0 is 0. item_name: {item.item_name}, wav_fn: {item.wav_fn}"
-
-        timestep = hparams['hop_size'] / hparams['audio_sample_rate']
-        return PreprocessedItem(
+        preprocessed_item = PreprocessedItem(
             mel = mel,
-
             spk_id = item.spk_id,
             ph_seq = np.array(item.ph_seq, dtype=np.int64),
             ph_dur = np.array(item.ph_dur, dtype=np.float32),
             lang_seq = np.array(item.lang_seq, dtype=np.int64),
-            mel2ph = get_mel2ph_dur(lr, torch.FloatTensor(item.ph_dur), item.mel_len, timestep),
-            f0 = f0,
-
             sec = len(wav) / hparams['audio_sample_rate'],
         )
+
+        f0, _ = get_pitch(wav, mel, hparams)
+        assert sum(f0) != 0, f"sum of f0 is 0. item_name: {item.item_name}, wav_fn: {item.wav_fn}"
+        preprocessed_item.f0 = f0
+
+        timestep = hparams['hop_size'] / hparams['audio_sample_rate']
+        preprocessed_item.mel2ph = get_mel2ph_dur(lr, torch.FloatTensor(item.ph_dur), preprocessed_item.mel_len, timestep)
+
+        return preprocessed_item
 
 if __name__ == "__main__":
     set_hparams()

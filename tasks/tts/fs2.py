@@ -57,7 +57,7 @@ class FastSpeech2Task(TTSBaseTask):
     def _training_step(self, sample, batch_idx, _):
         loss_output = self.run_model(self.model, sample)
         total_loss = sum([v for v in loss_output.values() if isinstance(v, torch.Tensor) and v.requires_grad])
-        loss_output['batch_size'] = sample['txt_tokens'].size()[0]
+        loss_output['batch_size'] = sample.ph_seq.size()[0]
         return total_loss, loss_output
 
     def validation_step(self, sample, batch_idx):
