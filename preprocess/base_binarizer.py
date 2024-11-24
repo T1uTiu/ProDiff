@@ -115,12 +115,14 @@ class BaseBinarizer:
     
     def get_transcription_item_list(self, prefix):
         if prefix == 'valid':
-            items = self.valid_items
+            for i in range(0, hparams["test_num"]+hparams["valid_num"]):
+                yield self.transcription_item_list[i]
         elif prefix == 'test':
-            items = self.test_items
+            for i in range(0, hparams["test_num"]):
+                yield self.transcription_item_list[i]
         else:
-            items = self.train_items
-        return items
+            for i in range(hparams["test_num"]+hparams["valid_num"], len(self.transcription_item_list)):
+                yield self.transcription_item_list[i]
 
     def build_spk_map(self):
         spk_ids = list(range(len(self.datasets)))
@@ -178,16 +180,15 @@ class BaseBinarizer:
         builder = IndexedDatasetBuilder(path=f'{data_dir}/{prefix}')
         lengths, f0s, total_sec = [], [], 0 # 统计信息
 
-        meta_data = self.get_transcription_item_list(prefix)
-        args = [[m, self.lr, self.pitch_extractor, hparams] for m in meta_data]
 
-        num_workers = 1
-        for _, processed_item in zip(tqdm(args), chunked_multiprocess_run(self.process_item, args, num_workers=num_workers)):
-            builder.add_item(processed_item)
+        for item in tqdm(self.get_transcription_item_list(prefix)):
+            preprocess_item = self.process_item(item)
+            builder.add_item(preprocess_item)
 
-            total_sec += processed_item.sec
-            lengths.append(processed_item.mel_len)
-            f0s.append(processed_item.f0)
+            total_sec += preprocess_item.sec
+            lengths.append(preprocess_item.mel_len)
+            f0s.append(preprocess_item.f0)
+
 
         builder.finalize()
 
@@ -198,8 +199,8 @@ class BaseBinarizer:
             np.save(f'{data_dir}/{prefix}_f0s_mean_std.npy', [np.mean(f0s).item(), np.std(f0s).item()])
         print(f"| {prefix} total duration: {total_sec:.3f}s")
 
-    @classmethod
-    def process_item(cls, item: TranscriptionItem, lr: LengthRegulator, pe: PitchExtractor, hparams: dict):
+    def process_item(self, item: TranscriptionItem):
+        lr, pe = self.lr, self.pitch_extractor
         if hparams['vocoder'] in VOCODERS:
             wav, mel = VOCODERS[hparams['vocoder']].wav2spec(item.wav_fn, hparams=hparams)
         else:
