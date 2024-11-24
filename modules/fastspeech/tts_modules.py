@@ -317,7 +317,8 @@ class FastspeechEncoder(FFTBlocks):
         self.embed_tokens = embed_tokens
         self.embed_scale = math.sqrt(hidden_size)
         self.padding_idx = 0
-        if hparams.get('rel_pos') is not None and hparams['rel_pos']:
+        self.rel_pos = hparams.get('rel_pos') is not None and hparams['rel_pos']
+        if self.rel_pos:
             self.embed_positions = RelPositionalEncoding(hidden_size, dropout_rate=0.0)
         else:
             self.embed_positions = SinusoidalPositionalEmbedding(
@@ -333,18 +334,21 @@ class FastspeechEncoder(FFTBlocks):
         }
         """
         encoder_padding_mask = txt_tokens.eq(self.padding_idx).data
-        x = self.forward_embedding(txt_tokens, extra_embed=extra_embed)  # [B, T, H]
+        x = self.forward_embedding(txt_tokens, extra_embed=extra_embed, padding_mask=encoder_padding_mask)  # [B, T, H]
         x = super(FastspeechEncoder, self).forward(x, encoder_padding_mask)
         return x
 
-    def forward_embedding(self, txt_tokens, extra_embed=None):
+    def forward_embedding(self, txt_tokens, extra_embed=None, padding_mask=None):
         # embed tokens and positions
         x = self.embed_scale * self.embed_tokens(txt_tokens)
         if extra_embed is not None:
             x = x + extra_embed
         if hparams['use_pos_embed']:
-            positions = self.embed_positions(txt_tokens)
-            x = x + positions
+            if self.rel_pos:
+                x = self.embed_positions(x)
+            else:
+                positions = self.embed_positions(~padding_mask)
+                x = x + positions
         x = F.dropout(x, p=self.dropout, training=self.training)
         return x
 

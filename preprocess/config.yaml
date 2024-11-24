@@ -145,6 +145,7 @@ use_split_spk_id: false
 use_spk_embed: false
 use_pos_embed: true
 use_lang_id: true
+rel_pos: true
 
 # conv enc/dec
 enc_dec_norm: ln

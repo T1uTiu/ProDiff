@@ -57,7 +57,8 @@ inferer_map: Dict[str, BaseTTSInfer] = {
 @click.option("--exp_name", type=str)
 @click.option("--spk_name", type=str)
 @click.option("--lang", type=str, default='zh')
-def infer(inferer, proj, config, exp_name, spk_name, lang):
+@click.option("--keyshift", type=int, default=0)
+def infer(inferer, proj, config, exp_name, spk_name, lang, keyshift):
     assert inferer in inferer_map, f"Invalid inferer: {inferer}, use one of {list(inferer_map.keys())}"
 
     set_hparams(config=config, exp_name=exp_name, spk_name=spk_name)
@@ -77,6 +78,7 @@ def infer(inferer, proj, config, exp_name, spk_name, lang):
     
     for segment in project:
         segment.setdefault('lang', lang)
+        segment.setdefault("keyshift", int(keyshift))
         out = inferer_instance.infer_once(segment)
         offset = int(segment.get('offset', 0) * hparams["audio_sample_rate"])
         out = np.concatenate([np.zeros(max(offset-total_length, 0)), out])

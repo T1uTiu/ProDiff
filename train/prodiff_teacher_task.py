@@ -56,11 +56,12 @@ class ProDiffTeacherTask(FastSpeech2Task):
         txt_tokens = sample.ph_seq  # [B, T_t]
 
         spk_embed_id = sample.spk_id
+        lang_seq = sample.lang_seq
         mel2ph = sample.mel2ph
         f0 = sample.f0
 
         outputs['losses'] = {}
-        outputs['losses'], model_out = self.run_model(self.model, sample, return_output=True, infer=False)
+        outputs['losses'], model_out = self.run_model(self.model, sample, return_output=True, infer=False, lang_seq=lang_seq)
 
         outputs['total_loss'] = sum(outputs['losses'].values())
         outputs['nsamples'] = sample.nsamples

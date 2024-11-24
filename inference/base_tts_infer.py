@@ -7,7 +7,7 @@ import torch
 from modules.fastspeech.tts_modules import LengthRegulator
 from utils.data_gen_utils import build_phone_encoder
 from tasks.tts.dataset_utils import FastSpeechWordDataset
-from utils.pitch_utils import resample_align_curve, setuv_f0
+from utils.pitch_utils import resample_align_curve, setuv_f0, shift_pitch
 
 
 class BaseTTSInfer:
@@ -130,6 +130,9 @@ class BaseTTSInfer:
             align_length=mel2ph.shape[1]
         )
         # f0_seq = setuv_f0(f0_seq, ph_text, durations.cpu().numpy().squeeze(), hparams['phone_uv_set'])
+        keyshift = inp.get("keyshift", 0)
+        if keyshift != 0:
+            f0_seq = shift_pitch(f0_seq, keyshift)
         f0_seq = torch.from_numpy(f0_seq)[None, :].to(self.device) # [B=1, T_mel]
         res["f0_seqs"] = f0_seq
 

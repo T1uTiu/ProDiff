@@ -13,11 +13,12 @@
             "args": [
                 "infer",
                 "teacher",
-                "samples/色盲_male.ds",
-                "--config", "data\\opencpop_tiutiu_kiritan\\config.yaml",
-                "--exp_name", "opencpop_tiutiu_kiritan_teacher",
+                "samples/色盲_female.ds",
+                "--config", "data\\opencpop_tiutiu_kiritan_v2\\config.yaml",
+                "--exp_name", "opencpop_tiutiu_kiritan_v2",
                 "--spk_name", "kiritan:0.0|tiutiu:1.0|opencpop:0.0",
-                "--lang", "zh"
+                "--lang", "zh",
+                "--keyshift", "-8"
             ],
         },
         {
