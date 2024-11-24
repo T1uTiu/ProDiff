@@ -1,1 +1,5 @@
-["b", "c", "ch", "d", "f", "g", "h", "j", "k", "p", "q", "r", "s", "sh", "t", "x", "z" ,"zh", "AP", "SP"]
+[
+    "b", "c/zh", "ch/zh", "d", "f", "g", "h", "j/zh", "k", "p", "q/zh", "r/zh", "s", "sh/zh", "t", "x/zh", "z" ,"zh/zh",
+    "ch/jp", "j/jp", "sh/jp", "ts/jp",
+    "AP", "SP"
+]

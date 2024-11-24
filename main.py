@@ -56,12 +56,13 @@ inferer_map: Dict[str, BaseTTSInfer] = {
 @click.option("--config", type=str)
 @click.option("--exp_name", type=str)
 @click.option("--spk_name", type=str)
-def infer(inferer, proj, config, exp_name, spk_name):
+@click.option("--lang", type=str, default='zh')
+def infer(inferer, proj, config, exp_name, spk_name, lang):
     assert inferer in inferer_map, f"Invalid inferer: {inferer}, use one of {list(inferer_map.keys())}"
 
     set_hparams(config=config, exp_name=exp_name, spk_name=spk_name)
     
-    with open('dictionaries/phone_uv_set.json', 'r', encoding='utf-8') as f:
+    with open('dictionary/phone_uv_set.json', 'r', encoding='utf-8') as f:
         phone_uv_set = json.load(f)
         hparams['phone_uv_set'] = set(phone_uv_set)
 
@@ -75,6 +76,7 @@ def infer(inferer, proj, config, exp_name, spk_name):
     total_length = 0
     
     for segment in project:
+        segment.setdefault('lang', lang)
         out = inferer_instance.infer_once(segment)
         offset = int(segment.get('offset', 0) * hparams["audio_sample_rate"])
         out = np.concatenate([np.zeros(max(offset-total_length, 0)), out])
@@ -91,21 +93,28 @@ def vocode():
 @vocode.command()
 @click.argument("wav", type=str)
 @click.option("--config", type=str, required=True)
-@click.option("--keyshift", type=int, default=0)
-def wav2wav(wav, config, keyshift):
+@click.option("--keyshift", type=int, default=0, required=False)
+@click.option("--output_dir", type=str, default='infer_out', required=False)
+def wav2wav(wav, config, keyshift, output_dir):
     set_hparams(config=config, exp_name='vocoder')
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     vocoder = VOCODERS[hparams['vocoder']]()
     vocoder.to_device(device)
-    # wav2spec
-    wave, mel = vocoder.wav2spec(wav, hparams=hparams, keyshift=keyshift)
-    # spec2wav
-    f0, _ = get_pitch(wave, mel, hparams)
-    if keyshift != 0:
-        f0 = shift_pitch(f0, keyshift)
-    res = vocoder.spec2wav(mel, f0=f0)
-    title = os.path.basename(wav).split('.')[0]
-    save_wav(res, f'infer_out/{title}.wav', hparams['audio_sample_rate'])
+    os.makedirs(output_dir, exist_ok=True)
+    if os.path.isdir(wav):
+        wav_files = [os.path.join(wav, f) for f in os.listdir(wav) if f.endswith('.wav')]
+    else:
+        wav_files = [wav]
+    for wav_file in wav_files:
+        # wav2spec
+        wave, mel = vocoder.wav2spec(wav_file, hparams=hparams, keyshift=keyshift)
+        # spec2wav
+        f0, _ = get_pitch(wave, mel, hparams)
+        if keyshift != 0:
+            f0 = shift_pitch(f0, keyshift)
+        res = vocoder.spec2wav(mel, f0=f0)
+        title = os.path.basename(wav_file).split('.')[0]
+        save_wav(res, os.path.join(output_dir, f"{title}.wav"), hparams['audio_sample_rate'])
 
 @vocode.command()
 @click.argument("spec", type=str)

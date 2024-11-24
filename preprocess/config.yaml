@@ -51,7 +51,8 @@ binarization_args:
   reset_phone_dict: true
   reset_word_dict: true
 word_size: 30000
-pitch_extractor: parselmouth
+pitch_extractor: rmvpe # parselmouth|rmvpe
+pe_ckpt: checkpoints/rmvpe/model.pt
 interp_uv: true
 loud_norm: false
 min_frames: 0

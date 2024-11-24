@@ -2,6 +2,7 @@ import os
 from typing import List
 import torch
 
+from component.pitch_extractor.base import PitchExtractor
 from utils.text_encoder import TokenTextEncoder
 
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -14,6 +15,7 @@ import numpy as np
 from tqdm import tqdm
 
 from modules.fastspeech.tts_modules import LengthRegulator
+from component.pitch_extractor import init_pitch_extractor
 from utils.data_gen_utils import (build_phone_encoder, get_mel2ph_dur,
                                        get_pitch)
 from utils.hparams import hparams, set_hparams
@@ -66,6 +68,7 @@ class BaseBinarizer:
         self.lang_map, self.lang_ids = self.build_lang_map()
 
         self.lr = LengthRegulator()
+        self.pitch_extractor = init_pitch_extractor(hparams)
         self.load_meta_data()
         if self.binarization_args['shuffle']:
             random.seed(3407)
@@ -140,7 +143,8 @@ class BaseBinarizer:
     def build_phone_encoder(self):
         ph2merged = {}
         if hparams["merged_phoneme_dict"] is not None and hparams["merged_phoneme_dict"] != "":
-            f = open(hparams["merged_phoneme_dict"], 'r')
+            fn = f"{hparams['binary_data_dir']}/{hparams['merged_phoneme_dict']}"
+            f = open(fn, 'r')
             merge_dict = json.load(f)
             for merged, phs in merge_dict.items():
                 for ph in phs:
@@ -175,7 +179,7 @@ class BaseBinarizer:
         lengths, f0s, total_sec = [], [], 0 # 统计信息
 
         meta_data = self.get_transcription_item_list(prefix)
-        args = [[m, self.lr, hparams] for m in meta_data]
+        args = [[m, self.lr, self.pitch_extractor, hparams] for m in meta_data]
 
         num_workers = 1
         for _, processed_item in zip(tqdm(args), chunked_multiprocess_run(self.process_item, args, num_workers=num_workers)):
@@ -195,7 +199,7 @@ class BaseBinarizer:
         print(f"| {prefix} total duration: {total_sec:.3f}s")
 
     @classmethod
-    def process_item(cls, item: TranscriptionItem, lr: LengthRegulator, hparams: dict):
+    def process_item(cls, item: TranscriptionItem, lr: LengthRegulator, pe: PitchExtractor, hparams: dict):
         if hparams['vocoder'] in VOCODERS:
             wav, mel = VOCODERS[hparams['vocoder']].wav2spec(item.wav_fn, hparams=hparams)
         else:
@@ -209,9 +213,15 @@ class BaseBinarizer:
             lang_seq = np.array(item.lang_seq, dtype=np.int64),
             sec = len(wav) / hparams['audio_sample_rate'],
         )
-
-        f0, _ = get_pitch(wav, mel, hparams)
-        assert sum(f0) != 0, f"sum of f0 is 0. item_name: {item.item_name}, wav_fn: {item.wav_fn}"
+        f0, uv = pe.get_pitch(
+            wav, 
+            samplerate = hparams['audio_sample_rate'], 
+            length = mel.shape[0], 
+            hop_size = hparams['hop_size'], 
+            interp_uv = True
+        )
+        # f0, _ = get_pitch(wav, mel, hparams, interp_uv=True)
+        assert not uv.all(), f"all unvoiced. item_name: {item.item_name}, wav_fn: {item.wav_fn}"
         preprocessed_item.f0 = f0
 
         timestep = hparams['hop_size'] / hparams['audio_sample_rate']

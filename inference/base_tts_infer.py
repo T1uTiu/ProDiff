@@ -19,7 +19,7 @@ class BaseTTSInfer:
         self.timestep = hparams['hop_size'] / hparams['audio_sample_rate']
         self.device = device
         self.data_dir = hparams['binary_data_dir']
-        self.ph_encoder = build_phone_encoder(self.data_dir)
+        self.ph2merged, self.ph_encoder = self.build_phone_encoder()
         self.spk_map = self.build_spk_map()
         self.lang_map = self.build_lang_map()
         self.ds_cls = FastSpeechWordDataset
@@ -27,6 +27,18 @@ class BaseTTSInfer:
         self.model.eval()
         self.model.to(self.device)
         self.vocoder, self.diffusion_hyperparams, self.noise_schedule = self.build_vocoder()
+
+    def build_phone_encoder(self):
+        ph2merged = {}
+        if self.hparams["merged_phoneme_dict"] is not None and self.hparams["merged_phoneme_dict"] != "":
+            fn = f"{self.hparams['binary_data_dir']}/{self.hparams['merged_phoneme_dict']}"
+            f = open(fn, 'r')
+            merge_dict = json.load(f)
+            for merged, phs in merge_dict.items():
+                for ph in phs:
+                    ph2merged[ph] = merged
+            f.close()
+        return ph2merged, build_phone_encoder(self.data_dir)
 
     def build_spk_map(self):
         spk_map_fn = os.path.join(self.data_dir, 'spk_map.json')
@@ -53,6 +65,10 @@ class BaseTTSInfer:
 
     def run_vocoder(self, c, **kwargs):
         raise NotImplementedError
+
+    def get_ph_name(self, ph, language):
+        ph = f"{ph}/{language}"
+        return ph if ph not in self.ph2merged else self.ph2merged[ph]
 
     def load_speaker_mix(self):
         hparams = self.hparams
@@ -84,19 +100,20 @@ class BaseTTSInfer:
         hparams = self.hparams
         res = {}
 
-        ph = inp.get("ph_seq") # 音素
 
         lang = inp.get("lang")
-        if lang is None:
-            lang = "zh"
+
+        ph_text = [self.get_ph_name(p, lang) for p in inp.get("ph_seq").split(' ')]
+
+        
         if hparams["use_lang_id"]:
             language = torch.LongTensor(
-                [self.lang_map[lang]] * len(ph.split())
+                [self.lang_map[lang]] * len(ph_text)
             ).to(self.device)[None, :] # [B=1, T_txt]
             res["language"] = language
 
         ph_token = torch.LongTensor(
-            self.ph_encoder.encode(ph, lang)
+            self.ph_encoder.encode(ph_text)
         ).to(self.device)[None, :] # [B=1, T_txt]
         res["ph_tokens"] = ph_token
         
@@ -112,7 +129,7 @@ class BaseTTSInfer:
             target_timestep=self.timestep,
             align_length=mel2ph.shape[1]
         )
-        f0_seq = setuv_f0(f0_seq, ph.split(), durations.cpu().numpy().squeeze(), hparams['phone_uv_set'])
+        # f0_seq = setuv_f0(f0_seq, ph_text, durations.cpu().numpy().squeeze(), hparams['phone_uv_set'])
         f0_seq = torch.from_numpy(f0_seq)[None, :].to(self.device) # [B=1, T_mel]
         res["f0_seqs"] = f0_seq
 

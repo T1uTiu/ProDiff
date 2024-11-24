@@ -34,7 +34,12 @@ class ProDiffDatasetBatchItem:
 
     mel: torch.Tensor = None
 
-
+    def to(self, device, non_blocking=False, copy=False):
+        for attr_name in self.__dict__:
+            attr = getattr(self, attr_name)
+            if callable(getattr(attr, 'to', None)):
+                setattr(self, attr_name, attr.to(device, non_blocking=non_blocking, copy=copy))
+        return self
 
 class ProDiffDataset(BaseDataset):
     def __init__(self, prefix, shuffle=False):

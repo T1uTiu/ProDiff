@@ -63,12 +63,12 @@ class ProDiffTeacherTask(FastSpeech2Task):
         outputs['losses'], model_out = self.run_model(self.model, sample, return_output=True, infer=False)
 
         outputs['total_loss'] = sum(outputs['losses'].values())
-        outputs['nsamples'] = sample['nsamples']
+        outputs['nsamples'] = sample.nsamples
         outputs = utils.tensors_to_scalars(outputs)
         if batch_idx < hparams['num_valid_plots']:
             model_out = self.model(
                 txt_tokens, mel2ph=mel2ph, spk_embed_id=spk_embed_id, f0=f0, ref_mels=None, infer=True)
-            self.plot_mel(batch_idx, sample['mels'], model_out['mel_out'])
+            self.plot_mel(batch_idx, sample.mel, model_out['mel_out'])
         return outputs
 
     ############
