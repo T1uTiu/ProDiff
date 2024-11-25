@@ -2,7 +2,7 @@ import os
 from typing import List
 import torch
 
-from component.pitch_extractor.base import PitchExtractor
+from component.pitch_extractor.base import BasePitchExtractor
 from utils.text_encoder import TokenTextEncoder
 
 os.environ["OMP_NUM_THREADS"] = "1"

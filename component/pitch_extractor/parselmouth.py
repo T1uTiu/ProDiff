@@ -1,12 +1,12 @@
 import numpy as np
 import parselmouth
 
-from component.pitch_extractor.base import PitchExtractor
+from component.pitch_extractor.base import BasePitchExtractor
 from utils.data_gen_utils import pad_frames
 from utils.pitch_utils import interp_f0
 
 
-class Parselmouth(PitchExtractor):
+class Parselmouth(BasePitchExtractor):
     def __init__(self, hparams):
         self.hparams = hparams
 

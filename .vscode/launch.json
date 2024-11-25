@@ -13,9 +13,9 @@
             "args": [
                 "infer",
                 "teacher",
-                "samples/色盲_female.ds",
+                "samples/00_我多想说再见啊.ds",
                 "--config", "data\\opencpop_tiutiu_kiritan_v2\\config.yaml",
-                "--exp_name", "opencpop_tiutiu_kiritan_v2",
+                "--exp_name", "otk_v4_100",
                 "--spk_name", "kiritan:0.0|tiutiu:1.0|opencpop:0.0",
                 "--lang", "zh",
                 "--keyshift", "-8"
@@ -77,6 +77,20 @@
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/main.py",
+            "console": "internalConsole",
+            "args": [
+                "vocode",
+                "wav2wav",
+                "E:/Project/Diffsinger/Record01/05_augmentation",
+                "--config", "preprocess/config.yaml",
+                "--output_dir", "E:/Project/Diffsinger/Record01/05_augmentation/fix"
+            ]
+        },
+        {
+            "name": "test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/test.py",
             "console": "internalConsole",
             "args": [
                 "vocode",
