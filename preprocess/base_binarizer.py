@@ -15,7 +15,7 @@ import numpy as np
 from tqdm import tqdm
 
 from modules.fastspeech.tts_modules import LengthRegulator
-from component.pitch_extractor import init_pitch_extractor
+from component.pitch_extractor import get_pitch_extractor
 from utils.data_gen_utils import (build_phone_encoder, get_mel2ph_dur,
                                        get_pitch)
 from utils.hparams import hparams, set_hparams
@@ -63,12 +63,12 @@ class BaseBinarizer:
 
         self.spk_map, self.spk_ids = self.build_spk_map()
 
-        self.ph2merged, self.phone_encoder = self.build_phone_encoder()
+        self.phone_encoder = self.build_phone_encoder()
 
         self.lang_map, self.lang_ids = self.build_lang_map()
 
         self.lr = LengthRegulator()
-        self.pitch_extractor = init_pitch_extractor(hparams)
+        self.pitch_extractor = get_pitch_extractor(hparams)
         self.load_meta_data()
         if self.binarization_args['shuffle']:
             random.seed(3407)
@@ -91,7 +91,6 @@ class BaseBinarizer:
         return ph if ph not in self.ph2merged else self.ph2merged[ph]
 
     def load_meta_data(self):
-        # TODO: lang_id, lange_encoder
         self.transcription_item_list: List[TranscriptionItem] = []
         for dataset in self.datasets:
             raw_data_dir, processed_data_dir = dataset["raw_data_dir"], dataset["processed_data_dir"]
@@ -152,23 +151,31 @@ class BaseBinarizer:
                 for ph in phs:
                     ph2merged[ph] = merged
             f.close()
+        self.ph2merged = ph2merged
 
         ph_set_fn = f"{hparams['binary_data_dir']}/phone_set.json"
-        ph_set = set(['AP', "SP"])
+        ph_set = {
+            "c": set(['AP', "SP"]),
+            "v": set()
+        }
         if not os.path.exists(ph_set_fn):
             for lang, dictionary in hparams["dictionary"].items():
                 f = open(dictionary, 'r')
                 for x in f.readlines():
                     ph_list = x.split("\n")[0].split('\t')[1].split(' ')
-                    for ph in ph_list:
-                        ph = f"{ph}/{lang}"
-                        ph_set.add(ph2merged[ph] if ph in ph2merged else ph)
+                    for i, ph in enumerate(ph_list):
+                        ph = self.get_ph_name(ph, lang)
+                        if len(ph_list) == 1 or i == 1:
+                            ph_set["v"].add(ph)
+                        else:
+                            ph_set["c"].add(ph)
                 f.close()
-            json.dump(sorted(ph_set), open(ph_set_fn, 'w'))
+            ph_set = list(sorted(ph_set["c"])) + list(sorted(ph_set["v"]))
+            json.dump(ph_set, open(ph_set_fn, 'w'))
         else:
             ph_set = json.load(open(ph_set_fn, 'r'))
         print("| phone set: ", ph_set)
-        return ph2merged, build_phone_encoder(hparams['binary_data_dir'])
+        return build_phone_encoder(hparams['binary_data_dir'])
 
     def process(self):
         self.process_data('valid')
@@ -214,19 +221,20 @@ class BaseBinarizer:
             lang_seq = np.array(item.lang_seq, dtype=np.int64),
             sec = len(wav) / hparams['audio_sample_rate'],
         )
+
+        timestep = hparams['hop_size'] / hparams['audio_sample_rate']
+        preprocessed_item.mel2ph = get_mel2ph_dur(lr, torch.FloatTensor(item.ph_dur), preprocessed_item.mel_len, timestep)
+
         f0, uv = pe.get_pitch(
             wav, 
             samplerate = hparams['audio_sample_rate'], 
             length = mel.shape[0], 
             hop_size = hparams['hop_size'], 
-            interp_uv = True
+            interp_uv = False
         )
         # f0, _ = get_pitch(wav, mel, hparams, interp_uv=True)
         assert not uv.all(), f"all unvoiced. item_name: {item.item_name}, wav_fn: {item.wav_fn}"
         preprocessed_item.f0 = f0
-
-        timestep = hparams['hop_size'] / hparams['audio_sample_rate']
-        preprocessed_item.mel2ph = get_mel2ph_dur(lr, torch.FloatTensor(item.ph_dur), preprocessed_item.mel_len, timestep)
 
         return preprocessed_item
 

@@ -129,7 +129,8 @@ class BaseTTSInfer:
             target_timestep=self.timestep,
             align_length=mel2ph.shape[1]
         )
-        # f0_seq = setuv_f0(f0_seq, ph_text, durations.cpu().numpy().squeeze(), hparams['phone_uv_set'])
+        if not hparams["interp_uv"]:
+            f0_seq = setuv_f0(f0_seq, ph_text, durations.cpu().numpy().squeeze(), hparams['phone_uv_set'])
         keyshift = inp.get("keyshift", 0)
         if keyshift != 0:
             f0_seq = shift_pitch(f0_seq, keyshift)

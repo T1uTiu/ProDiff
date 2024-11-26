@@ -3,20 +3,22 @@ import torch
 import torch.nn.functional as F
 from torchaudio.transforms import Resample
 
-from component.pitch_extractor.base import BasePitchExtractor
+from component.pitch_extractor.base import register_pe, BasePitchExtractor
 from utils.pitch_utils import interp_f0, resample_align_curve
 from modules.rmvpe.constants import *
 from modules.rmvpe.model import E2E0
 from modules.rmvpe.spec import MelSpectrogram
 from modules.rmvpe.utils import to_local_average_f0, to_viterbi_f0
 
-
+@register_pe
 class RMVPE(BasePitchExtractor):
-    def __init__(self, model_path, hparams, hop_length=160):
+    def __init__(self,  hparams, model_path=None,hop_length=160):
         self.hparams = hparams
         self.resample_kernel = {}
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.model = E2E0(4, 1, (2, 2)).eval().to(self.device)
+        if model_path is None:
+            model_path = hparams["pe_ckpt"]
         ckpt = torch.load(model_path, map_location=self.device)
         self.model.load_state_dict(ckpt['model'], strict=False)
         self.mel_extractor = MelSpectrogram(

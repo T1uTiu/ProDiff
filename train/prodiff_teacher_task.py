@@ -6,6 +6,7 @@ from utils.hparams import hparams
 from modules.ProDiff.model.ProDiff_teacher import GaussianDiffusion
 from usr.diff.net import DiffNet
 from tasks.tts.fs2 import FastSpeech2Task
+from utils.pitch_utils import interp_f0
 from vocoders.base_vocoder import get_vocoder_cls, BaseVocoder
 
 DIFF_DECODERS = {
@@ -39,6 +40,9 @@ class ProDiffTeacherTask(FastSpeech2Task):
         target = sample.mel  # [B, T_s, 80]
         mel2ph = sample.mel2ph
         f0 = sample.f0
+        if hparams["interp_uv"]:
+            uv = f0 == 0
+            f0, uv = interp_f0(f0, uv, hparams)
         spk_embed_id = sample.spk_id
         lang_seq = sample.lang_seq
         # 模型输出
@@ -59,16 +63,19 @@ class ProDiffTeacherTask(FastSpeech2Task):
         lang_seq = sample.lang_seq
         mel2ph = sample.mel2ph
         f0 = sample.f0
+        if hparams["interp_uv"]:
+            uv = f0 == 0
+            f0, uv = interp_f0(f0, uv, hparams)
 
         outputs['losses'] = {}
-        outputs['losses'], model_out = self.run_model(self.model, sample, return_output=True, infer=False, lang_seq=lang_seq)
+        outputs['losses'], model_out = self.run_model(self.model, sample, return_output=True, infer=False)
 
         outputs['total_loss'] = sum(outputs['losses'].values())
         outputs['nsamples'] = sample.nsamples
         outputs = utils.tensors_to_scalars(outputs)
         if batch_idx < hparams['num_valid_plots']:
             model_out = self.model(
-                txt_tokens, mel2ph=mel2ph, spk_embed_id=spk_embed_id, f0=f0, ref_mels=None, infer=True)
+                txt_tokens, mel2ph=mel2ph, spk_embed_id=spk_embed_id, f0=f0, ref_mels=None, infer=True, lang_seq=lang_seq)
             self.plot_mel(batch_idx, sample.mel, model_out['mel_out'])
         return outputs
 

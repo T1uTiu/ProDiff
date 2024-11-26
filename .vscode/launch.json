@@ -13,12 +13,12 @@
             "args": [
                 "infer",
                 "teacher",
-                "samples/00_我多想说再见啊.ds",
-                "--config", "data\\opencpop_tiutiu_kiritan_v2\\config.yaml",
-                "--exp_name", "otk_v4_100",
-                "--spk_name", "kiritan:0.0|tiutiu:1.0|opencpop:0.0",
+                "samples/03_远方有星辰.ds",
+                "--config", "data\\otk\\config.yaml",
+                "--exp_name", "otk",
+                "--spk_name", "kiritan:1.0|tiutiu:0.0|opencpop:0.0",
                 "--lang", "zh",
-                "--keyshift", "-8"
+                "--keyshift", "0"
             ],
         },
         {
@@ -68,8 +68,8 @@
             "console": "internalConsole",
             "args": [
                 "binarize",
-                "--config", "data/opencpop_tiutiu_kiritan_v2/config.yaml",
-                "--exp_name", "opencpop_tiutiu_kiritan_v2",
+                "--config", "data/otk/config.yaml",
+                "--exp_name", "otk",
             ]
         },
         {

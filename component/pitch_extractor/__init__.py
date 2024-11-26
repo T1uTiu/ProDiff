@@ -1,7 +1,5 @@
 from typing import Dict
 from component.pitch_extractor.base import BasePitchExtractor
-from component.pitch_extractor.rmvpe import RMVPE
-from component.pitch_extractor.parselmouth import Parselmouth
 
 PITCHEXTRACTORS: Dict[str, BasePitchExtractor] = {}
 def register_pe(cls):
@@ -9,10 +7,8 @@ def register_pe(cls):
     PITCHEXTRACTORS[cls.__name__] = cls
     return cls
 
-def init_pitch_extractor(hparams):
-    if hparams['pitch_extractor'] == 'rmvpe':
-        return RMVPE(hparams['pe_ckpt'],  hparams=hparams)
-    elif hparams['pitch_extractor'] == 'parselmouth':
-        return Parselmouth(hparams)
-    else:
+def get_pitch_extractor(hparams):
+    cls_name = hparams['pitch_extractor'].lower()
+    if cls_name not in PITCHEXTRACTORS:
         raise ValueError(f"Unknown pitch extractor: {hparams['pitch_extractor']}")
+    return PITCHEXTRACTORS[hparams['pitch_extractor'].lower()](hparams)

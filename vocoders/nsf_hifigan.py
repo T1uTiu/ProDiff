@@ -109,5 +109,5 @@ class NsfHifiGAN(BaseVocoder):
             wav_torch, _ = load_wav_to_torch(inp_path, target_sr=stft.target_sr)
             mel_torch = stft.get_mel(wav_torch.unsqueeze(0).to(device), keyshift=keyshift, speed=speed).squeeze(0).T
             # log mel to log10 mel
-            # mel_torch = 0.434294 * mel_torch
+            mel_torch = 0.434294 * mel_torch
             return wav_torch.cpu().numpy(), mel_torch.cpu().numpy()
