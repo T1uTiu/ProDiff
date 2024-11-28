@@ -103,7 +103,7 @@ class BaseBinarizer:
                 lang_id = self.lang_map[dataset["language"]]
                 item = TranscriptionItem(
                     ph_seq = ph_seq,
-                    ph_dur = [float(x) for x in r[5].split(' ')],
+                    ph_dur = [float(x) for x in r[-1].split(' ')],
                     wav_fn = f"{raw_data_dir}/wav/{item_name}.wav",
                     spk_id = self.spk_map[dataset["speaker"]],
                     lang_id = lang_id,
@@ -230,9 +230,8 @@ class BaseBinarizer:
             samplerate = hparams['audio_sample_rate'], 
             length = mel.shape[0], 
             hop_size = hparams['hop_size'], 
-            interp_uv = False
+            interp_uv = hparams['interp_uv']
         )
-        # f0, _ = get_pitch(wav, mel, hparams, interp_uv=True)
         assert not uv.all(), f"all unvoiced. item_name: {item.item_name}, wav_fn: {item.wav_fn}"
         preprocessed_item.f0 = f0
 

@@ -40,9 +40,6 @@ class ProDiffTeacherTask(FastSpeech2Task):
         target = sample.mel  # [B, T_s, 80]
         mel2ph = sample.mel2ph
         f0 = sample.f0
-        if hparams["interp_uv"]:
-            uv = f0 == 0
-            f0, uv = interp_f0(f0, uv, hparams)
         spk_embed_id = sample.spk_id
         lang_seq = sample.lang_seq
         # 模型输出
@@ -63,9 +60,6 @@ class ProDiffTeacherTask(FastSpeech2Task):
         lang_seq = sample.lang_seq
         mel2ph = sample.mel2ph
         f0 = sample.f0
-        if hparams["interp_uv"]:
-            uv = f0 == 0
-            f0, uv = interp_f0(f0, uv, hparams)
 
         outputs['losses'] = {}
         outputs['losses'], model_out = self.run_model(self.model, sample, return_output=True, infer=False)

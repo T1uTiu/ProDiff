@@ -1,14 +1,6 @@
-from typing import Dict
-from component.pitch_extractor.base import BasePitchExtractor
+from component.pitch_extractor.rmvpe import RMVPE
+from component.pitch_extractor.parselmouth import Parselmouth
+from component.pitch_extractor.base import get_pitch_extractor
 
-PITCHEXTRACTORS: Dict[str, BasePitchExtractor] = {}
-def register_pe(cls):
-    PITCHEXTRACTORS[cls.__name__.lower()] = cls
-    PITCHEXTRACTORS[cls.__name__] = cls
-    return cls
 
-def get_pitch_extractor(hparams):
-    cls_name = hparams['pitch_extractor'].lower()
-    if cls_name not in PITCHEXTRACTORS:
-        raise ValueError(f"Unknown pitch extractor: {hparams['pitch_extractor']}")
-    return PITCHEXTRACTORS[hparams['pitch_extractor'].lower()](hparams)
+

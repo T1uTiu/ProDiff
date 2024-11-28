@@ -19,6 +19,7 @@ import re
 import json
 from collections import OrderedDict
 import parselmouth
+import textgrid
 
 PUNCS = '!,.?;:'
 
@@ -357,3 +358,47 @@ def is_sil_phoneme(p):
 def build_token_encoder(token_list_file):
     token_list = json.load(open(token_list_file))
     return TokenTextEncoder(None, vocab_list=token_list, replace_oov='<UNK>')
+
+def transcription_to_textgrid(tscript_fn, out_dir):
+    os.makedirs(out_dir, exist_ok=True)
+    with open(tscript_fn, 'r', encoding="utf-8") as f:
+        tscript = f.readlines()
+    for line in tscript:
+        line = line.strip().split('|')
+        wav_fn = line[0]
+        ph_seq = line[2].split()
+        ph_dur = list(map(float, line[-2].split()))
+        tg = textgrid.TextGrid()
+        tg.minTime = 0
+        tg.maxTime = sum(ph_dur)
+        ph_tier = textgrid.IntervalTier(name='phone', minTime=0, maxTime=sum(ph_dur))
+        start_time = 0
+        for phoneme, duration in zip(ph_seq, ph_dur):
+            end_time = start_time + duration
+            ph_tier.addInterval(textgrid.Interval(start_time, end_time, phoneme))
+            start_time = end_time
+        tg.append(ph_tier)
+
+        tg_fn = os.path.join(out_dir, wav_fn+'.TextGrid')
+        tg.write(tg_fn)
+
+def textgrid_to_transcription(tg_dir, out_dir):
+    tscript_list = []
+    for tg_fn in os.listdir(tg_dir):
+        if not tg_fn.endswith('.TextGrid'):
+            continue
+        tg = textgrid.TextGrid.fromFile(os.path.join(tg_dir, tg_fn))
+        ph_seq, ph_dur = [], []
+        for x in tg.tiers[0]:
+            ph_seq.append(x.mark)
+            ph_dur.append(x.maxTime - x.minTime)
+        item_name = tg_fn.split('.')[0]
+        ph_seq = " ".join(ph_seq)
+        ph_dur = " ".join([f"{x:.4f}" for x in ph_dur])
+        tscript_list.append(
+            "|".join([item_name, "text", ph_seq, ph_dur])
+        )
+    os.makedirs(out_dir, exist_ok=True)
+    out_fn = os.path.join(out_dir, 'transcriptions.txt')
+    with open(out_fn, 'w', encoding='utf-8') as f:
+        f.write("\n".join(tscript_list))
