@@ -1,12 +1,11 @@
 import torch
 
-from train.dataset import ProDiffDataset, ProDiffDatasetBatchItem
+from component.train_task.dataset import ProDiffDataset, ProDiffDatasetBatchItem
 import utils
 from utils.hparams import hparams
 from modules.ProDiff.model.ProDiff_teacher import GaussianDiffusion
 from usr.diff.net import DiffNet
 from tasks.tts.fs2 import FastSpeech2Task
-from utils.pitch_utils import interp_f0
 from vocoders.base_vocoder import get_vocoder_cls, BaseVocoder
 
 DIFF_DECODERS = {

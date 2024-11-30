@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from train.dataset import ProDiffDataset
+from component.train_task.dataset import ProDiffDataset
 import utils
 from functools import partial
 from utils.hparams import hparams

@@ -1,0 +1,1 @@
+from handler.infer.handler import InferHandler

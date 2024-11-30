@@ -1,0 +1,1 @@
+from handler.binarize.handler import BinarizeHandler

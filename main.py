@@ -1,15 +1,11 @@
-import json
 import os
 from typing import Dict
 import click
-import numpy as np
 import torch
 
-from handler.binarize.handler import BinarizeHandler
-from handler.infer.handler import InferHandler
-from preprocess.base_binarizer import BaseBinarizer
-from train.prodiff_task import ProDiffTask
-from train.prodiff_teacher_task import ProDiffTeacherTask
+from handler.binarize import BinarizeHandler
+from handler.infer import InferHandler
+from component.train_task import ProDiffTask, ProDiffTeacherTask
 from utils.data_gen_utils import get_pitch
 from tasks.base_task import BaseTask
 from utils.audio import save_wav

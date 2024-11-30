@@ -1,0 +1,2 @@
+from component.train_task.prodiff_task import ProDiffTask
+from component.train_task.prodiff_teacher_task import ProDiffTeacherTask
