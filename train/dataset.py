@@ -17,8 +17,7 @@ from tasks.base_task import BaseDataset
 from utils.cwt import get_lf0_cwt
 from utils.hparams import hparams
 from utils.indexed_datasets import IndexedDataset
-from utils.pitch_utils import norm_interp_f0
-from preprocess.base_binarizer import PreprocessedItem, TranscriptionItem
+from handler.binarize.handler import PreprocessedItem
 
 @dataclass
 class ProDiffDatasetBatchItem:

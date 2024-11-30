@@ -5,9 +5,8 @@ import click
 import numpy as np
 import torch
 
-from inference.ProDiff_Acoustic import ProDiffInfer
-from inference.ProDiff_Teacher_Acoustic import ProDiffTeacherInfer
-from inference.base_tts_infer import BaseTTSInfer
+from handler.binarize.handler import BinarizeHandler
+from handler.infer.handler import InferHandler
 from preprocess.base_binarizer import BaseBinarizer
 from train.prodiff_task import ProDiffTask
 from train.prodiff_teacher_task import ProDiffTeacherTask
@@ -27,8 +26,7 @@ def main():
 @click.option("--exp_name", type=str, required=True)
 def binarize(config, exp_name):
     set_hparams(config=config, exp_name=exp_name)
-    binarizer = BaseBinarizer()
-    binarizer.process()
+    BinarizeHandler(hparams=hparams).handle()
 
 trainer_map: Dict[str, BaseTask] = {
     "teacher": ProDiffTeacherTask,
@@ -45,9 +43,8 @@ def train(trainer, config, exp_name):
     trainer_instance = trainer_map[trainer]
     trainer_instance.start()
 
-inferer_map: Dict[str, BaseTTSInfer] = {
-    "teacher": ProDiffTeacherInfer,
-    "student": ProDiffInfer
+inferer_map: Dict[str, str] = {
+    "teacher": "ProDiffTeacherInferrer"
 }
 
 @main.command()
@@ -60,33 +57,9 @@ inferer_map: Dict[str, BaseTTSInfer] = {
 @click.option("--keyshift", type=int, default=0)
 def infer(inferer, proj, config, exp_name, spk_name, lang, keyshift):
     assert inferer in inferer_map, f"Invalid inferer: {inferer}, use one of {list(inferer_map.keys())}"
-
     set_hparams(config=config, exp_name=exp_name, spk_name=spk_name)
-    
-    with open('dictionary/phone_uv_set.json', 'r', encoding='utf-8') as f:
-        phone_uv_set = json.load(f)
-        hparams['phone_uv_set'] = set(phone_uv_set)
-
-    with open(proj, 'r', encoding='utf-8') as f:
-        project = json.load(f)
-
-    inferer_instance = inferer_map[inferer](hparams)
-    os.makedirs('infer_out', exist_ok=True)
-    
-    result = []
-    total_length = 0
-    
-    for segment in project:
-        segment.setdefault('lang', lang)
-        segment.setdefault("keyshift", int(keyshift))
-        out = inferer_instance.infer_once(segment)
-        offset = int(segment.get('offset', 0) * hparams["audio_sample_rate"])
-        out = np.concatenate([np.zeros(max(offset-total_length, 0)), out])
-        total_length += len(out)
-        result.append(out)
-
-    title = proj.split('/')[-1].split('.')[0]
-    save_wav(np.concatenate(result), f'infer_out/{title}【{hparams["exp_name"]}】.wav', hparams['audio_sample_rate'])
+    hparams.setdefault("inferer", inferer_map[inferer])
+    InferHandler(hparams=hparams).handle(None, proj, lang, keyshift)
 
 @main.group()
 def vocode():
@@ -117,12 +90,6 @@ def wav2wav(wav, config, keyshift, output_dir):
         res = vocoder.spec2wav(mel, f0=f0)
         title = os.path.basename(wav_file).split('.')[0]
         save_wav(res, os.path.join(output_dir, f"{title}.wav"), hparams['audio_sample_rate'])
-
-@vocode.command()
-@click.argument("spec", type=str)
-@click.option("--config", type=str, required=True)
-def spec2wav(spec, config):
-    pass
 
 if __name__ == "__main__":
     main()  

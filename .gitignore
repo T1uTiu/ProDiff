@@ -163,4 +163,4 @@ dmypy.json
 
 /samples
 
-*.test.py
+*test.py

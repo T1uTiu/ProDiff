@@ -2,9 +2,6 @@ import os
 from typing import List
 import torch
 
-from component.pitch_extractor.base import BasePitchExtractor
-from utils.text_encoder import TokenTextEncoder
-
 os.environ["OMP_NUM_THREADS"] = "1"
 
 import json
@@ -15,13 +12,11 @@ import numpy as np
 from tqdm import tqdm
 
 from modules.fastspeech.tts_modules import LengthRegulator
-from component.pitch_extractor import get_pitch_extractor
-from utils.data_gen_utils import (build_phone_encoder, get_mel2ph_dur,
-                                       get_pitch)
-from utils.hparams import hparams, set_hparams
+from component.pitch_extractor import get_pitch_extractor_cls
+from utils.data_gen_utils import build_phone_encoder, get_mel2ph_dur
+from utils.hparams import hparams
 from utils.indexed_datasets import IndexedDatasetBuilder
-from utils.multiprocess_utils import chunked_multiprocess_run
-from vocoders.base_vocoder import VOCODERS
+from vocoders.base_vocoder import get_vocoder_cls
 
 @dataclass
 class TranscriptionItem:
@@ -50,12 +45,9 @@ class PreprocessedItem:
         return self.mel.shape[0]
 
 
-class BinarizationError(Exception):
-    pass
-
-
-class BaseBinarizer:
-    def __init__(self):
+class BinarizeHandler:
+    def __init__(self, hparams):
+        self.hparams = hparams
         self.datasets: dict = hparams['datasets']
         self.binary_data_dir = hparams['binary_data_dir']
         self.binarization_args = hparams['binarization_args']
@@ -68,7 +60,8 @@ class BaseBinarizer:
         self.lang_map, self.lang_ids = self.build_lang_map()
 
         self.lr = LengthRegulator()
-        self.pitch_extractor = get_pitch_extractor(hparams)
+        self.pitch_extractor = get_pitch_extractor_cls(hparams)(hparams)
+        self.vocoder = get_vocoder_cls(hparams)(hparams)
         self.load_meta_data()
         if self.binarization_args['shuffle']:
             random.seed(3407)
@@ -96,7 +89,7 @@ class BaseBinarizer:
             raw_data_dir, processed_data_dir = dataset["raw_data_dir"], dataset["processed_data_dir"]
             transcription_file = open(f"{processed_data_dir}/transcriptions.txt", 'r', encoding='utf-8')
             for _r in transcription_file.readlines():
-                r = _r.split('|') # item_name | txt | ph | unknown | spk_id | dur_list
+                r = _r.split('|') # item_name | text | ph | dur_list
                 item_name = r[0]
                 ph_text = [self.get_ph_name(p, dataset["language"]) for p in r[2].split(' ')]
                 ph_seq = self.phone_encoder.encode(ph_text)
@@ -177,11 +170,6 @@ class BaseBinarizer:
         print("| phone set: ", ph_set)
         return build_phone_encoder(hparams['binary_data_dir'])
 
-    def process(self):
-        self.process_data('valid')
-        self.process_data('test')
-        self.process_data('train')
-
     def process_data(self, prefix):
         data_dir = hparams['binary_data_dir']
         builder = IndexedDatasetBuilder(path=f'{data_dir}/{prefix}')
@@ -208,10 +196,7 @@ class BaseBinarizer:
 
     def process_item(self, item: TranscriptionItem):
         lr, pe = self.lr, self.pitch_extractor
-        if hparams['vocoder'] in VOCODERS:
-            wav, mel = VOCODERS[hparams['vocoder']].wav2spec(item.wav_fn, hparams=hparams)
-        else:
-            wav, mel = VOCODERS[hparams['vocoder'].split('.')[-1]].wav2spec(item.wav_fn)
+        wav, mel = self.vocoder.wav2spec(item.wav_fn, hparams=hparams)
 
         preprocessed_item = PreprocessedItem(
             mel = mel,
@@ -236,7 +221,8 @@ class BaseBinarizer:
         preprocessed_item.f0 = f0
 
         return preprocessed_item
-
-if __name__ == "__main__":
-    set_hparams()
-    BaseBinarizer().process()
+    
+    def handle(self):
+        self.process_data('valid')
+        self.process_data('test')
+        self.process_data('train')
