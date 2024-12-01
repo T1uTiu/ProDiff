@@ -367,7 +367,7 @@ def transcription_to_textgrid(tscript_fn, out_dir):
         line = line.strip().split('|')
         wav_fn = line[0]
         ph_seq = line[2].split()
-        ph_dur = list(map(float, line[-2].split()))
+        ph_dur = list(map(float, line[-1].split()))
         tg = textgrid.TextGrid()
         tg.minTime = 0
         tg.maxTime = sum(ph_dur)

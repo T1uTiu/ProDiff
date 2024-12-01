@@ -95,12 +95,6 @@ class DurationPredictor(torch.nn.Module):
         self.loss_type = dur_loss_type
         if self.loss_type in ['mse', 'huber']:
             self.out_dims = 1
-        # elif hparams['dur_loss_type'] == 'mog':
-        #     out_dims = 15
-        # elif hparams['dur_loss_type'] == 'crf':
-        #     out_dims = 32
-        #     from torchcrf import CRF
-        #     self.crf = CRF(out_dims, batch_first=True)
         else:
             raise NotImplementedError()
         self.linear = torch.nn.Linear(n_chans, self.out_dims)
@@ -109,8 +103,6 @@ class DurationPredictor(torch.nn.Module):
         if self.loss_type in ['mse', 'huber']:
             # NOTE: calculate loss in log domain
             dur = xs.squeeze(-1).exp() - self.offset  # (B, Tmax)
-        # elif hparams['dur_loss_type'] == 'crf':
-        #     dur = torch.LongTensor(self.crf.decode(xs)).cuda()
         else:
             raise NotImplementedError()
         return dur
