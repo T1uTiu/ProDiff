@@ -1,6 +1,7 @@
 import torch
 
 from component.train_task.dataset import ProDiffDataset, ProDiffDatasetBatchItem
+from modules.ProDiff.prodiff_teacher import ProDiffTeacher
 import utils
 from utils.hparams import hparams
 from modules.ProDiff.model.ProDiff_teacher import GaussianDiffusion
@@ -25,13 +26,7 @@ class ProDiffTeacherTask(FastSpeech2Task):
         return self.model
 
     def build_tts_model(self):
-        self.model = GaussianDiffusion(
-            phone_encoder=self.phone_encoder,
-            out_dims=hparams['audio_num_mel_bins'], denoise_fn=DIFF_DECODERS[hparams['diff_decoder_type']](hparams),
-            timesteps=hparams['timesteps'], time_scale=hparams['timescale'],
-            loss_type=hparams['diff_loss_type'],
-            spec_min=hparams['spec_min'], spec_max=hparams['spec_max'],
-        )
+        self.model = ProDiffTeacher(self.phone_encoder, hparams)
 
 
     def run_model(self, model, sample: ProDiffDatasetBatchItem, return_output=False, infer=False):
@@ -42,10 +37,10 @@ class ProDiffTeacherTask(FastSpeech2Task):
         spk_embed_id = sample.spk_id
         lang_seq = sample.lang_seq
         # 模型输出
-        output = model(txt_tokens, mel2ph=mel2ph, ref_mels=target, f0=f0, infer=infer, spk_embed_id=spk_embed_id, lang_seq=lang_seq)
+        output = model(txt_tokens, mel2ph, f0, lang_seq=lang_seq, spk_embed_id=spk_embed_id, ref_mels=target, infer=infer)
 
         losses = {}
-        self.add_mel_loss(output['mel_out'], target, losses)
+        self.add_mel_loss(output, target, losses)
         if not return_output:
             return losses
         else:
@@ -68,8 +63,8 @@ class ProDiffTeacherTask(FastSpeech2Task):
         outputs = utils.tensors_to_scalars(outputs)
         if batch_idx < hparams['num_valid_plots']:
             model_out = self.model(
-                txt_tokens, mel2ph=mel2ph, spk_embed_id=spk_embed_id, f0=f0, ref_mels=None, infer=True, lang_seq=lang_seq)
-            self.plot_mel(batch_idx, sample.mel, model_out['mel_out'])
+                txt_tokens, mel2ph, f0, lang_seq=lang_seq, spk_embed_id=spk_embed_id, ref_mels=None, infer=True)
+            self.plot_mel(batch_idx, sample.mel, model_out)
         return outputs
 
     ############

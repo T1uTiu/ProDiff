@@ -12,24 +12,17 @@ save_codes: []
 #############
 # dataset
 #############
+binarizer: component.binarizer.prodiff.ProDiffBinarizer
 datasets:
-  - raw_data_dir : data/Opencpop/raw
-    processed_data_dir : data/Opencpop/processed
-    speaker: Opencpop
+  - raw_data_dir : data/test/raw
+    processed_data_dir : data/test/processed
+    speaker: test
     language: zh
-  - raw_data_dir : data/TiuTiu/raw
-    processed_data_dir : data/TiuTiu/processed
-    speaker: TiuTiu
-    language: zh
-  - raw_data_dir : data/kiritan/raw
-    processed_data_dir : data/kiritan/processed
-    speaker: kiritan
-    language: jp
 binary_data_dir: 'data/test/binary'
 dictionary: 
   zh: dictionary/zh.txt
   jp: dictionary/jp.txt
-merged_phoneme_dict: dictionary/merged_phoneme_dict.json
+merged_phoneme_dict: merged_phoneme_dict.json
 ds_workers: 2
 test_num: 6
 valid_num: 6
@@ -159,6 +152,13 @@ dur_loss: mse # huber|mol
 
 # duration
 use_dur_embed: true
+dur_prediction_args:
+  num_layers: 5
+  hidden_size: 512
+  dropout: 0.1
+  kernel_size: 3
+  log_offset: 1.0
+  loss_type: mse
 predictor_hidden: -1
 predictor_kernel: 5
 predictor_layers: 2
