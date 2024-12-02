@@ -1,10 +1,13 @@
 from component.binarizer.base import Binarizer
+from component.binarizer.binarizer_utils import build_phone_encoder
 
 
 class DurPredictorBinarizer(Binarizer):
     def __init__(self, hparams):
         super().__init__(hparams)
+        self.ph2merged, self.phone_encoder = build_phone_encoder(hparams)
 
+    
     def load_meta_data(self) -> list:
         transcription_item_list = []
         for dataset in self.datasets:

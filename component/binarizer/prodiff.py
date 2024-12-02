@@ -5,10 +5,10 @@ import random
 import numpy as np
 import torch
 from component.binarizer.base import Binarizer
+from component.binarizer.binarizer_utils import build_phone_encoder
 from component.pe.base import get_pitch_extractor_cls
 from modules.fastspeech.tts_modules import LengthRegulator
 from utils.data_gen_utils import get_mel2ph_dur
-from utils.text_encoder import TokenTextEncoder
 from vocoders.base_vocoder import get_vocoder_cls
 
 
@@ -17,7 +17,7 @@ class ProDiffBinarizer(Binarizer):
         super().__init__(hparams)
         self.binary_data_dir = hparams['binary_data_dir']
         os.makedirs(self.binary_data_dir, exist_ok=True)
-        self.build_phone_encoder()
+        self.ph2merged, self.phone_encoder = build_phone_encoder(hparams)
         self.build_lang_map()
         self.build_spk_map()
         self.lr = LengthRegulator()
@@ -31,36 +31,6 @@ class ProDiffBinarizer(Binarizer):
     def get_ph_name(self, ph, language):
         ph = f"{ph}/{language}"
         return self.ph2merged.get(ph, ph)
-
-    def build_phone_encoder(self):
-        hparams = self.hparams
-        ph2merged = {}
-        if hparams["merged_phoneme_dict"] is not None and hparams["merged_phoneme_dict"] != "":
-            fn = f"{self.binary_data_dir}/{hparams['merged_phoneme_dict']}"
-            f = open(fn, 'r')
-            merge_dict = json.load(f)
-            for merged, phs in merge_dict.items():
-                for ph in phs:
-                    ph2merged[ph] = merged
-            f.close()
-        self.ph2merged = ph2merged
-
-        ph_set_fn = f"{self.binary_data_dir}/phone_set.json"
-        ph_set = {}
-        if not os.path.exists(ph_set_fn):
-            for lang, dictionary in hparams["dictionary"].items():
-                f = open(dictionary, 'r')
-                for x in f.readlines():
-                    ph_list = x.split("\n")[0].split('\t')[1].split(' ')
-                    for ph in ph_list:
-                        ph_set[f"{ph}/{lang}"] = self.get_ph_name(ph, lang)
-                f.close()
-            json.dump(ph_set, open(ph_set_fn, 'w'))
-        else:
-            ph_set = json.load(open(ph_set_fn, 'r'))
-        ph_list = list(sorted(ph_set.values()))
-        print("| phone set: ", ph_list)
-        self.ph_encoder = TokenTextEncoder(None, vocab_list=ph_list, replace_oov="SP")
     
     def build_spk_map(self):
         self.spk_ids = list(range(len(self.datasets)))
