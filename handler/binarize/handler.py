@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from tqdm import tqdm
 
@@ -10,7 +11,7 @@ class BinarizeHandler:
         self.hparams = hparams
         binarizer_cls = hparams["binarizer_cls"]
         self.binarizer: Binarizer = utils.get_cls(binarizer_cls)(hparams)
-        self.binary_data_dir = hparams['binary_data_dir']
+        self.binary_data_dir = os.path.join(hparams['data_dir'], self.binarizer.category())
         self.transcription_item_list = self.binarizer.load_meta_data()
 
     def get_transcription_item_list(self, prefix):

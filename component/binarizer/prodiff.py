@@ -15,7 +15,7 @@ from vocoders.base_vocoder import get_vocoder_cls
 class ProDiffBinarizer(Binarizer):
     def __init__(self, hparams):
         super().__init__(hparams)
-        self.binary_data_dir = hparams['binary_data_dir']
+        self.binary_data_dir = os.path.join(hparams['data_dir'], self.category())
         os.makedirs(self.binary_data_dir, exist_ok=True)
         self.ph2merged, self.phone_encoder = build_phone_encoder(hparams)
         self.build_lang_map()
@@ -27,6 +27,10 @@ class ProDiffBinarizer(Binarizer):
         if binarization_args['shuffle']:
             random.seed(3407)
             random.shuffle(self.transcription_item_list)
+
+    @staticmethod
+    def category(cls):
+        return "prodiff"
 
     def get_ph_name(self, ph, language):
         ph = f"{ph}/{language}"
@@ -45,15 +49,15 @@ class ProDiffBinarizer(Binarizer):
         self.lang_ids = list(range(len(self.datasets)))
         self.lang_map = {ds: i for i, ds in enumerate(hparams["dictionary"].keys())}
         print("| lang_map: ", self.lang_map)
-        lang_map_fn = f"{hparams['binary_data_dir']}/lang_map.json"
+        lang_map_fn = f"{self.binary_data_dir}/lang_map.json"
         with open(lang_map_fn, 'w') as f:
             json.dump(self.lang_map, f)
 
     def load_meta_data(self):
         transcription_item_list = []
         for dataset in self.datasets:
-            raw_data_dir, processed_data_dir = dataset["raw_data_dir"], dataset["processed_data_dir"]
-            transcription_file = open(f"{processed_data_dir}/transcriptions.txt", 'r', encoding='utf-8')
+            data_dir = dataset["data_dir"]
+            transcription_file = open(f"{data_dir}/transcriptions.txt", 'r', encoding='utf-8')
             for _r in transcription_file.readlines():
                 r = _r.split('|') # item_name | text | ph | dur_list | ph_num
                 item_name = r[0]
@@ -63,7 +67,7 @@ class ProDiffBinarizer(Binarizer):
                 item = {
                     "ph_seq" : ph_seq,
                     "ph_dur" : [float(x) for x in r[3].split(' ')],
-                    "wav_fn" : f"{raw_data_dir}/wav/{item_name}.wav",
+                    "wav_fn" : f"{data_dir}/wav/{item_name}.wav",
                     "spk_id" : self.spk_map[dataset["speaker"]],
                     "lang_id" : lang_id,
                     "lang_seq" : [lang_id]*len(ph_seq)

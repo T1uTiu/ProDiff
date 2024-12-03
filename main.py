@@ -26,7 +26,6 @@ def binarize(config, exp_name):
 
 trainer_map: Dict[str, BaseTask] = {
     "teacher": ProDiffTeacherTask,
-    "student": ProDiffTask,
 }
 
 @main.command()

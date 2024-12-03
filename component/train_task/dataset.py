@@ -43,7 +43,8 @@ class ProDiffDatasetBatchItem:
 class ProDiffDataset(BaseDataset):
     def __init__(self, prefix, shuffle=False):
         super().__init__(shuffle)
-        self.data_dir = hparams['binary_data_dir']
+        binarizer_cls = utils.get_cls(hparams["binarizer_cls"])
+        self.data_dir = os.path.join(hparams['data_dir'], binarizer_cls.category())  
         self.prefix = prefix
         self.hparams = hparams
         self.sizes = np.load(f'{self.data_dir}/{self.prefix}_lengths.npy')
@@ -70,34 +71,34 @@ class ProDiffDataset(BaseDataset):
         if hparams['pitch_type'] == 'cwt':
             _, hparams['cwt_scales'] = get_lf0_cwt(np.ones(10))
 
-    def __getitem__(self, index) -> PreprocessedItem:
+    def __getitem__(self, index) -> dict:
         if hasattr(self, 'avail_idxs') and self.avail_idxs is not None:
             index = self.avail_idxs[index]
         if self.indexed_ds is None:
             self.indexed_ds = IndexedDataset(f'{self.data_dir}/{self.prefix}')
         return self.indexed_ds[index]
 
-    def collater(self, samples: List[PreprocessedItem]):
+    def collater(self, samples: List[dict]):
         if len(samples) == 0:
             return ProDiffDatasetBatchItem()
         
         batch_item = ProDiffDatasetBatchItem(
             nsamples = len(samples),
-            ph_seq = utils.collate_1d([torch.LongTensor(s.ph_seq) for s in samples], 0),
-            mel2ph = utils.collate_1d([torch.LongTensor(s.mel2ph) for s in samples], 0),
-            f0 = utils.collate_1d([torch.FloatTensor(s.f0) for s in samples], 0.0),
+            ph_seq = utils.collate_1d([torch.LongTensor(s["ph_seq"]) for s in samples], 0),
+            mel2ph = utils.collate_1d([torch.LongTensor(s["mel2ph"]) for s in samples], 0),
+            f0 = utils.collate_1d([torch.FloatTensor(s["f0"]) for s in samples], 0.0),
             
-            mel = utils.collate_2d([torch.Tensor(s.mel) for s in samples], 0.0)
+            mel = utils.collate_2d([torch.Tensor(s["mel"]) for s in samples], 0.0)
         )
 
-        batch_item.txt_lengths = torch.LongTensor([s.ph_seq.size for s in samples])
-        batch_item.mel_lengths = torch.LongTensor([s.mel.shape[0] for s in samples])
+        batch_item.txt_lengths = torch.LongTensor([s["ph_seq"].size for s in samples])
+        batch_item.mel_lengths = torch.LongTensor([s["mel"].shape[0] for s in samples])
         
         if self.hparams['use_spk_id']:
-            batch_item.spk_id = torch.LongTensor([s.spk_id for s in samples])
+            batch_item.spk_id = torch.LongTensor([s["spk_id"] for s in samples])
         
         if self.hparams['use_lang_id']:
-            batch_item.lang_seq = utils.collate_1d([torch.LongTensor(s.lang_seq) for s in samples], 0)
+            batch_item.lang_seq = utils.collate_1d([torch.LongTensor(s["lang_seq"]) for s in samples], 0)
         
         return batch_item
 

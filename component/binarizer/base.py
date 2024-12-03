@@ -11,3 +11,7 @@ class Binarizer:
     
     def process_item(self, item):
         raise NotImplementedError
+    
+    @staticmethod   
+    def category(cls):
+        raise NotImplementedError

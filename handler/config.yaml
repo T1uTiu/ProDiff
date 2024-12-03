@@ -14,10 +14,10 @@ save_codes: []
 #############
 binarizer: component.binarizer.prodiff.ProDiffBinarizer
 datasets:
-  - raw_data_dir : data/test/raw
-    processed_data_dir : data/test/processed
+  - data_dir : data/test
     speaker: test
     language: zh
+data_dir: data/test
 binary_data_dir: 'data/test/binary'
 dictionary: 
   zh: dictionary/zh.txt
@@ -138,7 +138,7 @@ use_split_spk_id: false
 use_spk_embed: false
 use_pos_embed: true
 use_lang_id: true
-rel_pos: true
+rel_pos: false
 
 # conv enc/dec
 enc_dec_norm: ln
@@ -159,6 +159,9 @@ dur_prediction_args:
   kernel_size: 3
   log_offset: 1.0
   loss_type: mse
+  lambda_pdur_loss: 0.3
+  lambda_wdur_loss: 1.0
+  lambda_sdur_loss: 0.1
 predictor_hidden: -1
 predictor_kernel: 5
 predictor_layers: 2
@@ -167,8 +170,8 @@ dur_predictor_layers: 2
 predictor_dropout: 0.5
 
 # pitch and energy
-pitch_norm: log # standard|log
 use_pitch_embed: true
+pitch_norm: log # standard|log
 pitch_type: frame # frame|ph|cwt
 f0_embed_type: continuous # continuous|discrete
 use_uv: true

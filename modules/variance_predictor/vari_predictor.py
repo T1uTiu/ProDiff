@@ -29,7 +29,7 @@ class VariPredictor(torch.nn.Module):
         )
     
     def forward(self, txt_tokens, onset, word_dur, infer=True):
-        extra_embed = self.onset_embed(onset.long())
+        extra_embed = self.onset_embed(onset)
         extra_embed += self.word_dur_embed(word_dur[:, :, None])
         encoder_out = self.encode(txt_tokens, extra_embed)
 
