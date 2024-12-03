@@ -11,7 +11,7 @@ from tasks.base_task import BaseTask
 from utils.audio import save_wav
 from utils.hparams import set_hparams, hparams
 from utils.pitch_utils import shift_pitch
-from vocoders.base_vocoder import VOCODERS
+from vocoders.base_vocoder import VOCODERS, get_vocoder_cls
 
 @click.group()
 def main():
@@ -69,7 +69,7 @@ def vocode():
 def wav2wav(wav, config, keyshift, output_dir):
     set_hparams(config=config, exp_name='vocoder')
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    vocoder = VOCODERS[hparams['vocoder']]()
+    vocoder = get_vocoder_cls(hparams)()
     vocoder.to_device(device)
     os.makedirs(output_dir, exist_ok=True)
     if os.path.isdir(wav):
