@@ -33,19 +33,22 @@ class BinarizeHandler:
         for item in tqdm(self.get_transcription_item_list(prefix)):
             preprocess_item = self.binarizer.process_item(item)
             builder.add_item(preprocess_item)
-
-            total_sec += preprocess_item.sec
-            lengths.append(preprocess_item.mel_len)
-            f0s.append(preprocess_item.f0)
-
+            if "sec" in preprocess_item:
+                total_sec += preprocess_item["sec"]
+            if "mel" in preprocess_item:
+                lengths.append(preprocess_item["mel"].shape[0])
+            if "f0" in preprocess_item:
+                f0s.append(preprocess_item.f0)
         builder.finalize()
-
-        np.save(f'{data_dir}/{prefix}_lengths.npy', lengths)
+        
+        if lengths > 0:
+            np.save(f'{data_dir}/{prefix}_lengths.npy', lengths)
         if len(f0s) > 0:
             f0s = np.concatenate(f0s, 0)
             f0s = f0s[f0s != 0]
             np.save(f'{data_dir}/{prefix}_f0s_mean_std.npy', [np.mean(f0s).item(), np.std(f0s).item()])
-        print(f"| {prefix} total duration: {total_sec:.3f}s")
+        if total_sec > 0:
+            print(f"| {prefix} total duration: {total_sec:.3f}s")
     
     def handle(self):
         self.process_data('valid')

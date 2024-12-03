@@ -4,7 +4,7 @@ from modules.commons.common_layers import Embedding, Linear
 from modules.fastspeech.tts_modules import FastspeechEncoder, DurationPredictor
 
 
-class DurPredictor(torch.nn.Module):
+class VariPredictor(torch.nn.Module):
     def __init__(self, ph_encoder, hparams):
         super(DurationPredictor, self).__init__()
 

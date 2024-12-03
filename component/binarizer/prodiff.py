@@ -77,18 +77,18 @@ class ProDiffBinarizer(Binarizer):
         hparams = self.hparams
         lr, pe = self.lr, self.pe
 
-        wav, mel = self.vocoder.wav2spec(item.wav_fn, hparams=hparams)
+        wav, mel = self.vocoder.wav2spec(item["wav_fn"], hparams=hparams)
         preprocessed_item = {
             "mel" : mel,
-            "spk_id" : item.spk_id,
-            "ph_seq" : np.array(item.ph_seq, dtype=np.int64),
-            "ph_dur" : np.array(item.ph_dur, dtype=np.float32),
-            "lang_seq" : np.array(item.lang_seq, dtype=np.int64),
+            "spk_id" : item["spk_id"],
+            "ph_seq" : np.array(item["ph_seq"], dtype=np.int64),
+            "ph_dur" : np.array(item["ph_dur"], dtype=np.float32),
+            "lang_seq" : np.array(item["lang_seq"], dtype=np.int64),
             "sec" : len(wav) / hparams['audio_sample_rate'],
         }
 
         timestep = hparams['hop_size'] / hparams['audio_sample_rate']
-        preprocessed_item["mel2ph"] = get_mel2ph_dur(lr, torch.FloatTensor(item.ph_dur), mel.shape[0], timestep)
+        preprocessed_item["mel2ph"] = get_mel2ph_dur(lr, torch.FloatTensor(item["ph_dur"]), mel.shape[0], timestep)
 
         f0, uv = pe.get_pitch(
             wav, 
@@ -97,7 +97,7 @@ class ProDiffBinarizer(Binarizer):
             hop_size = hparams['hop_size'], 
             interp_uv = hparams['interp_uv']
         )
-        assert not uv.all(), f"all unvoiced. item_name: {item.item_name}, wav_fn: {item.wav_fn}"
+        assert not uv.all(), f"all unvoiced. item_name: {item["item_name"]}, wav_fn: {item["wav_fn"]}"
         preprocessed_item["f0"] = f0
 
         return preprocessed_item
