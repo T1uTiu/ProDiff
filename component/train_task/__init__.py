@@ -1,2 +1,2 @@
-from component.train_task.prodiff_task import ProDiffTask
-from component.train_task.prodiff_teacher_task import ProDiffTeacherTask
+from component.train_task.svs_task import SVSTask
+from component.train_task.vari_predictor.vari_predictor_task import VariPredictorTask

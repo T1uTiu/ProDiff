@@ -1,6 +1,8 @@
 import os
 from typing import List
 import matplotlib
+
+from component.binarizer.base import get_binarizer_cls
 matplotlib.use('Agg')
 
 import glob
@@ -22,10 +24,9 @@ from handler.binarize.handler import PreprocessedItem
 class VariPredictorDataset(BaseDataset):
     def __init__(self, prefix, shuffle=False):
         super().__init__(shuffle)
-        binarizer_cls = utils.get_cls(hparams["binarizer_cls"])
+        binarizer_cls = get_binarizer_cls(hparams)
         self.data_dir = os.path.join(hparams['data_dir'], binarizer_cls.category()) 
         self.prefix = prefix
-        self.hparams = hparams
         self.indexed_ds = None
 
         if prefix == 'test':

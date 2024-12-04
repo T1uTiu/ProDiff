@@ -1,17 +1,18 @@
 import os
 import numpy as np
 import torch
-from component.binarizer.base import Binarizer
+from torch.functional import F
+from component.binarizer.base import Binarizer, register_binarizer
 from component.binarizer.binarizer_utils import build_phone_encoder
 from modules.fastspeech.tts_modules import LengthRegulator
 
-
+@register_binarizer
 class VariPredictorBinarizer(Binarizer):
     def __init__(self, hparams):
         super().__init__(hparams)
-        self.binary_data_dir = os.path.join(hparams['data_dir'], self.category())
-        os.makedirs(self.binary_data_dir, exist_ok=True)
-        self.ph2merged, self.phone_encoder = build_phone_encoder(hparams)
+        self.data_dir = os.path.join(hparams['data_dir'], self.category())
+        os.makedirs(self.data_dir, exist_ok=True)
+        self.ph_map, self.ph_encoder = build_phone_encoder(self.data_dir, hparams)
         self.lr = LengthRegulator()
 
     @staticmethod
@@ -22,11 +23,12 @@ class VariPredictorBinarizer(Binarizer):
         transcription_item_list = []
         for dataset in self.datasets:
             data_dir = dataset["data_dir"]
+            lang = dataset["language"]
             transcription_file = open(f"{data_dir}/transcriptions.txt", 'r', encoding='utf-8')
             for _r in transcription_file.readlines():
                 r = _r.split('|') # item_name | text | ph | dur_list | ph_num
-                ph_text = [self.get_ph_name(p, dataset["language"]) for p in r[2].split(' ')]
-                ph_seq = self.phone_encoder.encode(ph_text)
+                ph_text = [self.ph_map[f"{p}/{lang}"] for p in r[2].split(' ')]
+                ph_seq = self.ph_encoder.encode(ph_text)
                 item = {
                     "ph_seq" : ph_seq,
                     "ph_dur" : [float(x) for x in r[3].split(' ')],
@@ -48,6 +50,7 @@ class VariPredictorBinarizer(Binarizer):
         word_dur = ph_dur.new_zeros(word_num+1).scatter_add(
             0, ph2word, ph_dur
         )[1:]
+        word_dur = torch.gather(F.pad(word_dur, [1, 0], value=0), 0, ph2word) # T_w => T_ph
         preprocessed_item = {
             "ph_seq": np.array(item["ph_seq"], dtype=np.int64),
             "ph_dur": ph_dur.cpu().numpy(),

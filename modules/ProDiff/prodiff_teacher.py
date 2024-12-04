@@ -85,5 +85,5 @@ class ProDiffTeacher(nn.Module):
         nonpadding = (mel2ph > 0).float()[:, :, None]
         condition = condition * nonpadding
         # diffusion
-        mel_out = self.diffusion(condition, mel2ph, ref_mels=ref_mels, infer=infer)
+        mel_out = self.diffusion(condition, nonpadding=nonpadding, ref_mels=ref_mels, infer=infer)
         return mel_out

@@ -2,15 +2,14 @@ import os
 import numpy as np
 from tqdm import tqdm
 
-import utils
+from component.binarizer import get_binarizer_cls
 from component.binarizer.base import Binarizer
 from utils.indexed_datasets import IndexedDatasetBuilder
 
 class BinarizeHandler:
     def __init__(self, hparams):
         self.hparams = hparams
-        binarizer_cls = hparams["binarizer_cls"]
-        self.binarizer: Binarizer = utils.get_cls(binarizer_cls)(hparams)
+        self.binarizer: Binarizer = get_binarizer_cls(hparams)(hparams)
         self.binary_data_dir = os.path.join(hparams['data_dir'], self.binarizer.category())
         self.transcription_item_list = self.binarizer.load_meta_data()
 

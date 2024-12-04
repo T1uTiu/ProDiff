@@ -175,7 +175,7 @@ class FastSpeech2Task(TTSBaseTask):
         ssim_loss = (ssim_loss * weights).sum() / weights.sum()
         return ssim_loss
 
-    def add_dur_loss(self, dur_pred, dur_tgt, wdur_tgt, onset, losses=None):
+    def add_dur_loss(self, dur_pred, dur_tgt, onset, losses=None):
         dur_prediction_args = hparams['dur_prediction_args']
         loss_type = dur_prediction_args['loss_type']
         if loss_type == "mse":
@@ -195,6 +195,9 @@ class FastSpeech2Task(TTSBaseTask):
         shape = dur_pred.shape[0], ph2word.max()+1
         wdur_pred = dur_pred.new_zeros(*shape).scatter_add(
             1, ph2word, dur_pred
+        )[:, 1:]
+        wdur_tgt = dur_tgt.new_zeros(*shape).scatter_add(
+            1, ph2word, dur_tgt
         )[:, 1:]
         wdur_loss = lambda_wdur * loss(linear2log(wdur_pred), linear2log(wdur_tgt))
         # sentence dur loss

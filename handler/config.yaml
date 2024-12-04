@@ -12,7 +12,6 @@ save_codes: []
 #############
 # dataset
 #############
-binarizer: component.binarizer.prodiff.ProDiffBinarizer
 datasets:
   - data_dir : data/test
     speaker: test
@@ -153,6 +152,7 @@ dur_loss: mse # huber|mol
 # duration
 use_dur_embed: true
 dur_prediction_args:
+  enable: true
   num_layers: 5
   hidden_size: 512
   dropout: 0.1
@@ -171,6 +171,8 @@ predictor_dropout: 0.5
 
 # pitch and energy
 use_pitch_embed: true
+f0_prediction_args:
+  enable: false
 pitch_norm: log # standard|log
 pitch_type: frame # frame|ph|cwt
 f0_embed_type: continuous # continuous|discrete

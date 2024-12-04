@@ -142,9 +142,9 @@ class GaussianDiffusion(nn.Module):
         out[zero_idx] = x_start[zero_idx] # set x_{-1} as the gt mel
         return out
 
-    def forward(self, cond, mel2ph=None, ref_mels=None, infer=False):
-        b, *_, device = *mel2ph.shape, mel2ph.device
-        nonpadding = (mel2ph!= 0).float().unsqueeze(1).unsqueeze(1) # [B, T]
+    def forward(self, cond, nonpadding=None, ref_mels=None, infer=False):
+        b, *_, device = *cond.shape, cond.device
+        # nonpadding = (mel2ph!= 0).float().unsqueeze(1).unsqueeze(1) # [B, T]
         cond = cond.transpose(1, 2)
         if not infer: # 训练
             t = torch.randint(0, self.num_timesteps + 1, (b,), device=device).long()
@@ -153,7 +153,7 @@ class GaussianDiffusion(nn.Module):
             # Diffusion reverse process: directly predict x_0
             x_0_pred = self.denoise_fn(x_t, t, cond) * nonpadding
 
-            mel_out = x_0_pred[:, 0].transpose(1, 2) # [B, T, mel_bin]
+            x_0 = x_0_pred[:, 0].transpose(1, 2) # [B, T, mel_bin]
         else:
             t = self.num_timesteps  # reverse总步数
             shape = (cond.shape[0], 1, self.mel_bins, cond.shape[2])
@@ -161,8 +161,8 @@ class GaussianDiffusion(nn.Module):
             for i in tqdm(reversed(range(0, t)), desc='ProDiff Teacher sample time step', total=t):
                 x = self.p_sample(x, torch.full((b,), i, device=device, dtype=torch.long), cond)  # x(mel), t, condition(phoneme)
             x = x[:, 0].transpose(1, 2)
-            mel_out = self.denorm_spec(x)  # 去除norm
-        return mel_out
+            x_0 = self.denorm_spec(x)  # 去除norm
+        return x_0
 
     def norm_spec(self, x):
         return x
@@ -170,5 +170,11 @@ class GaussianDiffusion(nn.Module):
     def denorm_spec(self, x):
         return x
 
-    def out2mel(self, x):
-        return x
+class PitchDiffusion(GaussianDiffusion):
+    def norm_spec(self, x):
+        repeats = [1, 1, self.repet_bins]
+        return super().norm_spec(x.unsqueeze(-1).repeat(*repeats))
+    
+    def denorm_spec(self, x):
+        return super().denorm_spec(x).mean(dim=-1)
+

@@ -1,17 +1,10 @@
-from component.train_task.dataset import ProDiffDataset, ProDiffDatasetBatchItem
 from component.train_task.vari_predictor.dataset import VariPredictorDataset
-from modules.ProDiff.prodiff_teacher import ProDiffTeacher
 from modules.variance_predictor.vari_predictor import VariPredictor
 import utils
 from utils.hparams import hparams
-from modules.ProDiff.model.ProDiff_teacher import GaussianDiffusion
-from usr.diff.net import DiffNet
 from tasks.tts.fs2 import FastSpeech2Task
 from vocoders.base_vocoder import get_vocoder_cls, BaseVocoder
 
-DIFF_DECODERS = {
-    'wavenet': lambda hp: DiffNet(hp['audio_num_mel_bins']),
-}
 
 
 class VariPredictorTask(FastSpeech2Task):
@@ -38,13 +31,13 @@ class VariPredictorTask(FastSpeech2Task):
         dur_pred = model(txt_tokens, onset, word_dur, infer=infer)
 
         losses = {}
-        self.add_dur_loss(dur_pred, dur_tgt, word_dur, onset, losses)
+        self.add_dur_loss(dur_pred, dur_tgt, onset, losses)
         if not return_output:
             return losses
         else:
             return losses, dur_pred
 
-    def validation_step(self, sample: ProDiffDatasetBatchItem, batch_idx):
+    def validation_step(self, sample: dict, batch_idx):
         outputs = {}
         txt_tokens = sample["ph_seq"]  # [B, T_ph]
         word_dur = sample["word_dur"]  # [B, T_w]

@@ -5,7 +5,7 @@ import torch
 
 from handler.binarize import BinarizeHandler
 from handler.infer import InferHandler
-from component.train_task import ProDiffTask, ProDiffTeacherTask
+from component.train_task import ProDiffTask, SVSTask
 from utils.data_gen_utils import get_pitch
 from tasks.base_task import BaseTask
 from utils.audio import save_wav
@@ -18,14 +18,15 @@ def main():
     pass
 
 @main.command()
+@click.argument("task", type=str)
 @click.option("--config", type=str, required=True)
 @click.option("--exp_name", type=str, required=True)
-def binarize(config, exp_name):
+def binarize(task, config, exp_name):
     set_hparams(config=config, exp_name=exp_name)
     BinarizeHandler(hparams=hparams).handle()
 
 trainer_map: Dict[str, BaseTask] = {
-    "teacher": ProDiffTeacherTask,
+    "teacher": SVSTask,
 }
 
 @main.command()
