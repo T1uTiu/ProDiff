@@ -9,7 +9,7 @@ from utils.indexed_datasets import IndexedDatasetBuilder
 class BinarizeHandler:
     def __init__(self, hparams):
         self.hparams = hparams
-        self.binarizer: Binarizer = get_binarizer_cls(hparams)(hparams)
+        self.binarizer: Binarizer = get_binarizer_cls(hparams["task"])(hparams)
         self.binary_data_dir = os.path.join(hparams['data_dir'], self.binarizer.category())
         self.transcription_item_list = self.binarizer.load_meta_data()
 

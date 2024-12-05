@@ -22,8 +22,7 @@ def register_binarizer(cls):
     BINARIZERS[cls.category()] = cls
     return cls
 
-def get_binarizer_cls(hparams):
-    binarizer = hparams["task"]
-    if binarizer not in BINARIZERS:
-        raise ValueError(f"Binarizer {binarizer} not found in BINARIZERS")
-    return BINARIZERS[binarizer]
+def get_binarizer_cls(task):
+    if task not in BINARIZERS:
+        raise ValueError(f"Binarizer {task} not found in BINARIZERS")
+    return BINARIZERS[task]

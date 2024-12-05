@@ -13,15 +13,17 @@ class Inferer:
     
     def run_model(self, **inp):
         raise NotImplementedError
+    
+    @staticmethod
+    def category():
+        raise NotImplementedError
 
 INFERERS: Dict[str, type] = {}
 def register_inferer(cls):
-    INFERERS[cls.__name__.lower()] = cls
-    INFERERS[cls.__name__] = cls
+    INFERERS[cls.category()] = cls
     return cls
 
-def get_inferer_cls(hparams):
-    cls_name = hparams['inferer'].lower()
-    if cls_name not in INFERERS:
-        raise ValueError(f"Inferer {cls_name} not found in INFERERS")
-    return INFERERS[hparams['inferer']]
+def get_inferer_cls(task):
+    if task not in INFERERS:
+        raise ValueError(f"Inferer {task} not found in INFERERS")
+    return INFERERS[task]
