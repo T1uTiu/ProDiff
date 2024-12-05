@@ -19,6 +19,7 @@ datasets:
 data_dir: data/test
 binary_data_dir: 'data/test/binary'
 dictionary: 
+  global: dictionary/global.csv
   zh: dictionary/zh.txt
   jp: dictionary/jp.txt
 merged_phoneme_dict: merged_phoneme_dict.json

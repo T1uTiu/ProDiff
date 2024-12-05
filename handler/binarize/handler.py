@@ -31,17 +31,17 @@ class BinarizeHandler:
         lengths, f0s, total_sec = [], [], 0
 
         for item in tqdm(self.get_transcription_item_list(prefix)):
-            preprocess_item = self.binarizer.process_item(item)
-            builder.add_item(preprocess_item)
-            if "sec" in preprocess_item:
-                total_sec += preprocess_item["sec"]
-            if "mel" in preprocess_item:
-                lengths.append(preprocess_item["mel"].shape[0])
-            if "f0" in preprocess_item:
-                f0s.append(preprocess_item.f0)
+            preprocessed_item = self.binarizer.process_item(item)
+            builder.add_item(preprocessed_item)
+            if "sec" in preprocessed_item:
+                total_sec += preprocessed_item["sec"]
+            assert "length" in preprocessed_item, "Preprocessed item must have 'length' field"
+            lengths.append(preprocessed_item["length"])
+            if "f0" in preprocessed_item:
+                f0s.append(preprocessed_item["f0"])
         builder.finalize()
         
-        if lengths > 0:
+        if len(lengths) > 0:
             np.save(f'{data_dir}/{prefix}_lengths.npy', lengths)
         if len(f0s) > 0:
             f0s = np.concatenate(f0s, 0)

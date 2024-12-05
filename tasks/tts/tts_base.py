@@ -44,7 +44,8 @@ class TTSBaseTask(BaseTask):
         if self.max_valid_sentences == -1:
             hparams['max_valid_sentences'] = self.max_valid_sentences = self.max_sentences
         self.vocoder = None
-        self.phone_encoder = self.build_phone_encoder(hparams['binary_data_dir'])
+        self.data_dir = os.path.join(hparams["data_dir"], hparams["task"])
+        self.phone_encoder = self.build_phone_encoder(self.data_dir)
         self.padding_idx = self.phone_encoder.pad()
         self.eos_idx = self.phone_encoder.eos()
         self.seg_idx = self.phone_encoder.seg()
@@ -57,7 +58,7 @@ class TTSBaseTask(BaseTask):
         if hparams['train_sets'] != '':
             train_sets = hparams['train_sets'].split("|")
             # check if all train_sets have the same spk map and dictionary
-            binary_data_dir = hparams['binary_data_dir']
+            binary_data_dir = self.data_dir
             file_to_cmp = ['phone_set.json']
             if os.path.exists(f'{binary_data_dir}/word_set.json'):
                 file_to_cmp.append('word_set.json')
@@ -136,9 +137,11 @@ class TTSBaseTask(BaseTask):
                                            pin_memory=False)
 
     def build_phone_encoder(self, data_dir):
-        phone_list_file = os.path.join(data_dir, 'phone_set.json')
-        phone_list = json.load(open(phone_list_file))
-        return TokenTextEncoder(None, vocab_list=phone_list, replace_oov=',')
+        ph_map_fn = os.path.join(data_dir, 'phone_set.json')
+        with open(ph_map_fn, 'r') as f:
+            ph_map = json.load(f)
+        ph_list = list(sorted(set(ph_map.values())))
+        return TokenTextEncoder(None, vocab_list=ph_list, replace_oov='SP')
 
     def build_scheduler(self, optimizer):
         if hparams['scheduler'] == 'rsqrt':

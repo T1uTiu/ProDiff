@@ -3,6 +3,7 @@ from modules.variance_predictor.vari_predictor import VariPredictor
 import utils
 from utils.hparams import hparams
 from tasks.tts.fs2 import FastSpeech2Task
+from utils.plot import dur_to_figure
 from vocoders.base_vocoder import get_vocoder_cls, BaseVocoder
 
 
@@ -20,7 +21,6 @@ class VariPredictorTask(FastSpeech2Task):
 
     def build_tts_model(self):
         self.model = VariPredictor(self.phone_encoder, hparams)
-
 
     def run_model(self, model, sample, return_output=False, infer=False):
         txt_tokens = sample["ph_seq"]  # [B, T_ph]
@@ -48,11 +48,19 @@ class VariPredictorTask(FastSpeech2Task):
         outputs['losses'], model_out = self.run_model(self.model, sample, return_output=True, infer=False)
 
         outputs['total_loss'] = sum(outputs['losses'].values())
-        outputs['nsamples'] = sample.nsamples
+        outputs['nsamples'] = sample["nsamples"]
         outputs = utils.tensors_to_scalars(outputs)
         if batch_idx < hparams['num_valid_plots']:
             model_out = self.model(
                 txt_tokens, onset, word_dur, infer=True)
-            self.plot_dur(batch_idx, target, model_out)
+            self.plot_dur(batch_idx, sample, model_out)
         return outputs
+
+    def plot_dur(self, batch_idx, sample, dur_pred):
+        dur_tgt = sample["ph_dur"]
+        ph_text = self.phone_encoder.decode(sample["ph_seq"][0].cpu().numpy()).split()
+        # self.logger.add_figure(
+        #     f"dur_{batch_idx}", dur_to_figure(dur_tgt, dur_pred, ph_text), self.global_step
+        # )
+        print(f"ph_text: {ph_text[0]}\ndur_tgt: {dur_tgt[0]}\ndur_pred: {dur_pred[0]}")
 

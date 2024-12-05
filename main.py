@@ -5,7 +5,7 @@ import torch
 
 from handler.binarize import BinarizeHandler
 from handler.infer import InferHandler
-from component.train_task import ProDiffTask, SVSTask
+from component.train_task import SVSTask, VariPredictorTask
 from utils.data_gen_utils import get_pitch
 from tasks.base_task import BaseTask
 from utils.audio import save_wav
@@ -23,20 +23,23 @@ def main():
 @click.option("--exp_name", type=str, required=True)
 def binarize(task, config, exp_name):
     set_hparams(config=config, exp_name=exp_name)
+    hparams.setdefault("task", task)
     BinarizeHandler(hparams=hparams).handle()
 
-trainer_map: Dict[str, BaseTask] = {
-    "teacher": SVSTask,
+train_task_map: Dict[str, BaseTask] = {
+    "svs": SVSTask,
+    "vari": VariPredictorTask
 }
 
 @main.command()
-@click.argument("trainer", type=str)
+@click.argument("train_task", type=str)
 @click.option("--config", type=str, required=True)
 @click.option("--exp_name", type=str, required=True)
-def train(trainer, config, exp_name):
-    assert trainer in trainer_map, f"Invalid trainer: {trainer}, use one of {list(trainer_map.keys())}"
+def train(train_task, config, exp_name):
+    assert train_task in train_task_map, f"Invalid train task: {train_task}, use one of {list(train_task_map.keys())}"
     set_hparams(config=config, exp_name=exp_name)
-    trainer_instance = trainer_map[trainer]
+    hparams["task"] = train_task
+    trainer_instance = train_task_map[train_task]
     trainer_instance.start()
 
 inferer_map: Dict[str, str] = {

@@ -22,14 +22,14 @@ class SVSBinarizer(Binarizer):
         self.build_spk_map()
         self.lr = LengthRegulator()
         self.pe = get_pitch_extractor_cls(hparams)(hparams)
-        self.vocoder = get_vocoder_cls(hparams)(hparams)
+        self.vocoder = get_vocoder_cls(hparams)()
         binarization_args = hparams["binarization_args"]
         if binarization_args['shuffle']:
             random.seed(3407)
             random.shuffle(self.transcription_item_list)
 
     @staticmethod
-    def category(cls):
+    def category():
         return "svs"
     
     def build_spk_map(self):
@@ -42,8 +42,8 @@ class SVSBinarizer(Binarizer):
     
     def build_lang_map(self):
         hparams = self.hparams
-        self.lang_ids = list(range(len(self.datasets)))
-        self.lang_map = {ds: i for i, ds in enumerate(hparams["dictionary"].keys())}
+        self.lang_map = {dt: i for i, dt in enumerate(hparams["dictionary"].keys()) if dt != "global"}
+        self.lang_ids = list(range(len(self.lang_map)))
         print("| lang_map: ", self.lang_map)
         lang_map_fn = f"{self.data_dir}/lang_map.json"
         with open(lang_map_fn, 'w') as f:
@@ -84,8 +84,9 @@ class SVSBinarizer(Binarizer):
             "ph_seq" : np.array(item["ph_seq"], dtype=np.int64),
             "ph_dur" : np.array(item["ph_dur"], dtype=np.float32),
             "lang_seq" : np.array(item["lang_seq"], dtype=np.int64),
-            "sec" : len(wav) / hparams['audio_sample_rate'],
         }
+        preprocessed_item["sec"] = len(wav) / hparams['audio_sample_rate']
+        preprocessed_item["length"] = mel.shape[0]
 
         timestep = hparams['hop_size'] / hparams['audio_sample_rate']
         preprocessed_item["mel2ph"] = get_mel2ph_dur(lr, torch.FloatTensor(item["ph_dur"]), mel.shape[0], timestep)
@@ -97,7 +98,7 @@ class SVSBinarizer(Binarizer):
             hop_size = hparams['hop_size'], 
             interp_uv = hparams['interp_uv']
         )
-        assert not uv.all(), f"all unvoiced. item_name: {item["item_name"]}, wav_fn: {item["wav_fn"]}"
+        assert not uv.all(), f"all unvoiced. item_name: {item['item_name']}, wav_fn: {item['wav_fn']}"
         preprocessed_item["f0"] = f0
 
         return preprocessed_item

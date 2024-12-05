@@ -1,9 +1,6 @@
-from dataclasses import dataclass
 import os
 from typing import List
 import matplotlib
-
-from component.binarizer.base import get_binarizer_cls
 matplotlib.use('Agg')
 
 import glob
@@ -20,32 +17,10 @@ from utils.cwt import get_lf0_cwt
 from utils.hparams import hparams
 from utils.indexed_datasets import IndexedDataset
 
-@dataclass
-class SVSDatasetBatchItem:
-    nsamples: int
-
-    spk_id: torch.LongTensor = None
-    lang_seq: torch.LongTensor = None
-    ph_seq: torch.LongTensor = None
-    mel2ph: torch.LongTensor = None
-    f0: torch.FloatTensor = None
-    txt_lengths: torch.LongTensor = None
-    mel_lengths: torch.LongTensor = None
-
-    mel: torch.Tensor = None
-
-    def to(self, device, non_blocking=False, copy=False):
-        for attr_name in self.__dict__:
-            attr = getattr(self, attr_name)
-            if callable(getattr(attr, 'to', None)):
-                setattr(self, attr_name, attr.to(device, non_blocking=non_blocking, copy=copy))
-        return self
-
 class SVSDataset(BaseDataset):
     def __init__(self, prefix, shuffle=False):
         super().__init__(shuffle)
-        binarizer_cls = get_binarizer_cls(hparams)
-        self.data_dir = os.path.join(hparams['data_dir'], binarizer_cls.category())  
+        self.data_dir = os.path.join(hparams['data_dir'], hparams["task"])  
         self.prefix = prefix
         self.sizes = np.load(f'{self.data_dir}/{self.prefix}_lengths.npy')
         self.indexed_ds = None

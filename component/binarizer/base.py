@@ -13,7 +13,7 @@ class Binarizer:
         raise NotImplementedError
     
     @staticmethod   
-    def category(cls):
+    def category():
         raise NotImplementedError
     
 BINARIZERS = {}

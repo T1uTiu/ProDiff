@@ -38,7 +38,7 @@ class FastSpeech2Task(TTSBaseTask):
             self.loss_and_lambda[l] = lbd
         print("| Mel losses:", self.loss_and_lambda)
         self.sil_ph = self.phone_encoder.sil_phonemes()
-        f0_stats_fn = f'{hparams["binary_data_dir"]}/train_f0s_mean_std.npy'
+        f0_stats_fn = os.path.join(self.data_dir, "train_f0s_mean_std.npy")
         if os.path.exists(f0_stats_fn):
             hparams['f0_mean'], hparams['f0_std'] = np.load(f0_stats_fn)
             hparams['f0_mean'] = float(hparams['f0_mean'])
@@ -57,7 +57,7 @@ class FastSpeech2Task(TTSBaseTask):
     def _training_step(self, sample, batch_idx, _):
         loss_output = self.run_model(self.model, sample)
         total_loss = sum([v for v in loss_output.values() if isinstance(v, torch.Tensor) and v.requires_grad])
-        loss_output['batch_size'] = sample.ph_seq.size()[0]
+        loss_output['batch_size'] = sample["nsamples"]
         return total_loss, loss_output
 
     def validation_step(self, sample, batch_idx):

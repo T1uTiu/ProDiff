@@ -16,7 +16,7 @@ class VariPredictorBinarizer(Binarizer):
         self.lr = LengthRegulator()
 
     @staticmethod
-    def category(cls):
+    def category():
         return "vari"
 
     def load_meta_data(self) -> list:
@@ -56,5 +56,6 @@ class VariPredictorBinarizer(Binarizer):
             "ph_dur": ph_dur.cpu().numpy(),
             "word_dur": word_dur.cpu().numpy(),
             "onset": onset.cpu().numpy(),
+            "length": len(item["ph_seq"])
         }
         return preprocessed_item

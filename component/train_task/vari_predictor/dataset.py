@@ -1,13 +1,13 @@
 import os
 from typing import List
 import matplotlib
+import numpy as np
 
-from component.binarizer.base import get_binarizer_cls
+
 matplotlib.use('Agg')
 
 import glob
 import importlib
-import numpy as np
 import torch
 import torch.distributions
 import torch.optim
@@ -15,18 +15,16 @@ import torch.utils.data
 
 import utils
 from tasks.base_task import BaseDataset
-from utils.cwt import get_lf0_cwt
 from utils.hparams import hparams
 from utils.indexed_datasets import IndexedDataset
-from handler.binarize.handler import PreprocessedItem
 
 
 class VariPredictorDataset(BaseDataset):
     def __init__(self, prefix, shuffle=False):
         super().__init__(shuffle)
-        binarizer_cls = get_binarizer_cls(hparams)
-        self.data_dir = os.path.join(hparams['data_dir'], binarizer_cls.category()) 
+        self.data_dir = os.path.join(hparams['data_dir'], hparams["task"]) 
         self.prefix = prefix
+        self.sizes = np.load(f'{self.data_dir}/{self.prefix}_lengths.npy')
         self.indexed_ds = None
 
         if prefix == 'test':

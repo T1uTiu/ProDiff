@@ -9,6 +9,7 @@ from utils.pitch_utils import f0_to_coarse
 
 class ProDiffTeacher(nn.Module):
     def __init__(self, ph_encoder, hparams):
+        super(ProDiffTeacher, self).__init__()
         self.encoder = FastspeechEncoder(
             ph_encoder=ph_encoder,
             hidden_size=hparams["hidden_size"],
@@ -34,10 +35,10 @@ class ProDiffTeacher(nn.Module):
         self.diffusion = GaussianDiffusion(
             out_dims=hparams["audio_num_mel_bins"],
             denoise_fn=DiffNet(hparams['audio_num_mel_bins']),
-            timesteps=hparams["timestep"],
+            timesteps=hparams["timesteps"],
             time_scale=hparams["timescale"],
             loss_type=hparams["diff_loss_type"],
-            schedule_mode=hparams['schedule_type'],
+            schedule_type=hparams['schedule_type'],
             spec_min=hparams["spec_min"],
             spec_max=hparams["spec_max"],
             keep_bins=hparams["keep_bins"]
@@ -85,5 +86,6 @@ class ProDiffTeacher(nn.Module):
         nonpadding = (mel2ph > 0).float()[:, :, None]
         condition = condition * nonpadding
         # diffusion
+        nonpadding = (mel2ph > 0).float().unsqueeze(1).unsqueeze(1)
         mel_out = self.diffusion(condition, nonpadding=nonpadding, ref_mels=ref_mels, infer=infer)
         return mel_out
