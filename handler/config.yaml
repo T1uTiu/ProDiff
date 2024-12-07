@@ -138,6 +138,7 @@ use_split_spk_id: false
 use_spk_embed: false
 use_pos_embed: true
 use_lang_id: true
+use_gender_id: true
 rel_pos: false
 
 # conv enc/dec

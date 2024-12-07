@@ -28,9 +28,12 @@ class SVSTask(FastSpeech2Task):
         mel2ph = sample["mel2ph"]
         f0 = sample["f0"]
         spk_embed_id = sample.get("spk_id", None)
+        gender_embed_id = sample.get("gender_id", None)
         lang_seq = sample.get("lang_seq", None)
         # 模型输出
-        output = model(txt_tokens, mel2ph, f0, lang_seq=lang_seq, spk_embed_id=spk_embed_id, ref_mels=target, infer=infer)
+        output = model(txt_tokens, mel2ph, f0, 
+                       lang_seq=lang_seq, spk_embed_id=spk_embed_id, gender_embed_id=gender_embed_id,
+                       ref_mels=target, infer=infer)
 
         losses = {}
         self.add_mel_loss(output, target, losses)
@@ -44,6 +47,7 @@ class SVSTask(FastSpeech2Task):
         txt_tokens = sample["ph_seq"]  # [B, T_t]
 
         spk_embed_id = sample.get("spk_id", None)
+        gender_embed_id = sample.get("gender_id", None)
         lang_seq = sample.get("lang_seq", None)
         mel2ph = sample["mel2ph"]
         f0 = sample["f0"]
@@ -56,21 +60,9 @@ class SVSTask(FastSpeech2Task):
         outputs = utils.tensors_to_scalars(outputs)
         if batch_idx < hparams['num_valid_plots']:
             model_out = self.model(
-                txt_tokens, mel2ph, f0, lang_seq=lang_seq, spk_embed_id=spk_embed_id, ref_mels=None, infer=True)
+                txt_tokens, mel2ph, f0, 
+                lang_seq=lang_seq, spk_embed_id=spk_embed_id, gender_embed_id=gender_embed_id,
+                ref_mels=None, infer=True)
             self.plot_mel(batch_idx, sample.mel, model_out)
         return outputs
-
-    ############
-    # validation plots
-    ############
-    def plot_wav(self, batch_idx, gt_wav, wav_out, is_mel=False, gt_f0=None, f0=None, name=None):
-        gt_wav = gt_wav[0].cpu().numpy()
-        wav_out = wav_out[0].cpu().numpy()
-        gt_f0 = gt_f0[0].cpu().numpy()
-        f0 = f0[0].cpu().numpy()
-        if is_mel:
-            gt_wav = self.vocoder.spec2wav(gt_wav, f0=gt_f0)
-            wav_out = self.vocoder.spec2wav(wav_out, f0=f0)
-        self.logger.add_audio(f'gt_{batch_idx}', gt_wav, sample_rate=hparams['audio_sample_rate'], global_step=self.global_step)
-        self.logger.add_audio(f'wav_{batch_idx}', wav_out, sample_rate=hparams['audio_sample_rate'], global_step=self.global_step)
 

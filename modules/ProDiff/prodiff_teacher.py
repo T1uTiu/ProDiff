@@ -20,12 +20,19 @@ class ProDiffTeacher(nn.Module):
         self.with_dur_embed = hparams.get('use_dur_embed', True)
         if self.with_dur_embed:
             self.dur_embed = Linear(1, hparams["hidden_size"])
+
         self.with_spk_embed = hparams.get('use_spk_id', True)
         if self.with_spk_embed:
             self.spk_embed = Embedding(len(hparams['datasets']), hparams['hidden_size'])
+
+        self.with_gender_embed = hparams.get("use_gender_id", False)
+        if self.with_gender_embed:
+            self.gender_embed = Embedding(2, hparams['hidden_size'])
+
         self.with_lang_embed = hparams.get('use_lang_id', True)
         if self.with_lang_embed:
             self.lang_embed = Embedding(len(hparams["dictionary"]), hparams['hidden_size'], ph_encoder.pad())
+
         self.f0_embed_type = hparams.get('f0_embed_type', 'continuous')
         if self.f0_embed_type == 'discrete':
             self.pitch_embed = Embedding(300, hparams['hidden_size'], ph_encoder.pad())
@@ -51,6 +58,12 @@ class ProDiffTeacher(nn.Module):
         else:
             spk_embed = self.spk_embed(spk_embed_id)[:, None, :]
         return spk_embed
+    
+    def add_gender_embed(self, gender_id, gender_mix_embed):
+        assert not (gender_id is None and gender_mix_embed is None)
+        if gender_mix_embed is not None:
+            return gender_mix_embed
+        return self.lang_embed(gender_id)[:, None, :]
 
     def add_pitch(self, f0:torch.Tensor):
         if self.f0_embed_type == 'discrete':
@@ -62,7 +75,9 @@ class ProDiffTeacher(nn.Module):
         return pitch_embed
 
     def forward(self, txt_tokens, mel2ph, f0, 
-                lang_seq=None, spk_embed_id=None, spk_mix_embed=None, 
+                lang_seq=None, 
+                spk_embed_id=None, spk_mix_embed=None, 
+                gender_id=None, gender_mix_embed=None,
                 ref_mels=None, infer=False, **kwargs):
         # dur embed
         if self.with_dur_embed:
@@ -70,6 +85,7 @@ class ProDiffTeacher(nn.Module):
             extra_embed = self.dur_embed(dur[:, :, None])
         # lang embed
         if self.with_lang_embed:
+            assert lang_seq is not None, "use_lang_embed is True, lang_seq is required"
             lang_embed = self.lang_embed(lang_seq)
             extra_embed += lang_embed
         # encode
@@ -83,6 +99,8 @@ class ProDiffTeacher(nn.Module):
         # spk embed
         if self.with_spk_embed:
             condition += self.add_spk_embed(spk_embed_id, spk_mix_embed)
+        if self.with_gender_embed:
+            condition += self.add_gender_embed(gender_id, gender_mix_embed)
         nonpadding = (mel2ph > 0).float()[:, :, None]
         condition = condition * nonpadding
         # diffusion

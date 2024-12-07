@@ -144,7 +144,6 @@ class GaussianDiffusion(nn.Module):
 
     def forward(self, cond, nonpadding=None, ref_mels=None, infer=False):
         b, *_, device = *cond.shape, cond.device
-        # nonpadding = (mel2ph!= 0).float().unsqueeze(1).unsqueeze(1) # [B, T]
         cond = cond.transpose(1, 2)
         if not infer: # 训练
             t = torch.randint(0, self.num_timesteps + 1, (b,), device=device).long()
@@ -171,6 +170,20 @@ class GaussianDiffusion(nn.Module):
         return x
 
 class PitchDiffusion(GaussianDiffusion):
+    def __init__(self, repeat_bins, denoise_fn,
+                 timesteps=1000, time_scle=1,
+                 loss_type='l1', betas=None, schedule_type="vpsde",
+                 vmin=None, vmax=None, keep_bins=80):
+        self.repeat_bins = repeat_bins
+        spec_min = [vmin]
+        spec_max = [vmax]
+        super().__init__(
+            out_dims=repeat_bins, denoise_fn=denoise_fn,
+            timesteps=timesteps, time_scale=time_scle,
+            loss_type=loss_type, betas=betas, schedule_type=schedule_type,
+            spec_min=spec_min, spec_max=spec_max, keep_bins=keep_bins
+        )
+
     def norm_spec(self, x):
         repeats = [1, 1, self.repet_bins]
         return super().norm_spec(x.unsqueeze(-1).repeat(*repeats))

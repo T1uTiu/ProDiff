@@ -70,6 +70,9 @@ class SVSDataset(BaseDataset):
         
         if self.hparams['use_spk_id']:
             batch_item["spk_id"] = torch.LongTensor([s["spk_id"] for s in samples])
+
+        if self.hparams["use_gender_id"]:
+            batch_item["gender_id"] = torch.LongTensor([s["gender_id"] for s in samples])
         
         if self.hparams['use_lang_id']:
             batch_item["lang_seq"] = utils.collate_1d([torch.LongTensor(s["lang_seq"]) for s in samples], 0)

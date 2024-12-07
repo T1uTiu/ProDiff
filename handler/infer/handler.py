@@ -94,9 +94,33 @@ class InferHandler:
         spk_mix_value /= spk_mix_value_sum # Normalize
         return spk_mix_id, spk_mix_value
 
+    def get_note_dur(self, note_dur, note_slur):
+        note_num = len(note_dur)
+        slow, fast = -1, 0
+        while fast < note_num:
+            if note_slur[fast] == 0:
+                slow += 1
+                note_dur[slow] = note_dur[fast]
+            else:
+                note_dur[slow] += note_dur[fast]
+            fast += 1
+        return note_dur[:slow+1]
+
+    def force_align_pdur(self, ph_num, ph_dur, note_dur):
+        note_num = len(note_dur)
+        j = 0
+        for i in range(note_num):
+            rate = torch.sum(ph_dur[j:j+ph_num[i]]) / note_dur[i]
+            ph_dur[j:j+ph_num[i]] = ph_dur[j:j+ph_num[i]] / rate
+            j += ph_num[i]
+        return ph_dur
+
+    
     def infer(self, segment: dict):
         lang = segment.get("lang", "zh")
-        ph_text_seq = [self.ph_map[f"{ph}/{lang}"] for ph in segment["ph_seq"].split()]
+        ph_text_seq = [
+            self.ph_map[f"{ph}/{lang}"] for ph in segment["ph_seq"].split()
+        ]
 
         if self.hparams["use_lang_id"]:
             lang_seq = torch.LongTensor(
@@ -110,21 +134,18 @@ class InferHandler:
             ph_num = torch.LongTensor([int(num) for num in segment["ph_num"].split()])
             ph2word = self.lr(ph_num[None])[0]
             onset = torch.diff(ph2word, dim=0, prepend=ph2word.new_zeros(1)).to(self.device)[None, :]
-            note_dur = [float(x) for x in segment["note_dur"].split()]
-            note_slur = [int(x) for x in segment["note_slur"].split()]
-            word_dur = []
-            for dur, slur in zip(note_dur, note_slur):
-                if slur == 0:
-                    word_dur.append(dur)
-                else:
-                    word_dur[-1] += dur
-            word_dur = torch.FloatTensor(word_dur)[None, :] # [B=1, T_w]
+            note_dur = self.get_note_dur(
+                note_dur=[float(x) for x in segment["note_dur"].split()], 
+                note_slur=[int(x) for x in segment["note_slur"].split()]
+            )
+            word_dur = torch.FloatTensor(note_dur)[None, :] # [B=1, T_w]
             word_dur = torch.gather(F.pad(word_dur, [1, 0], value=0), 1, ph2word[None, :]).to(self.device)# [B=1, T_txt]
             ph_dur = self.vari_predictor.run_model(
                 ph_seq=ph_token_seq,
                 onset=onset,
                 word_dur=word_dur,
             ).to(self.device).squeeze(0)
+            ph_dur = self.force_align_pdur(ph_num, ph_dur, note_dur)
         else:
             ph_dur = torch.from_numpy(np.array(segment["ph_dur"].split(), np.float32)).to(self.device)
         ph_acc = torch.round(torch.cumsum(ph_dur, dim=0) / self.timestep + 0.5).long()

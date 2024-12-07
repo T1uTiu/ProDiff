@@ -33,7 +33,6 @@ class SVSBinarizer(Binarizer):
         return "svs"
     
     def build_spk_map(self):
-        self.spk_ids = list(range(len(self.datasets)))
         self.spk_map = {ds["speaker"]: i for i, ds in enumerate(self.datasets)}
         print("| spk_map: ", self.spk_map)
         spk_map_fn = f"{self.data_dir}/spk_map.json"
@@ -43,7 +42,6 @@ class SVSBinarizer(Binarizer):
     def build_lang_map(self):
         hparams = self.hparams
         self.lang_map = {dt: i for i, dt in enumerate(hparams["dictionary"].keys()) if dt != "global"}
-        self.lang_ids = list(range(len(self.lang_map)))
         print("| lang_map: ", self.lang_map)
         lang_map_fn = f"{self.data_dir}/lang_map.json"
         with open(lang_map_fn, 'w') as f:
@@ -54,6 +52,8 @@ class SVSBinarizer(Binarizer):
         for dataset in self.datasets:
             data_dir = dataset["data_dir"]
             lang = dataset["language"]
+            gender_id = dataset["gender"]
+            assert gender_id in [0, 1], "gender must be 0 for female or 1 for male"
             transcription_file = open(f"{data_dir}/transcriptions.txt", 'r', encoding='utf-8')
             for _r in transcription_file.readlines():
                 r = _r.split('|') # item_name | text | ph | dur_list | ph_num
@@ -66,8 +66,8 @@ class SVSBinarizer(Binarizer):
                     "ph_dur" : [float(x) for x in r[3].split(' ')],
                     "wav_fn" : f"{data_dir}/wav/{item_name}.wav",
                     "spk_id" : self.spk_map[dataset["speaker"]],
-                    "lang_id" : lang_id,
-                    "lang_seq" : [lang_id]*len(ph_seq)
+                    "lang_seq" : [lang_id]*len(ph_seq),
+                    "gender_id": gender_id
                 }
                 transcription_item_list.append(item)
             transcription_file.close()
@@ -81,6 +81,7 @@ class SVSBinarizer(Binarizer):
         preprocessed_item = {
             "mel" : mel,
             "spk_id" : item["spk_id"],
+            "gender_id": item["gender_id"],
             "ph_seq" : np.array(item["ph_seq"], dtype=np.int64),
             "ph_dur" : np.array(item["ph_dur"], dtype=np.float32),
             "lang_seq" : np.array(item["lang_seq"], dtype=np.int64),
