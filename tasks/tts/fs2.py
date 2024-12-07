@@ -38,7 +38,7 @@ class FastSpeech2Task(TTSBaseTask):
             self.loss_and_lambda[l] = lbd
         print("| Mel losses:", self.loss_and_lambda)
         self.sil_ph = self.phone_encoder.sil_phonemes()
-        f0_stats_fn = f'{hparams["binary_data_dir"]}/train_f0s_mean_std.npy'
+        f0_stats_fn = os.path.join(self.data_dir, "train_f0s_mean_std.npy")
         if os.path.exists(f0_stats_fn):
             hparams['f0_mean'], hparams['f0_std'] = np.load(f0_stats_fn)
             hparams['f0_mean'] = float(hparams['f0_mean'])
@@ -57,7 +57,7 @@ class FastSpeech2Task(TTSBaseTask):
     def _training_step(self, sample, batch_idx, _):
         loss_output = self.run_model(self.model, sample)
         total_loss = sum([v for v in loss_output.values() if isinstance(v, torch.Tensor) and v.requires_grad])
-        loss_output['batch_size'] = sample.ph_seq.size()[0]
+        loss_output['batch_size'] = sample["nsamples"]
         return total_loss, loss_output
 
     def validation_step(self, sample, batch_idx):
@@ -175,40 +175,36 @@ class FastSpeech2Task(TTSBaseTask):
         ssim_loss = (ssim_loss * weights).sum() / weights.sum()
         return ssim_loss
 
-    def add_dur_loss(self, dur_pred, mel2ph, txt_tokens, losses=None):
-        """
-
-        :param dur_pred: [B, T], float, log scale
-        :param mel2ph: [B, T]
-        :param txt_tokens: [B, T]
-        :param losses:
-        :return:
-        """
-        B, T = txt_tokens.shape
-        nonpadding = (txt_tokens != 0).float()
-        dur_gt = mel2ph_to_dur(mel2ph, T).float() * nonpadding
-        is_sil = torch.zeros_like(txt_tokens).bool()
-        for p in self.sil_ph:
-            is_sil = is_sil | (txt_tokens == self.phone_encoder.encode(p)[0])
-        is_sil = is_sil.float()  # [B, T_txt]
-        losses['pdur'] = F.mse_loss(dur_pred, (dur_gt + 1).log(), reduction='none')
-        losses['pdur'] = (losses['pdur'] * nonpadding).sum() / nonpadding.sum()
-        losses['pdur'] = losses['pdur'] * hparams['lambda_ph_dur']
-        dur_pred = (dur_pred.exp() - 1).clamp(min=0)
-        # use linear scale for sent and word duration
-        if hparams['lambda_word_dur'] > 0:
-            word_id = (is_sil.cumsum(-1) * (1 - is_sil)).long()
-            word_dur_p = dur_pred.new_zeros([B, word_id.max() + 1]).scatter_add(1, word_id, dur_pred)[:, 1:]
-            word_dur_g = dur_gt.new_zeros([B, word_id.max() + 1]).scatter_add(1, word_id, dur_gt)[:, 1:]
-            wdur_loss = F.mse_loss((word_dur_p + 1).log(), (word_dur_g + 1).log(), reduction='none')
-            word_nonpadding = (word_dur_g > 0).float()
-            wdur_loss = (wdur_loss * word_nonpadding).sum() / word_nonpadding.sum()
-            losses['wdur'] = wdur_loss * hparams['lambda_word_dur']
-        if hparams['lambda_sent_dur'] > 0:
-            sent_dur_p = dur_pred.sum(-1)
-            sent_dur_g = dur_gt.sum(-1)
-            sdur_loss = F.mse_loss((sent_dur_p + 1).log(), (sent_dur_g + 1).log(), reduction='mean')
-            losses['sdur'] = sdur_loss.mean() * hparams['lambda_sent_dur']
+    def add_dur_loss(self, dur_pred, dur_tgt, onset, losses=None):
+        dur_prediction_args = hparams['dur_prediction_args']
+        loss_type = dur_prediction_args['loss_type']
+        if loss_type == "mse":
+            loss = torch.nn.MSELoss()
+        else:
+            raise NotImplementedError()
+        offset = dur_prediction_args["log_offset"]
+        linear2log = lambda x: torch.log(x + offset)
+        lambda_pdur = float(dur_prediction_args["lambda_pdur_loss"])
+        lambda_wdur = float(dur_prediction_args["lambda_wdur_loss"])
+        lambda_sdur = float(dur_prediction_args["lambda_sdur_loss"])
+        # pdur loss
+        pdur_loss = lambda_pdur * loss(linear2log(dur_pred), linear2log(dur_tgt))
+        dur_pred = dur_pred.clamp(min=0.)
+        # wdur loss
+        ph2word = onset.cumsum(dim=1)
+        shape = dur_pred.shape[0], ph2word.max()+1
+        wdur_pred = dur_pred.new_zeros(*shape).scatter_add(
+            1, ph2word, dur_pred
+        )[:, 1:]
+        wdur_tgt = dur_tgt.new_zeros(*shape).scatter_add(
+            1, ph2word, dur_tgt
+        )[:, 1:]
+        wdur_loss = lambda_wdur * loss(linear2log(wdur_pred), linear2log(wdur_tgt))
+        # sentence dur loss
+        sdur_pred = dur_pred.sum(dim=1)
+        sdur_tgt = dur_tgt.sum(dim=1)
+        sdur_loss = lambda_sdur * loss(linear2log(sdur_pred), linear2log(sdur_tgt))
+        losses["dur"] = pdur_loss + wdur_loss + sdur_loss
 
     def add_pitch_loss(self, output, sample, losses):
         mel2ph = sample['mel2ph']  # [B, T_s]

@@ -367,7 +367,7 @@ def transcription_to_textgrid(tscript_fn, out_dir):
         line = line.strip().split('|')
         wav_fn = line[0]
         ph_seq = line[2].split()
-        ph_dur = list(map(float, line[-2].split()))
+        ph_dur = list(map(float, line[-1].split()))
         tg = textgrid.TextGrid()
         tg.minTime = 0
         tg.maxTime = sum(ph_dur)
@@ -382,21 +382,40 @@ def transcription_to_textgrid(tscript_fn, out_dir):
         tg_fn = os.path.join(out_dir, wav_fn+'.TextGrid')
         tg.write(tg_fn)
 
-def textgrid_to_transcription(tg_dir, out_dir):
+def textgrid_to_transcription(tg_dir, out_dir, dictionary_fn, ph_tier_idx=0):
+    c_set, v_set = set(), set(["AP", "SP"])
+    with open(dictionary_fn, 'r', encoding='utf-8') as f:
+        for line in  f.readlines():
+            ph_list = line.split("\n")[0].split('\t')[1].split(' ')
+            for i, ph in enumerate(ph_list):
+                if len(ph_list) == 1 or i != 0:
+                    v_set.add(ph)
+                else:
+                    c_set.add(ph)
     tscript_list = []
     for tg_fn in os.listdir(tg_dir):
         if not tg_fn.endswith('.TextGrid'):
             continue
         tg = textgrid.TextGrid.fromFile(os.path.join(tg_dir, tg_fn))
         ph_seq, ph_dur = [], []
-        for x in tg.tiers[0]:
+        for x in tg.tiers[ph_tier_idx]:
             ph_seq.append(x.mark)
             ph_dur.append(x.maxTime - x.minTime)
+        ph_num = []
+        for ph in ph_seq:
+            if ph not in c_set and ph not in v_set:
+                raise ValueError(f"Unknown phoneme: {ph}")
+            if ph in v_set or (ph in c_set and len(ph_num) == 0):
+                ph_num.append(1)
+            else:
+                ph_num[-1] += 1
+        assert sum(ph_num) == len(ph_seq)
         item_name = tg_fn.split('.')[0]
         ph_seq = " ".join(ph_seq)
         ph_dur = " ".join([f"{x:.4f}" for x in ph_dur])
+        ph_num = " ".join([str(x) for x in ph_num])
         tscript_list.append(
-            "|".join([item_name, "text", ph_seq, ph_dur])
+            "|".join([item_name, "text", ph_seq, ph_dur, ph_num])
         )
     os.makedirs(out_dir, exist_ok=True)
     out_fn = os.path.join(out_dir, 'transcriptions.txt')

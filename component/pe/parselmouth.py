@@ -1,7 +1,7 @@
 import numpy as np
 import parselmouth
 
-from component.pitch_extractor.base import register_pe, BasePitchExtractor
+from component.pe.base import register_pe, BasePitchExtractor
 from utils.data_gen_utils import pad_frames
 from utils.pitch_utils import interp_f0
 

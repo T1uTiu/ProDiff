@@ -6,7 +6,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 from modules.commons.espnet_positional_embedding import RelPositionalEncoding
-from modules.commons.common_layers import SinusoidalPositionalEmbedding, Linear, EncSALayer, DecSALayer, BatchNorm1dTBC
+from modules.commons.common_layers import Embedding, SinusoidalPositionalEmbedding, Linear, EncSALayer, DecSALayer, BatchNorm1dTBC
 from utils.hparams import hparams
 
 DEFAULT_MAX_SOURCE_POSITIONS = 2000
@@ -95,12 +95,6 @@ class DurationPredictor(torch.nn.Module):
         self.loss_type = dur_loss_type
         if self.loss_type in ['mse', 'huber']:
             self.out_dims = 1
-        # elif hparams['dur_loss_type'] == 'mog':
-        #     out_dims = 15
-        # elif hparams['dur_loss_type'] == 'crf':
-        #     out_dims = 32
-        #     from torchcrf import CRF
-        #     self.crf = CRF(out_dims, batch_first=True)
         else:
             raise NotImplementedError()
         self.linear = torch.nn.Linear(n_chans, self.out_dims)
@@ -109,8 +103,6 @@ class DurationPredictor(torch.nn.Module):
         if self.loss_type in ['mse', 'huber']:
             # NOTE: calculate loss in log domain
             dur = xs.squeeze(-1).exp() - self.offset  # (B, Tmax)
-        # elif hparams['dur_loss_type'] == 'crf':
-        #     dur = torch.LongTensor(self.crf.decode(xs)).cuda()
         else:
             raise NotImplementedError()
         return dur
@@ -297,16 +289,13 @@ class FFTBlocks(nn.Module):
 
 
 class FastspeechEncoder(FFTBlocks):
-    def __init__(self, embed_tokens, hidden_size=None, num_layers=None, kernel_size=None, num_heads=2):
-        hidden_size = hparams['hidden_size'] if hidden_size is None else hidden_size
-        kernel_size = hparams['enc_ffn_kernel_size'] if kernel_size is None else kernel_size
-        num_layers = hparams['dec_layers'] if num_layers is None else num_layers
+    def __init__(self, ph_encoder, hidden_size, num_layers, kernel_size, num_heads=2):
         super().__init__(hidden_size, num_layers, kernel_size, num_heads=num_heads,
                          use_pos_embed=False)  # use_pos_embed_alpha for compatibility
-        self.embed_tokens = embed_tokens
+        self.embed_tokens = Embedding(len(ph_encoder), hidden_size, ph_encoder.pad())
         self.embed_scale = math.sqrt(hidden_size)
         self.padding_idx = 0
-        self.rel_pos = hparams.get('rel_pos') is not None and hparams['rel_pos']
+        self.rel_pos = hparams.get('rel_pos', False)
         if self.rel_pos:
             self.embed_positions = RelPositionalEncoding(hidden_size, dropout_rate=0.0)
         else:

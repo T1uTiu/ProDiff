@@ -13,23 +13,16 @@ save_codes: []
 # dataset
 #############
 datasets:
-  - raw_data_dir : data/Opencpop/raw
-    processed_data_dir : data/Opencpop/processed
-    speaker: Opencpop
+  - data_dir : data/test
+    speaker: test
     language: zh
-  - raw_data_dir : data/TiuTiu/raw
-    processed_data_dir : data/TiuTiu/processed
-    speaker: TiuTiu
-    language: zh
-  - raw_data_dir : data/kiritan/raw
-    processed_data_dir : data/kiritan/processed
-    speaker: kiritan
-    language: jp
+data_dir: data/test
 binary_data_dir: 'data/test/binary'
 dictionary: 
+  global: dictionary/global.csv
   zh: dictionary/zh.txt
   jp: dictionary/jp.txt
-merged_phoneme_dict: dictionary/merged_phoneme_dict.json
+merged_phoneme_dict: merged_phoneme_dict.json
 ds_workers: 2
 test_num: 6
 valid_num: 6
@@ -145,7 +138,8 @@ use_split_spk_id: false
 use_spk_embed: false
 use_pos_embed: true
 use_lang_id: true
-rel_pos: true
+use_gender_id: true
+rel_pos: false
 
 # conv enc/dec
 enc_dec_norm: ln
@@ -159,6 +153,17 @@ dur_loss: mse # huber|mol
 
 # duration
 use_dur_embed: true
+dur_prediction_args:
+  enable: true
+  num_layers: 5
+  hidden_size: 512
+  dropout: 0.1
+  kernel_size: 3
+  log_offset: 1.0
+  loss_type: mse
+  lambda_pdur_loss: 0.3
+  lambda_wdur_loss: 1.0
+  lambda_sdur_loss: 0.1
 predictor_hidden: -1
 predictor_kernel: 5
 predictor_layers: 2
@@ -167,8 +172,10 @@ dur_predictor_layers: 2
 predictor_dropout: 0.5
 
 # pitch and energy
-pitch_norm: log # standard|log
 use_pitch_embed: true
+f0_prediction_args:
+  enable: false
+pitch_norm: log # standard|log
 pitch_type: frame # frame|ph|cwt
 f0_embed_type: continuous # continuous|discrete
 use_uv: true

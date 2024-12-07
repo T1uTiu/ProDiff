@@ -1,3 +1,4 @@
+import importlib
 import time
 import sys
 import types
@@ -7,6 +8,11 @@ import numpy as np
 import torch
 import torch.distributed as dist
 from utils.ckpt_utils import load_ckpt
+
+def get_cls(cls_path):
+    pkg = '.'.join(cls_path.split('.')[:-1])
+    cls_name = cls_path.split('.')[-1]
+    return getattr(importlib.import_module(pkg), cls_name)
 
 
 def reduce_tensors(metrics):

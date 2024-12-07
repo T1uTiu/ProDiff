@@ -5,7 +5,7 @@ import torch
 
 from handler.binarize import BinarizeHandler
 from handler.infer import InferHandler
-from component.train_task import ProDiffTask, ProDiffTeacherTask
+from component.train_task import SVSTask, VariPredictorTask
 from utils.data_gen_utils import get_pitch
 from tasks.base_task import BaseTask
 from utils.audio import save_wav
@@ -18,44 +18,45 @@ def main():
     pass
 
 @main.command()
+@click.argument("task", type=str)
 @click.option("--config", type=str, required=True)
 @click.option("--exp_name", type=str, required=True)
-def binarize(config, exp_name):
+def binarize(task, config, exp_name):
+    exp_name = f"{exp_name}_{task}"
     set_hparams(config=config, exp_name=exp_name)
+    hparams.setdefault("task", task)
     BinarizeHandler(hparams=hparams).handle()
 
-trainer_map: Dict[str, BaseTask] = {
-    "teacher": ProDiffTeacherTask,
-    "student": ProDiffTask,
+train_task_map: Dict[str, BaseTask] = {
+    "svs": SVSTask,
+    "vari": VariPredictorTask
 }
 
 @main.command()
-@click.argument("trainer", type=str)
+@click.argument("train_task", type=str)
 @click.option("--config", type=str, required=True)
 @click.option("--exp_name", type=str, required=True)
-def train(trainer, config, exp_name):
-    assert trainer in trainer_map, f"Invalid trainer: {trainer}, use one of {list(trainer_map.keys())}"
+def train(train_task, config, exp_name):
+    assert train_task in train_task_map, f"Invalid train task: {train_task}, use one of {list(train_task_map.keys())}"
+    exp_name = f"{exp_name}_{train_task}"
     set_hparams(config=config, exp_name=exp_name)
-    trainer_instance = trainer_map[trainer]
+    hparams["task"] = train_task
+    trainer_instance = train_task_map[train_task]
     trainer_instance.start()
 
-inferer_map: Dict[str, str] = {
-    "teacher": "ProDiffTeacherInferrer"
-}
 
 @main.command()
-@click.argument("inferer", type=str)
 @click.argument("proj", type=str)
-@click.option("--config", type=str)
-@click.option("--exp_name", type=str)
-@click.option("--spk_name", type=str)
+@click.option("--config", type=str, required=True)
+@click.option("--exp_name", type=str, required=True)
+@click.option("--spk_name", type=str, required=True)
 @click.option("--lang", type=str, default='zh')
 @click.option("--keyshift", type=int, default=0)
-def infer(inferer, proj, config, exp_name, spk_name, lang, keyshift):
-    assert inferer in inferer_map, f"Invalid inferer: {inferer}, use one of {list(inferer_map.keys())}"
+@click.option("--gender", type=int, default=0)
+@click.option("--pred_dur", is_flag=True)
+def infer(proj, config, exp_name, spk_name, lang, keyshift, gender, pred_dur):
     set_hparams(config=config, exp_name=exp_name, spk_name=spk_name)
-    hparams.setdefault("inferer", inferer_map[inferer])
-    InferHandler(hparams=hparams).handle(None, proj, lang, keyshift)
+    InferHandler(hparams=hparams, pred_dur=pred_dur).handle(None, proj, lang, keyshift, gender)
 
 @main.group()
 def vocode():

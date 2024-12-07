@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 from torchaudio.transforms import Resample
 
-from component.pitch_extractor.base import register_pe, BasePitchExtractor
+from component.pe.base import register_pe, BasePitchExtractor
 from utils.pitch_utils import interp_f0, resample_align_curve
 from modules.rmvpe.constants import *
 from modules.rmvpe.model import E2E0
