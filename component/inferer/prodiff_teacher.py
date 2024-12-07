@@ -17,7 +17,7 @@ class ProDiffTeacherInferrer(Inferer):
             self.hparams['f0_std'] = float(self.hparams['f0_std'])
         model = ProDiffTeacher(ph_encoder, self.hparams)
         model.eval()
-        work_dir = os.path.join("checkpoints", self.hparams['exp_name']+"_svs")
+        work_dir = os.path.join("checkpoints", self.hparams['exp_name'], "svs")
         load_ckpt(model, work_dir, 'model')
         model.to(self.device)
         self.model = model
@@ -27,8 +27,11 @@ class ProDiffTeacherInferrer(Inferer):
         f0_seq = inp['f0_seq']
         mel2ph = inp['mel2ph']
         spk_mix_embed = inp.get('spk_mix_embed', None)
+        gender_mix_embed = inp.get("gender_mix_embed", None)
         lang_seq = inp.get('lang_seq', None)
-        return self.model(ph_seq, f0=f0_seq, mel2ph=mel2ph, spk_mix_embed=spk_mix_embed, lang_seq=lang_seq, infer=True)
+        return self.model(ph_seq, f0=f0_seq, mel2ph=mel2ph, 
+                          spk_mix_embed=spk_mix_embed, gender_mix_embed=gender_mix_embed,
+                          lang_seq=lang_seq, infer=True)
     
     @staticmethod
     def category():

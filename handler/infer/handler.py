@@ -94,6 +94,12 @@ class InferHandler:
         spk_mix_value /= spk_mix_value_sum # Normalize
         return spk_mix_id, spk_mix_value
 
+    def get_gender_mix(self, gender_value:float):
+        assert 0 <= gender_value <= 1, "gender must be in [0, 1]"
+        gender_mix_id = torch.LongTensor([0, 1]).to(self.device)[None, None]
+        gender_mix_value = torch.FloatTensor([1-gender_value, gender_value]).to(self.device)[None, None]
+        return gender_mix_id, gender_mix_value
+
     def get_note_dur(self, note_dur, note_slur):
         note_num = len(note_dur)
         slow, fast = -1, 0
@@ -170,17 +176,33 @@ class InferHandler:
                 self.svs_inferer.model.spk_embed(spk_mix_id) * spk_mix_value.unsqueeze(3), 
                 dim=2, keepdim=False
             )
+        gender_mix_embed = None
+        if self.hparams["use_gender_id"]:
+            gender_value = segment["gender"]
+            gender_mix_id, gender_mix_value = self.get_gender_mix(gender_value)
+            gender_mix_embed = torch.sum(
+                self.svs_inferer.model.gender_embed(gender_mix_id) * gender_mix_value.unsqueeze(3),
+                dim=2, keepdim=False
+            )
         
         with torch.no_grad():
             start_time = time.time()
-            mel_out = self.svs_inferer.run_model(ph_seq=ph_token_seq, f0_seq=f0_seq, mel2ph=mel2ph, spk_mix_embed=spk_mix_embed, lang_seq=lang_seq, infer=True)
+            mel_out = self.svs_inferer.run_model(
+                ph_seq=ph_token_seq, 
+                f0_seq=f0_seq, 
+                mel2ph=mel2ph, 
+                spk_mix_embed=spk_mix_embed, 
+                gender_mix_embed=gender_mix_embed,
+                lang_seq=lang_seq, 
+                infer=True
+            )
             print(f"Inference Time: {time.time() - start_time}")
             wav_out = self.run_vocoder(mel_out, f0=f0_seq)
         wav_out = wav_out.squeeze().cpu().numpy()
         return wav_out
         
 
-    def handle(self, proj: List[dict] = None, proj_fn=None, lang=None, keyshift=0):
+    def handle(self, proj: List[dict] = None, proj_fn=None, lang=None, keyshift=0, gender=0):
         if proj is None:
             with open(proj_fn, 'r', encoding='utf-8') as f:
                 proj = json.load(f)
@@ -189,6 +211,7 @@ class InferHandler:
         for segment in proj:
             segment.setdefault('lang', lang)
             segment.setdefault("keyshift", int(keyshift))
+            segment["gender"]= float(gender)
             out = self.infer(segment)
             offset = round(segment.get('offset', 0) * self.audio_sample_rate) - total_length
             if offset >= 0:

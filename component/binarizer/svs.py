@@ -52,8 +52,6 @@ class SVSBinarizer(Binarizer):
         for dataset in self.datasets:
             data_dir = dataset["data_dir"]
             lang = dataset["language"]
-            gender_id = dataset["gender"]
-            assert gender_id in [0, 1], "gender must be 0 for female or 1 for male"
             transcription_file = open(f"{data_dir}/transcriptions.txt", 'r', encoding='utf-8')
             for _r in transcription_file.readlines():
                 r = _r.split('|') # item_name | text | ph | dur_list | ph_num
@@ -67,8 +65,9 @@ class SVSBinarizer(Binarizer):
                     "wav_fn" : f"{data_dir}/wav/{item_name}.wav",
                     "spk_id" : self.spk_map[dataset["speaker"]],
                     "lang_seq" : [lang_id]*len(ph_seq),
-                    "gender_id": gender_id
                 }
+                if self.hparams["use_gender_id"]:
+                    item["gender_id"] = dataset["gender"]
                 transcription_item_list.append(item)
             transcription_file.close()
         return transcription_item_list
@@ -81,11 +80,12 @@ class SVSBinarizer(Binarizer):
         preprocessed_item = {
             "mel" : mel,
             "spk_id" : item["spk_id"],
-            "gender_id": item["gender_id"],
             "ph_seq" : np.array(item["ph_seq"], dtype=np.int64),
             "ph_dur" : np.array(item["ph_dur"], dtype=np.float32),
             "lang_seq" : np.array(item["lang_seq"], dtype=np.int64),
         }
+        if hparams["use_gender_id"]:
+            preprocessed_item["gender_id"] = item["gender_id"],
         preprocessed_item["sec"] = len(wav) / hparams['audio_sample_rate']
         preprocessed_item["length"] = mel.shape[0]
 
