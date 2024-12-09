@@ -5,7 +5,7 @@ import torch
 
 from handler.binarize import BinarizeHandler
 from handler.infer import InferHandler
-from component.train_task import SVSTask, VariPredictorTask
+from component.train_task import SVSTask, DurPredictorTask
 from utils.data_gen_utils import get_pitch
 from tasks.base_task import BaseTask
 from utils.audio import save_wav
@@ -29,7 +29,7 @@ def binarize(task, config, exp_name):
 
 train_task_map: Dict[str, BaseTask] = {
     "svs": SVSTask,
-    "vari": VariPredictorTask
+    "dur": DurPredictorTask
 }
 
 @main.command()

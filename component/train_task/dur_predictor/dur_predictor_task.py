@@ -1,16 +1,15 @@
-from component.train_task.vari_predictor.dataset import VariPredictorDataset
-from modules.variance_predictor.vari_predictor import VariPredictor
+from component.train_task.dur_predictor.dataset import VariPredictorDataset
+from modules.variance_predictor.dur_predictor import DurPredictor
 import utils
 from utils.hparams import hparams
 from tasks.tts.fs2 import FastSpeech2Task
-from utils.plot import dur_to_figure
 from vocoders.base_vocoder import get_vocoder_cls, BaseVocoder
 
 
 
-class VariPredictorTask(FastSpeech2Task):
+class DurPredictorTask(FastSpeech2Task):
     def __init__(self):
-        super(VariPredictorTask, self).__init__()
+        super(DurPredictorTask, self).__init__()
         self.dataset_cls = VariPredictorDataset
         self.vocoder: BaseVocoder = get_vocoder_cls(hparams)()
 
@@ -20,7 +19,7 @@ class VariPredictorTask(FastSpeech2Task):
         return self.model
 
     def build_tts_model(self):
-        self.model = VariPredictor(self.phone_encoder, hparams)
+        self.model = DurPredictor(self.phone_encoder, hparams)
 
     def run_model(self, model, sample, return_output=False, infer=False):
         txt_tokens = sample["ph_seq"]  # [B, T_ph]

@@ -38,8 +38,8 @@ class InferHandler:
         self.svs_inferer.build_model(self.ph_encoder)
         self.pred_dur = pred_dur
         if pred_dur:
-            self.vari_predictor = get_inferer_cls("vari")(hparams)
-            self.vari_predictor.build_model(self.ph_encoder)
+            self.dur_predictor = get_inferer_cls("dur")(hparams)
+            self.dur_predictor.build_model(self.ph_encoder)
         self.vocoder = self.build_vocoder()
     
     def build_phone_encoder(self):
@@ -146,7 +146,7 @@ class InferHandler:
             )
             word_dur = torch.FloatTensor(note_dur)[None, :] # [B=1, T_w]
             word_dur = torch.gather(F.pad(word_dur, [1, 0], value=0), 1, ph2word[None, :]).to(self.device)# [B=1, T_txt]
-            ph_dur = self.vari_predictor.run_model(
+            ph_dur = self.dur_predictor.run_model(
                 ph_seq=ph_token_seq,
                 onset=onset,
                 word_dur=word_dur,

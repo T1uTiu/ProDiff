@@ -8,8 +8,8 @@ from tqdm import tqdm
 class GaussianDiffusion(nn.Module):
     def __init__(self, out_dims, denoise_fn,
                  timesteps=1000, time_scale=1, 
-                 loss_type='l1', betas=None, schedule_type="vpsde",
-                 spec_min=None, spec_max=None, keep_bins=80):
+                 betas=None, schedule_type="vpsde",
+                 spec_min=None, spec_max=None):
         super().__init__()
         self.denoise_fn = denoise_fn
         self.mel_bins = out_dims
@@ -31,7 +31,6 @@ class GaussianDiffusion(nn.Module):
 
         self.time_scale = time_scale
         self.num_timesteps = int(timesteps)
-        self.loss_type = loss_type
 
         to_torch = partial(torch.tensor, dtype=torch.float32)
 
@@ -59,8 +58,8 @@ class GaussianDiffusion(nn.Module):
         self.register_buffer('posterior_mean_coef2', to_torch(
             (1. - alphas_cumprod_prev) * np.sqrt(alphas) / (1. - alphas_cumprod)))
 
-        self.register_buffer('spec_min', torch.FloatTensor(spec_min)[None, None, :keep_bins])
-        self.register_buffer('spec_max', torch.FloatTensor(spec_max)[None, None, :keep_bins])
+        self.register_buffer('spec_min', torch.FloatTensor(spec_min)[None, None, :self.mel_bins])
+        self.register_buffer('spec_max', torch.FloatTensor(spec_max)[None, None, :self.mel_bins])
 
     def q_mean_variance(self, x_start, t):
         mean = extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
@@ -171,23 +170,25 @@ class GaussianDiffusion(nn.Module):
 
 class PitchDiffusion(GaussianDiffusion):
     def __init__(self, repeat_bins, denoise_fn,
-                 timesteps=1000, time_scle=1,
-                 loss_type='l1', betas=None, schedule_type="vpsde",
-                 vmin=None, vmax=None, keep_bins=80):
+                 timesteps=1000, time_scale=1,
+                 betas=None, schedule_type="vpsde",
+                 spec_min=None, spec_max=None,
+                 clamp_min=None, clamp_max=None):
         self.repeat_bins = repeat_bins
-        spec_min = [vmin]
-        spec_max = [vmax]
+        self.clamp_min = clamp_min
+        self.clamp_max = clamp_max
         super().__init__(
             out_dims=repeat_bins, denoise_fn=denoise_fn,
-            timesteps=timesteps, time_scale=time_scle,
-            loss_type=loss_type, betas=betas, schedule_type=schedule_type,
-            spec_min=spec_min, spec_max=spec_max, keep_bins=keep_bins
+            timesteps=timesteps, time_scale=time_scale,
+            betas=betas, schedule_type=schedule_type,
+            spec_min=spec_min, spec_max=spec_max
         )
 
     def norm_spec(self, x):
-        repeats = [1, 1, self.repet_bins]
+        x = x.clamp(self.clamp_min, self.clamp_max)
+        repeats = [1, 1, self.repeat_bins]
         return super().norm_spec(x.unsqueeze(-1).repeat(*repeats))
     
     def denorm_spec(self, x):
-        return super().denorm_spec(x).mean(dim=-1)
+        return super().denorm_spec(x).mean(dim=-1).clamp(self.clamp_min, self.clamp_max)
 

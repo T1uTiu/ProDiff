@@ -44,11 +44,9 @@ class ProDiffTeacher(nn.Module):
             denoise_fn=DiffNet(hparams['audio_num_mel_bins']),
             timesteps=hparams["timesteps"],
             time_scale=hparams["timescale"],
-            loss_type=hparams["diff_loss_type"],
             schedule_type=hparams['schedule_type'],
             spec_min=hparams["spec_min"],
             spec_max=hparams["spec_max"],
-            keep_bins=hparams["keep_bins"]
         )
 
     def add_spk_embed(self, spk_embed_id, spk_mix_embed):

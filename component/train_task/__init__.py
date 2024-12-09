@@ -1,2 +1,2 @@
 from component.train_task.svs_task import SVSTask
-from component.train_task.vari_predictor.vari_predictor_task import VariPredictorTask
+from component.train_task.dur_predictor.dur_predictor_task import DurPredictorTask

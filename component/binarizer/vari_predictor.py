@@ -7,7 +7,7 @@ from component.binarizer.binarizer_utils import build_phone_encoder
 from modules.fastspeech.tts_modules import LengthRegulator
 
 @register_binarizer
-class VariPredictorBinarizer(Binarizer):
+class DurPredictorBinarizer(Binarizer):
     def __init__(self, hparams):
         super().__init__(hparams)
         self.data_dir = os.path.join(hparams['data_dir'], self.category())
@@ -17,7 +17,7 @@ class VariPredictorBinarizer(Binarizer):
 
     @staticmethod
     def category():
-        return "vari"
+        return "dur"
 
     def load_meta_data(self) -> list:
         transcription_item_list = []
