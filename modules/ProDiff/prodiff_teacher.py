@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from modules.commons.common_layers import *
-from modules.diffusion.teacher import GaussianDiffusion
+from modules.diffusion.prodiff import GaussianDiffusion
 from modules.fastspeech.tts_modules import FastspeechEncoder, mel2ph_to_dur
 from usr.diff.net import DiffNet
 from utils.pitch_utils import f0_to_coarse

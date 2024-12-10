@@ -1,4 +1,4 @@
-from component.train_task.dur_predictor.dataset import VariPredictorDataset
+from component.train_task.dur_predictor.dataset import DurPredictorDataset
 from modules.variance_predictor.dur_predictor import DurPredictor
 import utils
 from utils.hparams import hparams
@@ -10,7 +10,7 @@ from vocoders.base_vocoder import get_vocoder_cls, BaseVocoder
 class DurPredictorTask(FastSpeech2Task):
     def __init__(self):
         super(DurPredictorTask, self).__init__()
-        self.dataset_cls = VariPredictorDataset
+        self.dataset_cls = DurPredictorDataset
         self.vocoder: BaseVocoder = get_vocoder_cls(hparams)()
 
     def build_model(self):

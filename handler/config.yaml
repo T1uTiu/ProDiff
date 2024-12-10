@@ -175,6 +175,15 @@ predictor_dropout: 0.5
 use_pitch_embed: true
 f0_prediction_args:
   enable: false
+  spec_min: -8.0
+  spec_max: 8.0
+  clamp_min: -12.0
+  clamp_max: 12.0
+  repeat_bins: 64
+  denoise_args:
+    dilation_cycle_length: 5
+    residual_layers: 20
+    residual_channels: 256
 pitch_norm: log # standard|log
 pitch_type: frame # frame|ph|cwt
 f0_embed_type: continuous # continuous|discrete

@@ -1,25 +1,16 @@
 import os
 from typing import List
-import matplotlib
 import numpy as np
-
-
-matplotlib.use('Agg')
-
-import glob
-import importlib
 import torch
-import torch.distributions
-import torch.optim
-import torch.utils.data
-
 import utils
 from tasks.base_task import BaseDataset
-from utils.hparams import hparams
 from utils.indexed_datasets import IndexedDataset
+from utils.hparams import hparams
 
 
-class DurPredictorDataset(BaseDataset):
+
+
+class PitchPredictorDataset(BaseDataset):
     def __init__(self, prefix, shuffle=False):
         super().__init__(shuffle)
         self.data_dir = os.path.join(hparams['data_dir'], hparams["task"]) 
@@ -49,9 +40,10 @@ class DurPredictorDataset(BaseDataset):
         batch_item = {
             "nsamples" : len(samples),
             "ph_seq" : utils.collate_1d([torch.LongTensor(s["ph_seq"]) for s in samples], 0),
-            "ph_dur": utils.collate_1d([torch.FloatTensor(s["ph_dur"]) for s in samples], 0.0),
-            "word_dur": utils.collate_1d([torch.FloatTensor(s["word_dur"]) for s in samples], 0.0),
-            "onset": utils.collate_1d([torch.LongTensor(s["onset"]) for s in samples], 0),
+            "mel2ph" : utils.collate_1d([torch.LongTensor(s["mel2ph"]) for s in samples], 0),
+            "f0" : utils.collate_1d([torch.FloatTensor(s["f0"]) for s in samples], 0.0),
+            "base_f0" : utils.collate_1d([torch.FloatTensor(s["base_f0"]) for s in samples], 0.0),
+            "f0_retake": utils.collate_1d([torch.LongTensor(s["f0_retake"]) for s in samples], 0),
         }
         
         return batch_item
