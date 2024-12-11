@@ -1,36 +1,44 @@
+from component.train_task.base_task import BaseTask
 from component.train_task.dur_predictor.dataset import DurPredictorDataset
+from component.train_task.loss_utils import add_dur_loss
 from modules.variance_predictor.dur_predictor import DurPredictor
 import utils
 from utils.hparams import hparams
-from tasks.tts.fs2 import FastSpeech2Task
-from vocoders.base_vocoder import get_vocoder_cls, BaseVocoder
 
 
 
-class DurPredictorTask(FastSpeech2Task):
-    def __init__(self):
-        super(DurPredictorTask, self).__init__()
-        self.dataset_cls = DurPredictorDataset
-        self.vocoder: BaseVocoder = get_vocoder_cls(hparams)()
+class DurPredictorTask(BaseTask):
+    def __init__(self, hparams):
+        super(DurPredictorTask, self).__init__(hparams=hparams)
+        self.build_phone_encoder()
+        loss_args = hparams["dur_prediction_args"]
+        self.loss_type = loss_args["loss_type"]
+        self.loss_log_offset = loss_args["log_offset"]
+        self.loss_and_lambda = {
+            "ph": loss_args["lambda_pdur_loss"],
+            "word": loss_args["lambda_wdur_loss"],
+            "sentence": loss_args["lambda_sdur_loss"],
+        }
+        print("| Dur losses:", self.loss_type, self.loss_and_lambda)
+
+    def get_dataset_cls(self):
+        return DurPredictorDataset
 
     def build_model(self):
-        self.build_tts_model()
+        self.model = DurPredictor(self.ph_encoder, hparams)
         utils.num_params(self.model) # 打印模型参数量
         return self.model
 
-    def build_tts_model(self):
-        self.model = DurPredictor(self.phone_encoder, hparams)
-
-    def run_model(self, model, sample, return_output=False, infer=False):
+    def run_model(self, sample, return_output=False, infer=False):
         txt_tokens = sample["ph_seq"]  # [B, T_ph]
         word_dur = sample["word_dur"]  # [B, T_w]
         onset = sample["onset"]  # [B, T_ph]
         dur_tgt = sample["ph_dur"]  # [B, T_ph]
         # 模型输出
-        dur_pred = model(txt_tokens, onset, word_dur, infer=infer)
+        dur_pred = self.model(txt_tokens, onset, word_dur, infer=infer)
 
         losses = {}
-        self.add_dur_loss(dur_pred, dur_tgt, onset, losses)
+        add_dur_loss(dur_pred, dur_tgt, onset, self.loss_type, self.loss_log_offset, self.loss_and_lambda, losses)
         if not return_output:
             return losses
         else:

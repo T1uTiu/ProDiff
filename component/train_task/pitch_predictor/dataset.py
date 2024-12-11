@@ -8,8 +8,6 @@ from utils.indexed_datasets import IndexedDataset
 from utils.hparams import hparams
 
 
-
-
 class PitchPredictorDataset(BaseDataset):
     def __init__(self, prefix, shuffle=False):
         super().__init__(shuffle)
@@ -43,7 +41,6 @@ class PitchPredictorDataset(BaseDataset):
             "mel2ph" : utils.collate_1d([torch.LongTensor(s["mel2ph"]) for s in samples], 0),
             "f0" : utils.collate_1d([torch.FloatTensor(s["f0"]) for s in samples], 0.0),
             "base_f0" : utils.collate_1d([torch.FloatTensor(s["base_f0"]) for s in samples], 0.0),
-            "f0_retake": utils.collate_1d([torch.LongTensor(s["f0_retake"]) for s in samples], 0),
         }
         
         return batch_item

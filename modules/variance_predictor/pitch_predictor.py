@@ -22,7 +22,6 @@ class PitchPredictor(nn.Module):
             self.spk_embed = Embedding(len(hparams['datasets']), hparams['hidden_size'])
         # pitch
         self.base_f0_embed = Linear(1, hparams["hidden_size"])
-        self.f0_retake_embed = Embedding(2, hparams["hidden_size"])
         f0_hparams = hparams['f0_prediction_args']
         self.diffusion = PitchDiffusion(
             repeat_bins=f0_hparams["repeat_bins"],\
@@ -41,7 +40,7 @@ class PitchPredictor(nn.Module):
             clamp_max=f0_hparams["clamp_max"],
         )
 
-    def forward(self, txt_tokens, mel2ph, spk_id, f0_retake, base_f0, f0):
+    def forward(self, txt_tokens, mel2ph, base_f0, f0, spk_id=None):
         encoder_out = self.encoder(txt_tokens, extra_embed=None)
 
         # length regulate
@@ -55,12 +54,8 @@ class PitchPredictor(nn.Module):
             condition += spk_embed
 
         # f0
-        f0_retake_embed = self.f0_retake_embed(f0_retake[:, :, None])
-        condition += f0_retake_embed
-
-        base_f0 = base_f0 * f0_retake + f0 * ~f0_retake
-        base_pitch_embed = self.base_f0_embed(base_f0[:, :, None])
-        condition += base_pitch_embed
+        base_f0_embed = self.base_f0_embed(base_f0[:, :, None])
+        condition += base_f0_embed
 
         # diffusion
         nonpadding = (mel2ph > 0).float().unsqueeze(1).unsqueeze(1)

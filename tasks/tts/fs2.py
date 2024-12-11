@@ -37,7 +37,6 @@ class FastSpeech2Task(TTSBaseTask):
                 lbd = 1.0
             self.loss_and_lambda[l] = lbd
         print("| Mel losses:", self.loss_and_lambda)
-        self.sil_ph = self.phone_encoder.sil_phonemes()
         f0_stats_fn = os.path.join(self.data_dir, "train_f0s_mean_std.npy")
         if os.path.exists(f0_stats_fn):
             hparams['f0_mean'], hparams['f0_std'] = np.load(f0_stats_fn)
