@@ -40,7 +40,7 @@ class PitchPredictor(nn.Module):
             clamp_max=f0_hparams["clamp_max"],
         )
 
-    def forward(self, txt_tokens, mel2ph, base_f0, f0, spk_id=None, infer=False):
+    def forward(self, txt_tokens, mel2ph, base_f0, f0=None, spk_id=None, infer=False):
         encoder_out = self.encoder(txt_tokens, extra_embed=None)
 
         # length regulate
@@ -59,6 +59,9 @@ class PitchPredictor(nn.Module):
 
         # diffusion
         nonpadding = (mel2ph > 0).float().unsqueeze(1).unsqueeze(1)
-        delta_f0 = f0 - base_f0
-        pitch_pred = self.diffusion(condition, nonpadding=nonpadding, ref_mels=delta_f0, infer=infer)
+        if not infer:
+            delta_f0 = f0 - base_f0
+            pitch_pred = self.diffusion(condition, nonpadding=nonpadding, ref_mels=delta_f0, infer=infer)
+        else:
+            pitch_pred = self.diffusion(condition, nonpadding=nonpadding, infer=infer)
         return pitch_pred

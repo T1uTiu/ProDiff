@@ -57,9 +57,10 @@ def train(train_task, config, exp_name):
 @click.option("--keyshift", type=int, default=0)
 @click.option("--gender", type=int, default=0)
 @click.option("--pred_dur", is_flag=True)
-def infer(proj, config, exp_name, spk_name, lang, keyshift, gender, pred_dur):
+@click.option("--pred_pitch", is_flag=True)
+def infer(proj, config, exp_name, spk_name, lang, keyshift, gender, pred_dur, pred_pitch):
     set_hparams(config=config, exp_name=exp_name, spk_name=spk_name)
-    InferHandler(hparams=hparams, pred_dur=pred_dur).handle(None, proj, lang, keyshift, gender)
+    InferHandler(hparams=hparams, pred_dur=pred_dur, pred_pitch=pred_pitch).handle(None, proj, lang, keyshift, gender)
 
 @main.group()
 def vocode():

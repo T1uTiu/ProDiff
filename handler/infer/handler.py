@@ -2,10 +2,14 @@ import json
 import os
 import time
 from typing import List
+import librosa
+from scipy import interpolate
 from torch.functional import F
 import numpy as np
 import torch
+import torch.nn as nn 
 
+from component.binarizer.binarizer_utils import SinusoidalSmoothingConv1d
 from component.inferer.base import get_inferer_cls
 from modules.ProDiff.model.ProDiff_teacher import GaussianDiffusion
 from modules.ProDiff.prodiff_teacher import ProDiffTeacher
@@ -20,7 +24,7 @@ from vocoders.base_vocoder import get_vocoder_cls
 
 
 class InferHandler:
-    def __init__(self, hparams, pred_dur=False):
+    def __init__(self, hparams, pred_dur=False, pred_pitch=False):
         self.hparams = hparams
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.data_dir = os.path.join(hparams['data_dir'], "svs")
@@ -40,6 +44,19 @@ class InferHandler:
         if pred_dur:
             self.dur_predictor = get_inferer_cls("dur")(hparams)
             self.dur_predictor.build_model(self.ph_encoder)
+        self.pred_pitch = pred_pitch
+        if pred_pitch:
+            self.pitch_predictor = get_inferer_cls("pitch")(hparams)
+            self.pitch_predictor.build_model(self.ph_encoder)
+            timesteps = hparams["hop_size"] / hparams["audio_sample_rate"]
+            self.midi_smooth = nn.Conv1d(
+                in_channels=1,
+                out_channels=1,
+                kernel_size=round(0.06 / timesteps),
+                bias=False,
+                padding="same",
+                padding_mode="replicate"
+            ).eval()
         self.vocoder = self.build_vocoder()
     
     def build_phone_encoder(self):
@@ -111,16 +128,6 @@ class InferHandler:
                 note_dur[slow] += note_dur[fast]
             fast += 1
         return note_dur[:slow+1]
-
-    def force_align_pdur(self, ph_num, ph_dur, note_dur):
-        note_num = len(note_dur)
-        j = 0
-        for i in range(note_num):
-            rate = torch.sum(ph_dur[j:j+ph_num[i]]) / note_dur[i]
-            ph_dur[j:j+ph_num[i]] = ph_dur[j:j+ph_num[i]] / rate
-            j += ph_num[i]
-        return ph_dur
-
     
     def infer(self, segment: dict):
         lang = segment.get("lang", "zh")
@@ -150,25 +157,64 @@ class InferHandler:
                 ph_seq=ph_token_seq,
                 onset=onset,
                 word_dur=word_dur,
-            ).to(self.device).squeeze(0)
-            ph_dur = self.force_align_pdur(ph_num, ph_dur, note_dur)
+                ph_num=ph_num,
+                note_dur=note_dur
+            ).to(self.device)
         else:
             ph_dur = torch.from_numpy(np.array(segment["ph_dur"].split(), np.float32)).to(self.device)
         ph_acc = torch.round(torch.cumsum(ph_dur, dim=0) / self.timestep + 0.5).long()
         durations = torch.diff(ph_acc, dim=0, prepend=torch.LongTensor([0]).to(self.device))[None]  # => [B=1, T_txt]
         mel2ph = self.lr(durations, ph_token_seq == 0)  # => [B=1, T]
-
-        f0_seq = resample_align_curve(
-            np.array(segment['f0_seq'].split(), np.float32),
-            original_timestep=float(segment['f0_timestep']),
-            target_timestep=self.timestep,
-            align_length=mel2ph.shape[1]
-        )
+        mel_len = mel2ph.shape[1]
+        
+        if self.pred_pitch:
+            spk_name = self.hparams['spk_name'] # "spk0:0.5|spk1:0.5 ..."
+            spk_mix_map = dict([x.split(':') for x in spk_name.split('|')])
+            # get the max spk
+            spk_id = torch.LongTensor([self.spk_map[max(spk_mix_map, key=spk_mix_map.get)]]).to(self.device)
+            note_midi = np.array(
+                [librosa.note_to_midi(nt, round_midi=False) if nt != "rest" else -1 for nt in segment["note_seq"].split()],
+                dtype=np.float32
+            )
+            note_rest = note_midi == -1
+            if np.all(note_rest):
+                note_midi = np.full_like(note_midi, 60.)
+            else:
+                interp_func = interpolate.interp1d(
+                    np.where(~note_rest)[0], note_midi[~note_rest],
+                    kind='nearest', fill_value='extrapolate'
+                )
+                note_midi[note_rest] = interp_func(np.where(note_rest)[0])
+            note_midi = torch.FloatTensor(note_midi)
+            note_dur_sec = torch.from_numpy(np.array(segment["note_dur"].split(), np.float32))
+            note_acc = torch.round(torch.cumsum(note_dur_sec, dim=0) / self.timestep + 0.5).long()
+            note_dur = torch.diff(note_acc, dim=0, prepend=torch.LongTensor([0]))[None]  # => [B=1, T_txt]
+            mel2note = self.lr(note_dur)[0]  # => [B=1, T]
+            frame_pitch = torch.gather(F.pad(note_midi, [1, 0], value=-1), 0, mel2note)
+            base_f0 = self.midi_smooth(frame_pitch[None])[0].to(self.device)[None, :]
+            if base_f0.shape[1] > mel_len:
+                base_f0 = base_f0[:, :mel_len]
+            else:
+                base_f0 = F.pad(base_f0, [0, mel_len - base_f0.shape[1]], value=float(base_f0[0, -1]))
+            f0_seq = self.pitch_predictor.run_model(
+                ph_seq = ph_token_seq,
+                mel2ph = mel2ph,
+                base_f0 = base_f0,
+                spk_id = spk_id,
+            )
+            f0_seq = base_f0 + f0_seq
+        else:
+            f0_seq = resample_align_curve(
+                np.array(segment['f0_seq'].split(), np.float32),
+                original_timestep=float(segment['f0_timestep']),
+                target_timestep=self.timestep,
+                align_length=mel2ph.shape[1]
+            )
+            f0_seq = torch.from_numpy(f0_seq)[None, :].to(self.device) # [B=1, T_mel]
         keyshift = segment.get("keyshift", 0)
         if keyshift != 0:
             f0_seq = shift_pitch(f0_seq, keyshift)
-        f0_seq = torch.from_numpy(f0_seq)[None, :].to(self.device) # [B=1, T_mel]
-
+        
         spk_mix_embed = None
         if self.hparams["use_spk_id"]:
             spk_mix_id, spk_mix_value = self.get_speaker_mix()
