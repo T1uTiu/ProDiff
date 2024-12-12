@@ -57,11 +57,11 @@ class ProDiffTeacher(nn.Module):
             spk_embed = self.spk_embed(spk_embed_id)[:, None, :]
         return spk_embed
     
-    def add_gender_embed(self, gender_id, gender_mix_embed):
-        assert not (gender_id is None and gender_mix_embed is None)
+    def add_gender_embed(self, gender_embed_id, gender_mix_embed):
+        assert not (gender_embed_id is None and gender_mix_embed is None)
         if gender_mix_embed is not None:
             return gender_mix_embed
-        return self.lang_embed(gender_id)[:, None, :]
+        return self.lang_embed(gender_embed_id)[:, None, :]
 
     def add_pitch(self, f0:torch.Tensor):
         if self.f0_embed_type == 'discrete':
@@ -75,7 +75,7 @@ class ProDiffTeacher(nn.Module):
     def forward(self, txt_tokens, mel2ph, f0, 
                 lang_seq=None, 
                 spk_embed_id=None, spk_mix_embed=None, 
-                gender_id=None, gender_mix_embed=None,
+                gender_embed_id=None, gender_mix_embed=None,
                 ref_mels=None, infer=False, **kwargs):
         # dur embed
         if self.with_dur_embed:
@@ -98,7 +98,7 @@ class ProDiffTeacher(nn.Module):
         if self.with_spk_embed:
             condition += self.add_spk_embed(spk_embed_id, spk_mix_embed)
         if self.with_gender_embed:
-            condition += self.add_gender_embed(gender_id, gender_mix_embed)
+            condition += self.add_gender_embed(gender_embed_id, gender_mix_embed)
         nonpadding = (mel2ph > 0).float()[:, :, None]
         condition = condition * nonpadding
         # diffusion
