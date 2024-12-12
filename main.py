@@ -5,7 +5,8 @@ import torch
 
 from handler.binarize import BinarizeHandler
 from handler.infer import InferHandler
-from component.train_task import SVSTask, DurPredictorTask
+from component.train_task import SVSTask, DurPredictorTask, PitchPredictorTask
+from handler.train.handler import TrainHandler
 from utils.data_gen_utils import get_pitch
 from tasks.base_task import BaseTask
 from utils.audio import save_wav
@@ -29,7 +30,8 @@ def binarize(task, config, exp_name):
 
 train_task_map: Dict[str, BaseTask] = {
     "svs": SVSTask,
-    "dur": DurPredictorTask
+    "dur": DurPredictorTask,
+    "pitch": PitchPredictorTask
 }
 
 @main.command()
@@ -41,8 +43,9 @@ def train(train_task, config, exp_name):
     exp_name = f"{exp_name}_{train_task}"
     set_hparams(config=config, exp_name=exp_name)
     hparams["task"] = train_task
-    trainer_instance = train_task_map[train_task]
-    trainer_instance.start()
+    # trainer_instance = train_task_map[train_task]
+    # trainer_instance.start()
+    TrainHandler(hparams=hparams).handle(train_task_map[train_task])
 
 
 @main.command()
@@ -70,7 +73,7 @@ def vocode():
 def wav2wav(wav, config, keyshift, output_dir):
     set_hparams(config=config, exp_name='vocoder')
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    vocoder = get_vocoder_cls(hparams)()
+    vocoder = get_vocoder_cls(hparams["vocoder"])()
     vocoder.to_device(device)
     os.makedirs(output_dir, exist_ok=True)
     if os.path.isdir(wav):

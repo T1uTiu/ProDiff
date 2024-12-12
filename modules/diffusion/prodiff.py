@@ -181,7 +181,7 @@ class PitchDiffusion(GaussianDiffusion):
             out_dims=repeat_bins, denoise_fn=denoise_fn,
             timesteps=timesteps, time_scale=time_scale,
             betas=betas, schedule_type=schedule_type,
-            spec_min=spec_min, spec_max=spec_max
+            spec_min=[spec_min], spec_max=[spec_max]
         )
 
     def norm_spec(self, x):

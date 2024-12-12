@@ -64,7 +64,7 @@ class InferHandler:
         return lang_map
 
     def build_vocoder(self):
-        vocoder = get_vocoder_cls(self.hparams)()
+        vocoder = get_vocoder_cls(self.hparams["vocoder"])()
         vocoder.to_device(self.device)
         return vocoder
 

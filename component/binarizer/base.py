@@ -1,3 +1,4 @@
+import os
 import torch
 
 
@@ -5,6 +6,8 @@ class Binarizer:
     def __init__(self, hparams):
         self.hparams = hparams
         self.datasets: dict = hparams['datasets']
+        self.data_dir = os.path.join(hparams['data_dir'], self.category())
+        os.makedirs(self.data_dir, exist_ok=True)
     
     def load_meta_data(self) -> list:
         raise NotImplementedError

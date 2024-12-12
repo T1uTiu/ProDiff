@@ -9,7 +9,7 @@ def weights_nonzero_speech(target):
     dim = target.size(-1)
     return target.abs().sum(-1, keepdim=True).ne(0).float().repeat(1, 1, dim)
 
-def l1_loss(self, decoder_output, target):
+def l1_loss(decoder_output, target):
     # decoder_output : B x T x n_mel
     # target : B x T x n_mel
     l1_loss = F.l1_loss(decoder_output, target, reduction='none')
@@ -17,7 +17,7 @@ def l1_loss(self, decoder_output, target):
     l1_loss = (l1_loss * weights).sum() / weights.sum()
     return l1_loss
 
-def mse_loss(self, decoder_output, target):
+def mse_loss(decoder_output, target):
     # decoder_output : B x T x n_mel
     # target : B x T x n_mel
     assert decoder_output.shape == target.shape
@@ -26,7 +26,7 @@ def mse_loss(self, decoder_output, target):
     mse_loss = (mse_loss * weights).sum() / weights.sum()
     return mse_loss
 
-def ssim_loss(self, decoder_output, target, bias=6.0):
+def ssim_loss(decoder_output, target, bias=6.0):
     # decoder_output : B x T x n_mel
     # target : B x T x n_mel
     assert decoder_output.shape == target.shape

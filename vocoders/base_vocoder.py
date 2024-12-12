@@ -27,11 +27,11 @@ def register_vocoder(cls):
     return cls
 
 
-def get_vocoder_cls(hparams):
-    cls_name = hparams['vocoder'].lower()
+def get_vocoder_cls(vocoder):
+    cls_name = vocoder.lower()
     if cls_name not in VOCODERS:
         raise ValueError(f"Vocoder {cls_name} not found in VOCODERS")
-    return VOCODERS[hparams['vocoder']]
+    return VOCODERS[vocoder]
 
 
 

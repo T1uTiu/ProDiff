@@ -131,18 +131,18 @@ class BaseTask(nn.Module):
 
     @data_loader
     def train_dataloader(self):
-        train_dataset = self.dataset_cls(prefix=self.hparams['train_set_name'], shuffle=True)
+        train_dataset = self.dataset_cls(prefix=self.hparams['train_set_name'], shuffle=True, hparams=self.hparams)
         return self.build_dataloader(train_dataset, True, self.max_tokens, self.max_sentences,
                                      endless=self.hparams['endless_ds'])
 
     @data_loader
     def test_dataloader(self):
-        test_dataset = self.dataset_cls(prefix=self.hparams['test_set_name'], shuffle=False)
+        test_dataset = self.dataset_cls(prefix=self.hparams['test_set_name'], shuffle=False, hparams=self.hparams)
         return self.build_dataloader(test_dataset, False, self.max_valid_tokens, self.max_valid_sentences, batch_by_size=False)
 
     @data_loader
     def val_dataloader(self):
-        valid_dataset = self.dataset_cls(prefix=self.hparams['valid_set_name'], shuffle=False)
+        valid_dataset = self.dataset_cls(prefix=self.hparams['valid_set_name'], shuffle=False, hparams=self.hparams)
         return self.build_dataloader(valid_dataset, False, self.max_valid_tokens, self.max_valid_sentences)
 
     def build_scheduler(self, optimizer):

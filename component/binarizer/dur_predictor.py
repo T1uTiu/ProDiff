@@ -10,9 +10,7 @@ from modules.fastspeech.tts_modules import LengthRegulator
 class DurPredictorBinarizer(Binarizer):
     def __init__(self, hparams):
         super().__init__(hparams)
-        self.data_dir = os.path.join(hparams['data_dir'], self.category())
-        os.makedirs(self.data_dir, exist_ok=True)
-        self.ph_map, self.ph_encoder = build_phone_encoder(self.data_dir, hparams)
+        self.ph_map, self.ph_encoder = build_phone_encoder(self.data_dir, hparams["dictionary"])
         self.lr = LengthRegulator()
 
     @staticmethod

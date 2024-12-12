@@ -2,13 +2,15 @@ import csv
 import json
 import os
 
+import numpy as np
+import torch
 from utils.text_encoder import TokenTextEncoder
 
 
-def build_phone_encoder(data_dir: str, hparams: dict):
+def build_phone_encoder(data_dir: str, dictionary: dict):
     ph2global = {}
-    if hparams["dictionary"].get("global", None):
-        f = open(hparams["dictionary"]["global"], 'r')
+    if dictionary.get("global", None):
+        f = open(dictionary["global"], 'r')
         for label in csv.DictReader(f):
             for lang, ph in label.items():
                 if lang == "global":
@@ -19,7 +21,7 @@ def build_phone_encoder(data_dir: str, hparams: dict):
     ph_set_fn = f"{data_dir}/phone_set.json"
     ph_map = {}
     if not os.path.exists(ph_set_fn):
-        for lang, dictionary in hparams["dictionary"].items():
+        for lang, dictionary in dictionary.items():
             if lang == "global":
                 continue
             f = open(dictionary, 'r')
@@ -38,3 +40,35 @@ def build_phone_encoder(data_dir: str, hparams: dict):
     print("| phone set: ", ph_list)
     ph_encoder = TokenTextEncoder(None, vocab_list=ph_list, replace_oov="SP")
     return ph_map, ph_encoder
+
+def build_lang_map(data_dir, dictionary: dict):
+    lang_map = {dt: i for i, dt in enumerate(dictionary.keys()) if dt != "global"}
+    print("| lang_map: ", lang_map)
+    lang_map_fn = f"{data_dir}/lang_map.json"
+    with open(lang_map_fn, 'w') as f:
+        json.dump(lang_map, f)
+    return lang_map\
+    
+def build_spk_map(data_dir, datasets):
+    spk_map = {ds["speaker"]: i for i, ds in enumerate(datasets)}
+    print("| spk_map: ", spk_map)
+    spk_map_fn = f"{data_dir}/spk_map.json"
+    with open(spk_map_fn, 'w') as f:
+        json.dump(spk_map, f)
+    return spk_map
+
+class SinusoidalSmoothingConv1d(torch.nn.Conv1d):
+    def __init__(self, kernel_size):
+        super().__init__(
+            in_channels=1,
+            out_channels=1,
+            kernel_size=kernel_size,
+            bias=False,
+            padding='same',
+            padding_mode='replicate'
+        )
+        smooth_kernel = torch.sin(torch.from_numpy(
+            np.linspace(0, 1, kernel_size).astype(np.float32) * np.pi
+        ))
+        smooth_kernel /= smooth_kernel.sum()
+        self.weight.data = smooth_kernel[None, None]

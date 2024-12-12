@@ -1,3 +1,4 @@
 from component.binarizer.svs import SVSBinarizer
-from component.binarizer.vari_predictor import DurPredictorBinarizer
+from component.binarizer.dur_predictor import DurPredictorBinarizer
+from component.binarizer.pitch_predictor import PitchPredictorBinarizer
 from component.binarizer.base import get_binarizer_cls

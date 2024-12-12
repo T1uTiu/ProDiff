@@ -4,7 +4,6 @@ from component.train_task.loss_utils import add_mel_loss
 from component.train_task.svs.dataset import SVSDataset
 from modules.ProDiff.prodiff_teacher import ProDiffTeacher
 import utils
-from utils.hparams import hparams
 from utils.plot import spec_to_figure
 
 class SVSTask(BaseTask):
@@ -28,7 +27,7 @@ class SVSTask(BaseTask):
         return SVSDataset
 
     def build_model(self):
-        self.model = ProDiffTeacher(self.ph_encoder, hparams)
+        self.model = ProDiffTeacher(self.ph_encoder, self.hparams)
         utils.num_params(self.model) # 打印模型参数量
         return self.model
 
@@ -59,7 +58,7 @@ class SVSTask(BaseTask):
         outputs['losses'], model_out = self.run_model(sample, return_output=True, infer=False)
         outputs['total_loss'] = sum(outputs['losses'].values())
         outputs = utils.tensors_to_scalars(outputs)
-        if batch_idx < hparams['num_valid_plots']:
+        if batch_idx < self.hparams['num_valid_plots']:
             _, model_out = self.run_model(sample, return_output=True, infer=True)
             self.plot_mel(batch_idx, sample["mel"], model_out)
         return outputs

@@ -4,20 +4,30 @@ import torch
 from torch.utils.data import ConcatDataset
 import numpy as np
 
+from utils.indexed_datasets import IndexedDataset
+
 class BaseDataset(torch.utils.data.Dataset):
-    def __init__(self, shuffle, hparams):
+    def __init__(self, prefix, shuffle, hparams):
         super().__init__()
         self.hparams = hparams
         self.shuffle = shuffle
         self.sort_by_len = hparams['sort_by_len']
-        self.sizes = None
+        self.data_dir = os.path.join(hparams['data_dir'], hparams["task"]) 
+        self.prefix = prefix
+        self.sizes = np.load(f'{self.data_dir}/{self.prefix}_lengths.npy')
+        self.indexed_ds = None
+        
 
     @property
     def _sizes(self):
         return self.sizes
 
     def __getitem__(self, index):
-        raise NotImplementedError
+        if hasattr(self, 'avail_idxs') and self.avail_idxs is not None:
+            index = self.avail_idxs[index]
+        if self.indexed_ds is None:
+            self.indexed_ds = IndexedDataset(f'{self.data_dir}/{self.prefix}')
+        return self.indexed_ds[index]
 
     def collater(self, samples):
         raise NotImplementedError

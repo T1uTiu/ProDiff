@@ -5,7 +5,7 @@ import random
 import numpy as np
 import torch
 from component.binarizer.base import Binarizer, register_binarizer
-from component.binarizer.binarizer_utils import build_phone_encoder
+from component.binarizer.binarizer_utils import build_lang_map, build_phone_encoder, build_spk_map
 from component.pe.base import get_pitch_extractor_cls
 from modules.fastspeech.tts_modules import LengthRegulator
 from utils.data_gen_utils import get_mel2ph_dur
@@ -15,11 +15,9 @@ from vocoders.base_vocoder import get_vocoder_cls
 class SVSBinarizer(Binarizer):
     def __init__(self, hparams):
         super().__init__(hparams)
-        self.data_dir = os.path.join(hparams['data_dir'], self.category())
-        os.makedirs(self.data_dir, exist_ok=True)
-        self.ph_map, self.ph_encoder = build_phone_encoder(self.data_dir, hparams)
-        self.build_lang_map()
-        self.build_spk_map()
+        self.ph_map, self.ph_encoder = build_phone_encoder(self.data_dir, hparams["dictionary"])
+        self.lang_map = build_lang_map(self.data_dir, hparams["dictionary"])
+        self.spk_map = build_spk_map(self.data_dir, self.datasets)
         self.lr = LengthRegulator()
         self.pe = get_pitch_extractor_cls(hparams)(hparams)
         self.vocoder = get_vocoder_cls(hparams)()
@@ -31,21 +29,6 @@ class SVSBinarizer(Binarizer):
     @staticmethod
     def category():
         return "svs"
-    
-    def build_spk_map(self):
-        self.spk_map = {ds["speaker"]: i for i, ds in enumerate(self.datasets)}
-        print("| spk_map: ", self.spk_map)
-        spk_map_fn = f"{self.data_dir}/spk_map.json"
-        with open(spk_map_fn, 'w') as f:
-            json.dump(self.spk_map, f)
-    
-    def build_lang_map(self):
-        hparams = self.hparams
-        self.lang_map = {dt: i for i, dt in enumerate(hparams["dictionary"].keys()) if dt != "global"}
-        print("| lang_map: ", self.lang_map)
-        lang_map_fn = f"{self.data_dir}/lang_map.json"
-        with open(lang_map_fn, 'w') as f:
-            json.dump(self.lang_map, f)
 
     def load_meta_data(self):
         transcription_item_list = []
