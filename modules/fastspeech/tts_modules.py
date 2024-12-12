@@ -329,6 +329,44 @@ class FastspeechEncoder(FFTBlocks):
                 x = x + positions
         x = F.dropout(x, p=self.dropout, training=self.training)
         return x
+    
+class NoteEncoder(FFTBlocks):
+    def __init__(self, hidden_size, num_layers, kernel_size, num_heads=2):
+        super().__init__(hidden_size, num_layers, kernel_size, num_heads=num_heads,
+                         use_pos_embed=False)  # use_pos_embed_alpha for compatibility
+        self.note_midi_embed = Linear(1, hidden_size)
+        self.note_dur_embed = Linear(1, hidden_size)
+        self.embed_scale = math.sqrt(hidden_size)
+        self.padding_idx = 0
+        self.rel_pos = hparams.get('rel_pos', False)
+        if self.rel_pos:
+            self.embed_positions = RelPositionalEncoding(hidden_size, dropout_rate=0.0)
+        else:
+            self.embed_positions = SinusoidalPositionalEmbedding(
+                hidden_size, self.padding_idx, init_size=DEFAULT_MAX_TARGET_POSITIONS,
+            )
+
+    def forward(self, note_midi, note_dur, extra_embed=None):
+        encoder_padding_mask = note_midi < 0
+        x = self.forward_embedding(note_midi, note_dur, extra_embed=extra_embed, padding_mask=encoder_padding_mask)  # [B, T, H]
+        x = super(NoteEncoder, self).forward(x, encoder_padding_mask)
+        return x
+
+    def forward_embedding(self, note_midi, note_dur, extra_embed=None, padding_mask=None):
+        # embed tokens and positions
+        x = self.embed_scale * self.note_midi_embed(note_midi[:, :, None]) * ~padding_mask[:, :, None]
+        note_dur_embed = self.note_dur_embed(note_dur[:, :, None])
+        x += note_dur_embed
+        if extra_embed is not None:
+            x = x + extra_embed
+        if hparams['use_pos_embed']:
+            if self.rel_pos:
+                x = self.embed_positions(x)
+            else:
+                positions = self.embed_positions(~padding_mask)
+                x = x + positions
+        x = F.dropout(x, p=self.dropout, training=self.training)
+        return x
 
 
 class FastspeechDecoder(FFTBlocks):

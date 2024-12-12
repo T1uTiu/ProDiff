@@ -37,6 +37,7 @@ class DurPredictorInferer(Inferer):
             rate = torch.sum(ph_dur[j:j+pn]) / note_dur[i]
             ph_dur[j:j+ph_num[i]] = ph_dur[j:j+ph_num[i]] / rate
             j += pn
+        ph_dur[torch.isnan(ph_dur)] = 0
         return ph_dur
     
     @staticmethod

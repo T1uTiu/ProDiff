@@ -179,6 +179,11 @@ f0_prediction_args:
   spec_max: 8.0
   clamp_min: -12.0
   clamp_max: 12.0
+  encoder_args:
+    hidden_size: 128
+    num_layers: 4
+    ffn_kernel_size: 9
+    num_heads: 2
   repeat_bins: 64
   denoise_args:
     dilation_cycle_length: 5
@@ -244,8 +249,8 @@ dilation_cycle_length: 1
 residual_layers: 20
 residual_channels: 256
 keep_bins: 80
-spec_min: [-12]
-spec_max: [0]
+spec_min: []
+spec_max: []
 max_beta: 0.06
 timesteps: 4
 timescale: 1

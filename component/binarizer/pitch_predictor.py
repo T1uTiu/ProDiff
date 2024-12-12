@@ -1,5 +1,6 @@
 import os
 import librosa
+from matplotlib import pyplot as plt
 import numpy as np
 from scipy import interpolate
 import textgrid
@@ -17,9 +18,7 @@ from vocoders.base_vocoder import get_vocoder_cls
 class PitchPredictorBinarizer(Binarizer):
     def __init__(self, hparams):
         super().__init__(hparams)
-        self.ph_map, self.ph_encoder = build_phone_encoder(self.data_dir, hparams["dictionary"])
         self.spk_map = build_spk_map(self.data_dir, self.datasets)
-        self.lang_map = build_lang_map(self.data_dir, hparams["dictionary"])
         self.lr = LengthRegulator()
         self.pe = get_pitch_extractor_cls(hparams)(hparams)
         self.vocoder = get_vocoder_cls(hparams["vocoder"])()
@@ -36,27 +35,17 @@ class PitchPredictorBinarizer(Binarizer):
         transcription_item_list = []
         for dataset in self.datasets:
             data_dir = dataset["data_dir"]
-            lang = dataset["language"]
-            lang_id = self.lang_map[lang]
             spk_id = self.spk_map[dataset["speaker"]]
             for tg_fn in os.listdir(f"{data_dir}/TextGrid"):
                 if not tg_fn.endswith(".TextGrid"):
                     continue
                 tg = textgrid.TextGrid.fromFile(f"{data_dir}/TextGrid/{tg_fn}")
-                # ph
-                ph_text, ph_dur = [], []
-                for x in tg.getFirst("phone"):
-                    ph_text.append(x.mark)
-                    ph_dur.append(x.maxTime - x.minTime)
-                ph_seq = self.ph_encoder.encode(ph_text)
                 # note
                 note_seq, note_dur = [], []
                 for x in tg.getFirst("note"):
                     note_seq.append(x.mark)
                     note_dur.append(x.maxTime - x.minTime)
                 item = {
-                    "ph_seq" : ph_seq,
-                    "ph_dur" : ph_dur,
                     "wav_fn" : f"{data_dir}/wav/{tg_fn.replace('.TextGrid', '.wav')}",
                     "spk_id" : spk_id,
                     "note_seq": note_seq,
@@ -72,14 +61,10 @@ class PitchPredictorBinarizer(Binarizer):
         wav, mel = self.vocoder.wav2spec(item["wav_fn"], hparams=hparams)
         preprocessed_item = {
             "spk_id" : item["spk_id"],
-            "ph_seq" : np.array(item["ph_seq"], dtype=np.int64),
         }
         preprocessed_item["sec"] = len(wav) / hparams['audio_sample_rate']
         preprocessed_item["length"] = mel.shape[0]
-
-        timestep = hparams['hop_size'] / hparams['audio_sample_rate']
-        preprocessed_item["mel2ph"] = get_mel2ph_dur(lr, torch.FloatTensor(item["ph_dur"]), mel.shape[0], timestep)
-
+        # f0
         f0, uv = pe.get_pitch(
             wav, 
             samplerate = hparams['audio_sample_rate'], 
@@ -89,7 +74,10 @@ class PitchPredictorBinarizer(Binarizer):
         )
         assert not uv.all(), f"all unvoiced. item_name: {item['item_name']}, wav_fn: {item['wav_fn']}"
         preprocessed_item["f0"] = f0
-
+        # note
+        timestep = hparams['hop_size'] / hparams['audio_sample_rate']
+        mel2note = get_mel2ph_dur(lr, torch.FloatTensor(item["note_dur"]), mel.shape[0], timestep)
+        preprocessed_item["mel2note"] = mel2note
         note_midi = np.array(
             [librosa.note_to_midi(nt, round_midi=False) if nt != "rest" else -1 for nt in item["note_seq"]],
         )
@@ -99,9 +87,9 @@ class PitchPredictorBinarizer(Binarizer):
                 kind='nearest', fill_value='extrapolate'
             )
         note_midi[note_rest] = interp_func(np.where(note_rest)[0])
-        mel2note = get_mel2ph_dur(lr, torch.FloatTensor(item["note_dur"]), mel.shape[0], timestep)
-        mel2note = torch.LongTensor(mel2note)
-        frame_pitch = torch.gather(F.pad(torch.FloatTensor(note_midi), [1, 0], value=-1), 0, mel2note)
-        preprocessed_item["base_f0"] = self.midi_smooth(frame_pitch[None])[0].detach().numpy()
-
+        preprocessed_item["note_midi"] = note_midi
+        # base f0
+        frame_pitch = torch.gather(F.pad(torch.FloatTensor(note_midi), [1, 0], value=-1), 0, torch.LongTensor(mel2note))
+        preprocessed_item["base_pitch"] = self.midi_smooth(frame_pitch[None])[0].detach().numpy()
+        preprocessed_item["base_f0"] = librosa.midi_to_hz(preprocessed_item["base_pitch"])
         return preprocessed_item

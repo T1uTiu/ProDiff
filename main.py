@@ -43,8 +43,6 @@ def train(train_task, config, exp_name):
     exp_name = f"{exp_name}_{train_task}"
     set_hparams(config=config, exp_name=exp_name)
     hparams["task"] = train_task
-    # trainer_instance = train_task_map[train_task]
-    # trainer_instance.start()
     TrainHandler(hparams=hparams).handle(train_task_map[train_task])
 
 

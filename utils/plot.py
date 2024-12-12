@@ -13,17 +13,18 @@ def spec_to_figure(spec, vmin=None, vmax=None):
     return fig
 
 
-def spec_f0_to_figure(spec, f0s, figsize=None):
-    max_y = spec.shape[1]
-    if isinstance(spec, torch.Tensor):
-        spec = spec.detach().cpu().numpy()
-        f0s = {k: f0.detach().cpu().numpy() for k, f0 in f0s.items()}
-    f0s = {k: f0 / 10 for k, f0 in f0s.items()}
-    fig = plt.figure(figsize=(12, 6) if figsize is None else figsize)
-    plt.pcolor(spec.T)
-    for i, (k, f0) in enumerate(f0s.items()):
-        plt.plot(f0.clip(0, max_y), label=k, c=LINE_COLORS[i], linewidth=1, alpha=0.8)
+def spec_f0_to_figure(f0_tgt, f0_pred):
+    if isinstance(f0_tgt, torch.Tensor):
+        f0_tgt = f0_tgt.cpu().numpy()
+    if isinstance(f0_pred, torch.Tensor):
+        f0_pred = f0_pred.cpu().numpy()
+    fig = plt.figure(figsize=(12, 6))
+    plt.plot(f0_tgt, color='r', label='gt')
+    plt.plot(f0_pred, color='b', label='pred')
+    plt.gca().yaxis.set_major_locator(plt.MultipleLocator(1))
+    plt.grid(axis='y')
     plt.legend()
+    plt.tight_layout()
     return fig
 
 
