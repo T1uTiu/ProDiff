@@ -1,4 +1,5 @@
 import math
+import numpy as np
 import torch
 from torch import nn
 from torch.nn import Parameter
@@ -969,3 +970,19 @@ class ConvGLUStacks(nn.Module):
         x = x.transpose(1, -1)
         x = self.out_proj(x)  # (B, Tmax, H)
         return x
+
+class SinusoidalSmoothingConv1d(torch.nn.Conv1d):
+    def __init__(self, kernel_size):
+        super().__init__(
+            in_channels=1,
+            out_channels=1,
+            kernel_size=kernel_size,
+            bias=False,
+            padding='same',
+            padding_mode='replicate'
+        )
+        smooth_kernel = torch.sin(torch.from_numpy(
+            np.linspace(0, 1, kernel_size).astype(np.float32) * np.pi
+        ))
+        smooth_kernel /= smooth_kernel.sum()
+        self.weight.data = smooth_kernel[None, None]

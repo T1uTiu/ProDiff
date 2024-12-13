@@ -346,23 +346,21 @@ class NoteEncoder(FFTBlocks):
                 hidden_size, self.padding_idx, init_size=DEFAULT_MAX_TARGET_POSITIONS,
             )
 
-    def forward(self, note_midi, note_dur, extra_embed=None):
+    def forward(self, note_midi, note_rest, note_dur):
         encoder_padding_mask = note_midi < 0
-        x = self.forward_embedding(note_midi, note_dur, extra_embed=extra_embed, padding_mask=encoder_padding_mask)  # [B, T, H]
+        x = self.forward_embedding(note_midi, note_rest, note_dur)  # [B, T, H]
         x = super(NoteEncoder, self).forward(x, encoder_padding_mask)
         return x
 
-    def forward_embedding(self, note_midi, note_dur, extra_embed=None, padding_mask=None):
+    def forward_embedding(self, note_midi, note_rest, note_dur):
         # embed tokens and positions
-        x = self.embed_scale * self.note_midi_embed(note_midi[:, :, None]) * ~padding_mask[:, :, None]
-        note_dur_embed = self.note_dur_embed(note_dur[:, :, None])
-        x += note_dur_embed
-        if extra_embed is not None:
-            x = x + extra_embed
+        x = self.embed_scale * self.note_midi_embed(note_midi[:, :, None]) * ~note_rest[:, :, None]
+        x += self.note_dur_embed(note_dur[:, :, None])
         if hparams['use_pos_embed']:
             if self.rel_pos:
                 x = self.embed_positions(x)
             else:
+                padding_mask = note_midi < 0
                 positions = self.embed_positions(~padding_mask)
                 x = x + positions
         x = F.dropout(x, p=self.dropout, training=self.training)

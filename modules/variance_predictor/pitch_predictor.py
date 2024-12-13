@@ -18,12 +18,14 @@ class PitchPredictor(nn.Module):
             num_heads=f0_prediction_args["encoder_args"]['num_heads']
         )
         self.encode_out_linear = Linear(f0_prediction_args["encoder_args"]['hidden_size'], hparams['hidden_size'])
-        self.note_dur_embed = Linear(1, hparams['hidden_size'])
+
         self.with_spk_embed = hparams.get('use_spk_id', True)
         if self.with_spk_embed:
             self.spk_embed = Embedding(len(hparams['datasets']), hparams['hidden_size'])
+
         # pitch
-        self.base_f0_embed = Linear(1, hparams["hidden_size"])
+        self.delta_pitch_embed = Linear(1, hparams["hidden_size"])
+        self.pitch_retake_embed = Embedding(2, hparams['hidden_size'])
         self.diffusion = PitchDiffusion(
             repeat_bins=f0_prediction_args["repeat_bins"],\
             denoise_fn=DiffNet(
@@ -41,9 +43,16 @@ class PitchPredictor(nn.Module):
             clamp_max=f0_prediction_args["clamp_max"],
         )
 
-    def forward(self, note_midi, mel2note, base_f0, f0=None, spk_id=None, infer=False):
+    def forward(self, note_midi, note_rest, mel2note, 
+                base_f0, f0=None, 
+                pitch_retake=None, pitch_expr=None,
+                spk_id=None, infer=False):
+        # check params
+        assert not infer and pitch_retake is not None
+        assert not infer and f0 is not None
+        # encode
         note_dur = mel2ph_to_dur(mel2note, note_midi.shape[1]).float()
-        encoder_out = self.encoder(note_midi, note_dur)
+        encoder_out = self.encoder(note_midi, note_dur, note_rest)
         encoder_out = self.encode_out_linear(encoder_out)
 
         # length regulate
@@ -57,13 +66,33 @@ class PitchPredictor(nn.Module):
             condition += spk_embed
 
         # f0
-        base_f0_embed = self.base_f0_embed(base_f0[:, :, None])
-        condition += base_f0_embed
+        is_pitch_retake = pitch_retake is not None
+        if not is_pitch_retake:
+            pitch_retake = torch.ones_like(mel2note, dtype=torch.long)
+
+        if pitch_expr is None:
+            pitch_retake_embed = self.pitch_retake_embed(pitch_retake)
+        else:
+            retake_true_embed = self.pitch_retake_embed(
+                torch.ones(1, 1, dtype=torch.long, device=note_midi.device)
+            )
+            retake_false_embed = self.pitch_retake_embed(
+                torch.zeros(1, 1, dtype=torch.long, device=note_midi.device)
+            )
+            pitch_expr = (pitch_expr * pitch_retake)[:, :, None]
+            pitch_retake_embed = retake_true_embed * pitch_expr + retake_false_embed * (1 - pitch_expr)
+        condition += pitch_retake_embed
+        if is_pitch_retake:
+            delta_pitch = (f0 - base_f0) * ~pitch_retake
+        else:
+            delta_pitch = torch.zeros_like(base_f0)
+        delta_pitch_embed = self.delta_pitch_embed(delta_pitch[:, :, None])
+        condition += delta_pitch_embed
 
         # diffusion
         nonpadding = (mel2note > 0).float().unsqueeze(1).unsqueeze(1)
         if not infer:
-            pitch_pred = self.diffusion(condition, nonpadding=nonpadding, ref_mels=f0, infer=infer)
+            pitch_pred = self.diffusion(condition, nonpadding=nonpadding, ref_mels=f0-base_f0, infer=infer)
         else:
             pitch_pred = self.diffusion(condition, nonpadding=nonpadding, infer=infer)
         return pitch_pred

@@ -7,7 +7,7 @@ import textgrid
 import torch
 from torch.functional import F
 from component.binarizer.base import Binarizer, register_binarizer
-from component.binarizer.binarizer_utils import build_lang_map, build_phone_encoder, build_spk_map, SinusoidalSmoothingConv1d
+from component.binarizer.binarizer_utils import SinusoidalSmoothingConv1d, build_spk_map
 from component.pe.base import get_pitch_extractor_cls
 from modules.fastspeech.tts_modules import LengthRegulator
 from utils.data_gen_utils import get_mel2ph_dur
@@ -74,6 +74,7 @@ class PitchPredictorBinarizer(Binarizer):
         )
         assert not uv.all(), f"all unvoiced. item_name: {item['item_name']}, wav_fn: {item['wav_fn']}"
         preprocessed_item["f0"] = f0
+        preprocessed_item["pitch"] = librosa.hz_to_midi(f0.astype(np.float32))
         # note
         timestep = hparams['hop_size'] / hparams['audio_sample_rate']
         mel2note = get_mel2ph_dur(lr, torch.FloatTensor(item["note_dur"]), mel.shape[0], timestep)
@@ -88,6 +89,7 @@ class PitchPredictorBinarizer(Binarizer):
             )
         note_midi[note_rest] = interp_func(np.where(note_rest)[0])
         preprocessed_item["note_midi"] = note_midi
+        preprocessed_item["note_rest"] = note_rest
         # base f0
         frame_pitch = torch.gather(F.pad(torch.FloatTensor(note_midi), [1, 0], value=-1), 0, torch.LongTensor(mel2note))
         preprocessed_item["base_pitch"] = self.midi_smooth(frame_pitch[None])[0].detach().numpy()

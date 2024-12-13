@@ -12,7 +12,7 @@ from tasks.base_task import BaseTask
 from utils.audio import save_wav
 from utils.hparams import set_hparams, hparams
 from utils.pitch_utils import shift_pitch
-from vocoders.base_vocoder import VOCODERS, get_vocoder_cls
+from vocoders.base_vocoder import get_vocoder_cls
 
 @click.group()
 def main():
@@ -55,7 +55,7 @@ def train(train_task, config, exp_name):
 @click.option("--keyshift", type=int, default=0)
 @click.option("--gender", type=int, default=0)
 @click.option("--pred_dur", is_flag=True)
-@click.option("--pred_pitch", is_flag=True)
+@click.option("--pred_pitch", type=str, default="")
 def infer(proj, config, exp_name, spk_name, lang, keyshift, gender, pred_dur, pred_pitch):
     set_hparams(config=config, exp_name=exp_name, spk_name=spk_name)
     InferHandler(hparams=hparams, pred_dur=pred_dur, pred_pitch=pred_pitch).handle(None, proj, lang, keyshift, gender)
