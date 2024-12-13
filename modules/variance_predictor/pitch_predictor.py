@@ -48,8 +48,8 @@ class PitchPredictor(nn.Module):
                 pitch_retake=None, pitch_expr=None,
                 spk_id=None, infer=False):
         # check params
-        assert not infer and pitch_retake is not None
-        assert not infer and f0 is not None
+        # assert not infer and pitch_retake is not None
+        # assert not infer and f0 is not None
         # encode
         note_dur = mel2ph_to_dur(mel2note, note_midi.shape[1]).float()
         encoder_out = self.encoder(note_midi, note_rest, note_dur)

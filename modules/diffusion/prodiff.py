@@ -185,10 +185,9 @@ class PitchDiffusion(GaussianDiffusion):
         )
 
     def norm_spec(self, x):
-        x = x.clamp(self.clamp_min, self.clamp_max)
         repeats = [1, 1, self.repeat_bins]
         return super().norm_spec(x.unsqueeze(-1).repeat(*repeats))
     
     def denorm_spec(self, x):
-        return super().denorm_spec(x).mean(dim=-1).clamp(self.clamp_min, self.clamp_max)
+        return super().denorm_spec(x).mean(dim=-1)
 

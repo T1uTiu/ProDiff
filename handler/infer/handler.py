@@ -170,18 +170,25 @@ class InferHandler:
                     kind='nearest', fill_value='extrapolate'
                 )
                 note_midi[note_rest] = interp_func(np.where(note_rest)[0])
-            note_hz = torch.FloatTensor(librosa.midi_to_hz(note_midi))
+            note_rest = torch.BoolTensor(note_rest)
             note_midi = torch.FloatTensor(note_midi)
-            note_dur_sec = torch.from_numpy(np.array(segment["note_dur"].split(), np.float32))
+            note_dur_sec = torch.from_numpy(np.array(segment["note_dur_seq"].split(), np.float32))
             mel2note = torch.from_numpy(get_mel2ph_dur(self.lr, note_dur_sec, mel_len, self.timestep))
-            base_f0 = torch.gather(F.pad(note_hz, [1, 0], value=-1), 0, mel2note)
-            base_f0 = self.midi_smooth(base_f0[None])[0]
+            base_f0 = torch.gather(F.pad(note_midi, [1, 0], value=-1), 0, mel2note)
+            base_f0 = self.midi_smooth(base_f0[None])[0].to(self.device)[None, :]
+            expr = segment.get("pitch_expr", 1.)
+            pitch_expr = torch.FloatTensor([expr]).to(self.device)[None, :]
             f0_seq = self.pitch_predictor.run_model(
                 note_midi = note_midi.to(self.device)[None, :],
+                note_rest = note_rest.to(self.device)[None, :],
                 mel2note = mel2note.to(self.device)[None, :],
-                base_f0 = base_f0.to(self.device)[None, :],
+                pitch_expr=pitch_expr,
+                base_f0 = base_f0,
                 spk_id = spk_id,
             )
+            f0_seq += base_f0
+            f0_seq = f0_seq[0].cpu().detach().numpy()
+            f0_seq = librosa.midi_to_hz(f0_seq)
         else:
             f0_seq = resample_align_curve(
                 np.array(segment['f0_seq'].split(), np.float32),
@@ -189,7 +196,7 @@ class InferHandler:
                 target_timestep=self.timestep,
                 align_length=mel2ph.shape[1]
             )
-            f0_seq = torch.from_numpy(f0_seq)[None, :].to(self.device) # [B=1, T_mel]
+        f0_seq = torch.from_numpy(f0_seq)[None, :].to(self.device) # [B=1, T_mel]
         keyshift = segment.get("keyshift", 0)
         if keyshift != 0:
             f0_seq = shift_pitch(f0_seq, keyshift)

@@ -12,9 +12,9 @@ class PitchPredictorTask(BaseTask):
         super().__init__(hparams=hparams)
         self.f0_prediction_args = hparams['f0_prediction_args']
         self.f0_repeat = [1, 1, self.f0_prediction_args['repeat_bins']]
-        mel_losses = hparams['mel_loss'].split("|")
+        pitch_losses = self.f0_prediction_args['loss_type'].split("|")
         self.loss_and_lambda = {}
-        for l in mel_losses:
+        for l in pitch_losses:
             if l == '':
                 continue
             if ':' in l:
@@ -46,7 +46,8 @@ class PitchPredictorTask(BaseTask):
         if infer:
             return f0_pred
         losses = {}
-        f0_gt = f0.unsqueeze(-1).repeat(*self.f0_repeat)
+        f0_gt = f0 - base_f0
+        f0_gt = f0_gt.unsqueeze(-1).repeat(*self.f0_repeat)
         add_mel_loss(f0_pred, f0_gt, losses, loss_and_lambda=self.loss_and_lambda)
         if not return_output:
             return losses
@@ -63,7 +64,8 @@ class PitchPredictorTask(BaseTask):
         if batch_idx < self.hparams['num_valid_plots']:
             f0_pred = self.run_model(sample, return_output=True, infer=True)
             f0_gt = sample["pitch"]
-            self.plot_spec(batch_idx, f0_gt, f0_pred)
+            f0_pred += sample["base_pitch"]
+            self.plot_f0_spec(batch_idx, f0_gt, f0_pred)
         return outputs
     
     def plot_f0_spec(self, batch_idx, f0_tgt, f0_pred):
