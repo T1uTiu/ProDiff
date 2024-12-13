@@ -7,8 +7,9 @@ import textgrid
 import torch
 from torch.functional import F
 from component.binarizer.base import Binarizer, register_binarizer
-from component.binarizer.binarizer_utils import SinusoidalSmoothingConv1d, build_spk_map
+from component.binarizer.binarizer_utils import build_spk_map
 from component.pe.base import get_pitch_extractor_cls
+from modules.commons.common_layers import SinusoidalSmoothingConv1d
 from modules.fastspeech.tts_modules import LengthRegulator
 from utils.data_gen_utils import get_mel2ph_dur
 from vocoders.base_vocoder import get_vocoder_cls

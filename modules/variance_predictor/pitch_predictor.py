@@ -52,7 +52,7 @@ class PitchPredictor(nn.Module):
         assert not infer and f0 is not None
         # encode
         note_dur = mel2ph_to_dur(mel2note, note_midi.shape[1]).float()
-        encoder_out = self.encoder(note_midi, note_dur, note_rest)
+        encoder_out = self.encoder(note_midi, note_rest, note_dur)
         encoder_out = self.encode_out_linear(encoder_out)
 
         # length regulate
@@ -71,7 +71,7 @@ class PitchPredictor(nn.Module):
             pitch_retake = torch.ones_like(mel2note, dtype=torch.long)
 
         if pitch_expr is None:
-            pitch_retake_embed = self.pitch_retake_embed(pitch_retake)
+            pitch_retake_embed = self.pitch_retake_embed(pitch_retake.long())
         else:
             retake_true_embed = self.pitch_retake_embed(
                 torch.ones(1, 1, dtype=torch.long, device=note_midi.device)

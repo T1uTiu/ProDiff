@@ -107,3 +107,15 @@ def setuv_f0(f0, ph, durations, phone_uv_set):
 
 def shift_pitch(f0, n):
     return f0 * (2** (n / 12))
+
+def random_continuous_masks(*shape: int, dim: int, device = 'cpu'):
+    start, end = torch.sort(
+        torch.randint(
+            low=0, high=shape[dim] + 1, size=(*shape[:dim], 2, *((1,) * (len(shape) - dim - 1))), device=device
+        ).expand(*((-1,) * (dim + 1)), *shape[dim + 1:]), dim=dim
+    )[0].split(1, dim=dim)
+    idx = torch.arange(
+        0, shape[dim], dtype=torch.long, device=device
+    ).reshape(*((1,) * dim), shape[dim], *((1,) * (len(shape) - dim - 1)))
+    masks = (idx >= start) & (idx < end)
+    return masks
