@@ -189,6 +189,7 @@ f0_prediction_args:
     dilation_cycle_length: 5
     residual_layers: 20
     residual_channels: 256
+  loss_type: l1:0.5|ssim:0.5
 pitch_norm: log # standard|log
 pitch_type: frame # frame|ph|cwt
 f0_embed_type: continuous # continuous|discrete

@@ -117,10 +117,15 @@ class InferHandler:
             fast += 1
         return note_dur[:slow+1]
     
+    def get_ph_text(self, ph, lang=None):
+        if not self.hparams["use_lang_id"]:
+            return ph
+        return f"{ph}/{lang}" if "/" in ph else ph
+
     def infer(self, segment: dict):
-        lang = segment.get("lang", "zh")
+        lang = segment.get("lang", None)
         ph_text_seq = [
-            self.ph_map[f"{ph}/{lang}"] for ph in segment["ph_seq"].split()
+            self.ph_map[self.get_ph_text(ph, lang)] for ph in segment["ph_seq"].split()
         ]
 
         if self.hparams["use_lang_id"]:
@@ -131,6 +136,7 @@ class InferHandler:
         ph_token_seq = torch.LongTensor(
             self.ph_encoder.encode(ph_text_seq)
         ).to(self.device)[None, :] # [B=1, T_txt]
+        # dur
         if self.pred_dur:
             ph_num = torch.LongTensor([int(num) for num in segment["ph_num"].split()])
             ph2word = self.lr(ph_num[None])[0]
@@ -150,11 +156,12 @@ class InferHandler:
             ).to(self.device)
         else:
             ph_dur = torch.from_numpy(np.array(segment["ph_dur"].split(), np.float32)).to(self.device)
+        # mel2ph
         ph_acc = torch.round(torch.cumsum(ph_dur, dim=0) / self.timestep + 0.5).long()
         durations = torch.diff(ph_acc, dim=0, prepend=torch.LongTensor([0]).to(self.device))[None]  # => [B=1, T_txt]
         mel2ph = self.lr(durations, ph_token_seq == 0)  # => [B=1, T]
         mel_len = mel2ph.shape[1]
-        
+        # pitch
         if self.pred_pitch:
             spk_id = torch.LongTensor([self.pred_pitch_spk_id]).to(self.device)
             note_midi = np.array(
@@ -176,13 +183,10 @@ class InferHandler:
             mel2note = torch.from_numpy(get_mel2ph_dur(self.lr, note_dur_sec, mel_len, self.timestep))
             base_f0 = torch.gather(F.pad(note_midi, [1, 0], value=-1), 0, mel2note)
             base_f0 = self.midi_smooth(base_f0[None])[0].to(self.device)[None, :]
-            expr = segment.get("pitch_expr", 1.)
-            pitch_expr = torch.FloatTensor([expr]).to(self.device)[None, :]
             f0_seq = self.pitch_predictor.run_model(
                 note_midi = note_midi.to(self.device)[None, :],
                 note_rest = note_rest.to(self.device)[None, :],
                 mel2note = mel2note.to(self.device)[None, :],
-                pitch_expr=pitch_expr,
                 base_f0 = base_f0,
                 spk_id = spk_id,
             )
@@ -197,6 +201,7 @@ class InferHandler:
                 align_length=mel2ph.shape[1]
             )
         f0_seq = torch.from_numpy(f0_seq)[None, :].to(self.device) # [B=1, T_mel]
+
         keyshift = segment.get("keyshift", 0)
         if keyshift != 0:
             f0_seq = shift_pitch(f0_seq, keyshift)

@@ -2,15 +2,6 @@ from typing import List
 import torch
 from component.train_task.base_dataset import BaseDataset
 import utils
-from utils.pitch_utils import random_continuous_masks
-
-def random_retake_masks(b, t, device):
-    # 1/4 segments are True in average
-    B_masks = torch.randint(low=0, high=4, size=(b, 1), dtype=torch.long, device=device) == 0
-    # 1/3 frames are True in average
-    T_masks = random_continuous_masks(b, t, dim=1, device=device)
-    # 1/4 segments and 1/2 frames are True in average (1/4 + 3/4 * 1/3 = 1/2)
-    return B_masks | T_masks
 
 class PitchPredictorDataset(BaseDataset):
     def collater(self, samples: List[dict]):
@@ -29,6 +20,4 @@ class PitchPredictorDataset(BaseDataset):
         }
         if self.hparams['use_spk_id']:
             batch_item["spk_id"] = torch.LongTensor([s["spk_id"] for s in samples])
-        b, t, device = len(samples), batch_item["mel2note"].shape[1], batch_item["note_midi"].device
-        batch_item["pitch_retake"] = random_retake_masks(b, t, device)
         return batch_item

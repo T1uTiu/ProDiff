@@ -18,9 +18,8 @@ class PitchPredictorInferer(Inferer):
         note_rest = inp['note_rest']
         mel2note = inp['mel2note']
         base_f0 = inp['base_f0']
-        pitch_expr = inp["pitch_expr"]
         spk_id = inp.get('spk_id', None)
-        return self.model(note_midi, note_rest, mel2note, base_f0, pitch_expr=pitch_expr, spk_id=spk_id, infer=True)
+        return self.model(note_midi, note_rest, mel2note, base_f0, spk_id=spk_id, infer=True)
     
     @staticmethod
     def category():

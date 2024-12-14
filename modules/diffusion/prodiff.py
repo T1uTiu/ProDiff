@@ -172,11 +172,8 @@ class PitchDiffusion(GaussianDiffusion):
     def __init__(self, repeat_bins, denoise_fn,
                  timesteps=1000, time_scale=1,
                  betas=None, schedule_type="vpsde",
-                 spec_min=None, spec_max=None,
-                 clamp_min=None, clamp_max=None):
+                 spec_min=None, spec_max=None):
         self.repeat_bins = repeat_bins
-        self.clamp_min = clamp_min
-        self.clamp_max = clamp_max
         super().__init__(
             out_dims=repeat_bins, denoise_fn=denoise_fn,
             timesteps=timesteps, time_scale=time_scale,
