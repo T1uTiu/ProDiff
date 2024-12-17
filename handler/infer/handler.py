@@ -120,7 +120,7 @@ class InferHandler:
     def get_ph_text(self, ph, lang=None):
         if not self.hparams["use_lang_id"]:
             return ph
-        return f"{ph}/{lang}" if "/" in ph else ph
+        return f"{ph}/{lang}" if "/" not in ph else ph
 
     def infer(self, segment: dict):
         lang = segment.get("lang", None)

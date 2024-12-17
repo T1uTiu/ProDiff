@@ -43,7 +43,7 @@ class SVSBinarizer(Binarizer):
                 ph_tier = tg.getFirst("phone")
                 ph_text, ph_dur = [], []
                 for x in ph_tier:
-                    ph_text.append(f"{x.mark}/{lang}")
+                    ph_text.append(self.ph_map[f"{x.mark}/{lang}"])
                     ph_dur.append(x.maxTime - x.minTime)
                 ph_seq = self.ph_encoder.encode(ph_text)
                 lang_id = self.lang_map[lang]
