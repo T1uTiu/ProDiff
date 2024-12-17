@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 
 from modules.commons.common_layers import *
+from modules.diffusion.denoise import DiffNet
 from modules.diffusion.prodiff import GaussianDiffusion
 from modules.fastspeech.tts_modules import FastspeechEncoder, mel2ph_to_dur
-from usr.diff.net import DiffNet
 from utils.pitch_utils import f0_to_coarse
 
 class ProDiffTeacher(nn.Module):
@@ -41,7 +41,13 @@ class ProDiffTeacher(nn.Module):
 
         self.diffusion = GaussianDiffusion(
             out_dims=hparams["audio_num_mel_bins"],
-            denoise_fn=DiffNet(hparams['audio_num_mel_bins']),
+            denoise_fn=DiffNet(
+                in_dims=hparams['audio_num_mel_bins'],
+                hidden_size=hparams["hidden_size"],
+                residual_layers=hparams["residual_layers"],
+                residual_channels=hparams["residual_channels"],
+                dilation_cycle_length=hparams["dilation_cycle_length"],
+            ),
             timesteps=hparams["timesteps"],
             time_scale=hparams["timescale"],
             schedule_type=hparams['schedule_type'],

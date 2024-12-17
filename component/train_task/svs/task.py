@@ -43,7 +43,8 @@ class SVSTask(BaseTask):
         output = self.model(txt_tokens, mel2ph, f0, 
                        lang_seq=lang_seq, spk_embed_id=spk_embed_id, gender_embed_id=gender_embed_id,
                        ref_mels=target, infer=infer)
-
+        if infer:
+            return output
         losses = {}
         add_mel_loss(output, target, losses, loss_and_lambda=self.loss_and_lambda)
         if not return_output:
@@ -59,7 +60,7 @@ class SVSTask(BaseTask):
         outputs['total_loss'] = sum(outputs['losses'].values())
         outputs = utils.tensors_to_scalars(outputs)
         if batch_idx < self.hparams['num_valid_plots']:
-            _, model_out = self.run_model(sample, return_output=True, infer=True)
+            model_out = self.run_model(sample, return_output=True, infer=True)
             self.plot_mel(batch_idx, sample["mel"], model_out)
         return outputs
     
