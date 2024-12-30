@@ -22,5 +22,5 @@ class Parselmouth(BasePitchExtractor):
         f0 = pad_frames(f0, hop_size, waveform.shape[0], length)
         uv = f0 == 0
         if interp_uv:
-            f0, uv = interp_f0(f0, uv, self.hparams)
+            f0, uv = interp_f0(f0, uv)
         return f0, uv

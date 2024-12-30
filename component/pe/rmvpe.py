@@ -61,7 +61,7 @@ class RMVPE(BasePitchExtractor):
     ):
         f0 = self.infer_from_audio(waveform, sample_rate=samplerate)
         uv = f0 == 0
-        f0, uv = interp_f0(f0, uv, self.hparams)
+        f0, uv = interp_f0(f0, uv)
 
         hop_size = int(np.round(hop_size * speed))
         time_step = hop_size / samplerate

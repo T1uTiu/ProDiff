@@ -9,6 +9,7 @@ from handler.train.handler import TrainHandler
 from utils.data_gen_utils import get_pitch
 from utils.audio import save_wav
 from utils.hparams import set_hparams, hparams
+from utils.hparams_v2 import set_hparams as set_hparams_v2
 from utils.pitch_utils import shift_pitch
 from component.vocoder.base_vocoder import get_vocoder_cls
 
@@ -22,8 +23,7 @@ def main():
 @click.option("--exp_name", type=str, required=True)
 def binarize(task, config, exp_name):
     exp_name = f"{exp_name}_{task}"
-    set_hparams(config=config, exp_name=exp_name)
-    hparams.setdefault("task", task)
+    hparams = set_hparams_v2(config=config, exp_name=exp_name, task=task)
     BinarizeHandler(hparams=hparams).handle()
 
 train_task_map = {
@@ -66,7 +66,7 @@ def vocode():
 @click.option("--keyshift", type=int, default=0, required=False)
 @click.option("--output_dir", type=str, default='infer_out', required=False)
 def wav2wav(wav, config, keyshift, output_dir):
-    set_hparams(config=config, exp_name='vocoder')
+    hparams = set_hparams_v2(config=config, task='vocoder', make_work_dir=False)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     vocoder = get_vocoder_cls(hparams["vocoder"])()
     vocoder.to_device(device)
@@ -79,7 +79,7 @@ def wav2wav(wav, config, keyshift, output_dir):
         # wav2spec
         wave, mel = vocoder.wav2spec(wav_file, hparams=hparams, keyshift=keyshift)
         # spec2wav
-        f0, _ = get_pitch(wave, mel, hparams)
+        f0, _ = get_pitch(wave, mel, hparams["hop_size"], hparams["audio_sample_rate"])
         if keyshift != 0:
             f0 = shift_pitch(f0, keyshift)
         res = vocoder.spec2wav(mel, f0=f0)

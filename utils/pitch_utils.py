@@ -31,24 +31,24 @@ def f0_to_coarse(f0):
     return f0_coarse
 
 
-def norm_f0(f0, uv, hparams):
+def norm_f0(f0, uv, pitch_norm='log', f0_mean=None, f0_std=None):
     if uv is None:
         uv = f0 == 0
     is_torch = isinstance(f0, torch.Tensor)
-    if hparams['pitch_norm'] == 'standard':
-        f0 = (f0 - hparams['f0_mean']) / hparams['f0_std']
-    if hparams['pitch_norm'] == 'log':
+    if pitch_norm == 'standard':
+        f0 = (f0 - f0_mean) / f0_std
+    if pitch_norm == 'log':
         f0 = torch.log2(f0+uv) if is_torch else np.log2(f0+uv)
     f0[uv] = -np.inf
     return f0
 
-def interp_f0(f0, uv, hparams):
+def interp_f0(f0, uv):
     if uv is None:
         uv = f0 == 0
-    f0 = norm_f0(f0, uv, hparams=hparams)
+    f0 = norm_f0(f0, uv)
     if uv.any() and not uv.all():
         f0[uv] = np.interp(np.where(uv)[0], np.where(~uv)[0], f0[~uv])
-    return denorm_f0(f0, uv=None, hparams=hparams), uv
+    return denorm_f0(f0, uv=None), uv
 
 def norm_interp_f0(f0, hparams):
     is_torch = isinstance(f0, torch.Tensor)
@@ -68,16 +68,16 @@ def norm_interp_f0(f0, hparams):
     return f0, uv
 
 
-def denorm_f0(f0, uv, hparams, pitch_padding=None, min=None, max=None):
-    if hparams['pitch_norm'] == 'standard':
-        f0 = f0 * hparams['f0_std'] + hparams['f0_mean']
-    if hparams['pitch_norm'] == 'log':
+def denorm_f0(f0, uv, pitch_norm='log', f0_mean=None, f0_std=None, pitch_padding=None, min=None, max=None):
+    if pitch_norm == 'standard':
+        f0 = f0 * f0_std + f0_mean
+    if pitch_norm == 'log':
         f0 = 2 ** f0
     if min is not None:
         f0 = f0.clamp(min=min)
     if max is not None:
         f0 = f0.clamp(max=max)
-    if uv is not None and hparams['use_uv']:
+    if uv is not None:
         f0[uv > 0] = 0
     if pitch_padding is not None:
         f0[pitch_padding] = 0

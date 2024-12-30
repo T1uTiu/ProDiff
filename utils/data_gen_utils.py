@@ -149,25 +149,25 @@ def process_utterance(wav_path,
         return wav, mel, spc
 
 
-def get_pitch(wav_data, mel, hparams, interp_uv=False):
+def get_pitch(wav_data, mel, hop_size, sample_rate, interp_uv=False):
     """
     :param wav_data: [T]
     :param mel: [T, 80]
     :param hparams:
     :return:
     """
-    time_step = hparams['hop_size'] / hparams['audio_sample_rate']
+    time_step = hop_size/ sample_rate
     f0_min = 65
     f0_max = 800
 
-    f0 = parselmouth.Sound(wav_data, hparams['audio_sample_rate']).to_pitch_ac(
+    f0 = parselmouth.Sound(wav_data, sample_rate).to_pitch_ac(
         time_step=time_step, voicing_threshold=0.6,
         pitch_floor=f0_min, pitch_ceiling=f0_max
     ).selected_array['frequency'].astype(np.float32)
-    f0 = pad_frames(f0, hparams['hop_size'], wav_data.shape[0], mel.shape[0])
+    f0 = pad_frames(f0, hop_size, wav_data.shape[0], mel.shape[0])
     uv = f0 == 0
     if interp_uv:
-        f0, uv = interp_f0(f0, uv, hparams)
+        f0, uv = interp_f0(f0, uv)
     pitch_coarse = f0_to_coarse(f0)
     return f0, pitch_coarse
 
