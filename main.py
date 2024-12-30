@@ -46,7 +46,6 @@ def train(train_task, config, exp_name):
 
 @main.command()
 @click.argument("proj", type=str)
-@click.option("--config", type=str, required=True)
 @click.option("--exp_name", type=str, required=True)
 @click.option("--spk_name", type=str, required=True)
 @click.option("--lang", type=str, default='zh')
@@ -54,8 +53,7 @@ def train(train_task, config, exp_name):
 @click.option("--gender", type=int, default=0)
 @click.option("--pred_dur", is_flag=True)
 @click.option("--pred_pitch", type=str, default="")
-def infer(proj, config, exp_name, spk_name, lang, keyshift, gender, pred_dur, pred_pitch):
-    # set_hparams(config=config, exp_name=exp_name, spk_name=spk_name)
+def infer(proj, exp_name, spk_name, lang, keyshift, gender, pred_dur, pred_pitch):
     InferHandler(exp_name=exp_name, pred_dur=pred_dur, pred_pitch=pred_pitch).handle(None, proj, spk_name, lang, keyshift, gender)
 
 @main.group()

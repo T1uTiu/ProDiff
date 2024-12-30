@@ -1,5 +1,5 @@
 from functools import partial
-from usr.diff.shallow_diffusion_tts import *
+from modules.diffusion.diffusion_utils import *
 import numpy as np
 import torch
 from torch import nn

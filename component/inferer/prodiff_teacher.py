@@ -3,14 +3,12 @@ import os
 import numpy as np
 from component.inferer.base import Inferer, register_inferer
 from modules.ProDiff.prodiff_teacher import ProDiffTeacher
-from usr.diff.net import DiffNet
 from utils.ckpt_utils import load_ckpt
 
 @register_inferer
 class ProDiffTeacherInferrer(Inferer):
     def build_model(self, ph_encoder):
-        data_dir = os.path.join(self.hparams['data_dir'], "svs")
-        f0_stats_fn = f'{data_dir}/train_f0s_mean_std.npy'
+        f0_stats_fn = f'{self.hparams["work_dir"]}/train_f0s_mean_std.npy'
         if os.path.exists(f0_stats_fn):
             self.hparams['f0_mean'], self.hparams['f0_std'] = np.load(f0_stats_fn)
             self.hparams['f0_mean'] = float(self.hparams['f0_mean'])
