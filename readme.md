@@ -1,8 +1,28 @@
-### Training Teacher of ProDiff
+### Train
 
 ```bash
-CUDA_VISIBLE_DEVICES=$GPU python main.py train teacher --config ./data/$your_dataset/config.yaml --exp_name $your_exp_name
+CUDA_VISIBLE_DEVICES=$GPU python main.py train $train_task --config $config_path --exp_name $your_exp_name
 ```
+
+Available  ` train_task` :
+
+- svs
+- dur:  phoneme duration predictor
+- pitch: pitch predictor
+
+### Infer
+
+```bash
+python main.py infer $proj --exp_name $your_exp_name --spk_name $your_spk_name --lang $target_lang --key_shift $key_shift
+```
+
+- spk_name: `spk1:0.5|spk2:1.0...`
+- lang: now `zh` and `jp` is available
+
+---
+
+
+
 
 
 # ProDiff: Progressive Fast Diffusion Model For High-Quality Text-to-Speech
