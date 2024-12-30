@@ -17,10 +17,9 @@ from vocoders.base_vocoder import get_vocoder_cls
 
 
 @register_binarizer
-class PitchPredictorBinarizer(Binarizer):
+class TensionPredictorBinarizer(Binarizer):
     def __init__(self, hparams):
         super().__init__(hparams)
-        self.spk_map = build_spk_map(self.data_dir, self.datasets)
         self.lr = LengthRegulator()
         self.pe = get_pitch_extractor_cls(hparams)(hparams)
         self.vocoder = get_vocoder_cls(hparams["vocoder"])()
@@ -37,7 +36,6 @@ class PitchPredictorBinarizer(Binarizer):
         transcription_item_list = []
         for dataset in self.datasets:
             data_dir = dataset["data_dir"]
-            spk_id = self.spk_map[dataset["speaker"]]
             with open(f"{data_dir}/label.json", "r", encoding="utf-8") as f:
                 labels = json.load(f)
             for label in labels:
@@ -46,7 +44,6 @@ class PitchPredictorBinarizer(Binarizer):
                 note_dur = [float(x) for x in label["note_dur"].split(" ")]
                 item = {
                     "wav_fn" : f"{data_dir}/wav/{label['name']}.wav",
-                    "spk_id" : spk_id,
                     "note_seq": note_seq,
                     "note_dur": note_dur,
                 }
@@ -58,9 +55,7 @@ class PitchPredictorBinarizer(Binarizer):
         lr, pe = self.lr, self.pe
 
         wav, mel = self.vocoder.wav2spec(item["wav_fn"], hparams=hparams)
-        preprocessed_item = {
-            "spk_id" : item["spk_id"],
-        }
+        preprocessed_item = {}
         preprocessed_item["sec"] = len(wav) / hparams['audio_sample_rate']
         preprocessed_item["length"] = mel.shape[0]
         # f0
@@ -89,8 +84,5 @@ class PitchPredictorBinarizer(Binarizer):
         note_midi[note_rest] = interp_func(np.where(note_rest)[0])
         preprocessed_item["note_midi"] = note_midi
         preprocessed_item["note_rest"] = note_rest
-        # base f0
-        frame_pitch = torch.gather(F.pad(torch.FloatTensor(note_midi), [1, 0], value=-1), 0, torch.LongTensor(mel2note))
-        preprocessed_item["base_pitch"] = self.midi_smooth(frame_pitch[None])[0].detach().numpy()
-        preprocessed_item["base_f0"] = librosa.midi_to_hz(preprocessed_item["base_pitch"])
+        # tension
         return preprocessed_item

@@ -36,22 +36,19 @@ class SVSBinarizer(Binarizer):
         for dataset in self.datasets:
             data_dir = dataset["data_dir"]
             lang = dataset["language"]
-            for tg_fn in os.listdir(f"{data_dir}/TextGrid"):
-                if not tg_fn.endswith(".TextGrid"):
-                    continue
-                tg = textgrid.TextGrid.fromFile(f"{data_dir}/TextGrid/{tg_fn}")
-                ph_tier = tg.getFirst("phone")
-                ph_text, ph_dur = [], []
-                for x in ph_tier:
-                    ph_text.append(self.ph_map[f"{x.mark}/{lang}"])
-                    ph_dur.append(x.maxTime - x.minTime)
+            lang_id = self.lang_map[lang]
+            spk_id = self.spk_map[dataset["speaker"]]
+            with open(f"{data_dir}/label.json", "r", encoding="utf-8") as f:
+                labels = json.load(f)
+            for label in labels:
+                ph_text = [f"{x}/{lang}" for x in label["ph_seq"].split(" ")]
+                ph_dur = [float(x) for x in label["ph_dur"].split(" ")]
                 ph_seq = self.ph_encoder.encode(ph_text)
-                lang_id = self.lang_map[lang]
                 item = {
+                    "wav_fn" : f"{data_dir}/wav/{label["name"]}.wav",
                     "ph_seq" : ph_seq,
                     "ph_dur" : ph_dur,
-                    "wav_fn" : f"{data_dir}/wav/{tg_fn.replace('.TextGrid', '.wav')}",
-                    "spk_id" : self.spk_map[dataset["speaker"]],
+                    "spk_id" : spk_id,
                     "lang_seq" : [lang_id]*len(ph_seq),
                 }
                 if self.hparams["use_gender_id"]:

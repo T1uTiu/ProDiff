@@ -1,3 +1,4 @@
+import json
 import os
 import numpy as np
 import torch
@@ -22,18 +23,17 @@ class DurPredictorBinarizer(Binarizer):
         for dataset in self.datasets:
             data_dir = dataset["data_dir"]
             lang = dataset["language"]
-            transcription_file = open(f"{data_dir}/transcriptions.txt", 'r', encoding='utf-8')
-            for _r in transcription_file.readlines():
-                r = _r.split('|') # item_name | text | ph | dur_list | ph_num
-                ph_text = [self.ph_map[f"{p}/{lang}"] for p in r[2].split(' ')]
+            with open(f"{data_dir}/label.json", "r", encoding="utf-8") as f:
+                labels = json.load(f)
+            for label in labels:
+                ph_text = [self.ph_map[f"{p}/{lang}"] for p in label["ph_seq"].split(' ')]
                 ph_seq = self.ph_encoder.encode(ph_text)
                 item = {
                     "ph_seq" : ph_seq,
-                    "ph_dur" : [float(x) for x in r[3].split(' ')],
-                    "ph_num" : [int(x) for x in r[4].split(' ')]
+                    "ph_dur" : [float(x) for x in label["ph_dur"].split(' ')],
+                    "ph_num" : [int(x) for x in label["ph_num"].split(' ')]
                 }
                 transcription_item_list.append(item)
-            transcription_file.close()
         return transcription_item_list
     
     def process_item(self, item):
