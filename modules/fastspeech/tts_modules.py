@@ -7,14 +7,14 @@ from torch.nn import functional as F
 
 from modules.commons.espnet_positional_embedding import RelPositionalEncoding
 from modules.commons.common_layers import Embedding, SinusoidalPositionalEmbedding, Linear, EncSALayer, DecSALayer, BatchNorm1dTBC
-from utils.hparams import hparams
+
 
 DEFAULT_MAX_SOURCE_POSITIONS = 2000
 DEFAULT_MAX_TARGET_POSITIONS = 2000
 
 
 class TransformerEncoderLayer(nn.Module):
-    def __init__(self, hidden_size, dropout, kernel_size=None, num_heads=2, norm='ln'):
+    def __init__(self, hidden_size, dropout, kernel_size, num_heads=2, norm='ln', padding="SAME", act='gelu'):
         super().__init__()
         self.hidden_size = hidden_size
         self.dropout = dropout
@@ -22,10 +22,10 @@ class TransformerEncoderLayer(nn.Module):
         self.op = EncSALayer(
             hidden_size, num_heads, dropout=dropout,
             attention_dropout=0.0, relu_dropout=dropout,
-            kernel_size=kernel_size
-            if kernel_size is not None else hparams['enc_ffn_kernel_size'],
-            padding=hparams['ffn_padding'],
-            norm=norm, act=hparams['ffn_act'])
+            kernel_size=kernel_size,
+            padding=padding,
+            norm=norm, act=act
+        )
 
     def forward(self, x, **kwargs):
         return self.op(x, **kwargs)
@@ -230,12 +230,12 @@ def mel2ph_to_dur(mel2ph, T_txt, max_dur=None):
 
 
 class FFTBlocks(nn.Module):
-    def __init__(self, hidden_size, num_layers, ffn_kernel_size=9, dropout=None, num_heads=2,
+    def __init__(self, hidden_size, num_layers, ffn_kernel_size=9, dropout=0.1, num_heads=2,
                  use_pos_embed=True, use_last_norm=True, norm='ln', use_pos_embed_alpha=True):
         super().__init__()
         self.num_layers = num_layers
         embed_dim = self.hidden_size = hidden_size
-        self.dropout = dropout if dropout is not None else hparams['dropout']
+        self.dropout = dropout
         self.use_pos_embed = use_pos_embed
         self.use_last_norm = use_last_norm
         if use_pos_embed:
@@ -289,13 +289,13 @@ class FFTBlocks(nn.Module):
 
 
 class FastspeechEncoder(FFTBlocks):
-    def __init__(self, ph_encoder, hidden_size, num_layers, kernel_size, num_heads=2):
-        super().__init__(hidden_size, num_layers, kernel_size, num_heads=num_heads,
+    def __init__(self, ph_encoder, hidden_size, num_layers, kernel_size, dropout=0.1, num_heads=2,  rel_pos=False):
+        super().__init__(hidden_size, num_layers, kernel_size, dropout=dropout, num_heads=num_heads,
                          use_pos_embed=False)  # use_pos_embed_alpha for compatibility
         self.embed_tokens = Embedding(len(ph_encoder), hidden_size, ph_encoder.pad())
         self.embed_scale = math.sqrt(hidden_size)
         self.padding_idx = 0
-        self.rel_pos = hparams.get('rel_pos', False)
+        self.rel_pos = rel_pos
         if self.rel_pos:
             self.embed_positions = RelPositionalEncoding(hidden_size, dropout_rate=0.0)
         else:
@@ -321,24 +321,23 @@ class FastspeechEncoder(FFTBlocks):
         x = self.embed_scale * self.embed_tokens(txt_tokens)
         if extra_embed is not None:
             x = x + extra_embed
-        if hparams['use_pos_embed']:
-            if self.rel_pos:
-                x = self.embed_positions(x)
-            else:
-                positions = self.embed_positions(~padding_mask)
-                x = x + positions
+        if self.rel_pos:
+            x = self.embed_positions(x)
+        else:
+            positions = self.embed_positions(~padding_mask)
+            x = x + positions
         x = F.dropout(x, p=self.dropout, training=self.training)
         return x
     
 class NoteEncoder(FFTBlocks):
-    def __init__(self, hidden_size, num_layers, kernel_size, num_heads=2):
-        super().__init__(hidden_size, num_layers, kernel_size, num_heads=num_heads,
+    def __init__(self, hidden_size, num_layers, kernel_size, dropout=0.1, num_heads=2, rel_pos=False):
+        super().__init__(hidden_size, num_layers, kernel_size, dropout=dropout, num_heads=num_heads,
                          use_pos_embed=False)  # use_pos_embed_alpha for compatibility
         self.note_midi_embed = Linear(1, hidden_size)
         self.note_dur_embed = Linear(1, hidden_size)
         self.embed_scale = math.sqrt(hidden_size)
         self.padding_idx = 0
-        self.rel_pos = hparams.get('rel_pos', False)
+        self.rel_pos = rel_pos
         if self.rel_pos:
             self.embed_positions = RelPositionalEncoding(hidden_size, dropout_rate=0.0)
         else:
@@ -356,22 +355,17 @@ class NoteEncoder(FFTBlocks):
         # embed tokens and positions
         x = self.embed_scale * self.note_midi_embed(note_midi[:, :, None]) * ~note_rest[:, :, None]
         x += self.note_dur_embed(note_dur[:, :, None])
-        if hparams['use_pos_embed']:
-            if self.rel_pos:
-                x = self.embed_positions(x)
-            else:
-                padding_mask = note_midi < 0
-                positions = self.embed_positions(~padding_mask)
-                x = x + positions
+        if self.rel_pos:
+            x = self.embed_positions(x)
+        else:
+            padding_mask = note_midi < 0
+            positions = self.embed_positions(~padding_mask)
+            x = x + positions
         x = F.dropout(x, p=self.dropout, training=self.training)
         return x
 
 
 class FastspeechDecoder(FFTBlocks):
     def __init__(self, hidden_size=None, num_layers=None, kernel_size=None, num_heads=None):
-        num_heads = hparams['num_heads'] if num_heads is None else num_heads
-        hidden_size = hparams['hidden_size'] if hidden_size is None else hidden_size
-        kernel_size = hparams['dec_ffn_kernel_size'] if kernel_size is None else kernel_size
-        num_layers = hparams['dec_layers'] if num_layers is None else num_layers
         super().__init__(hidden_size, num_layers, kernel_size, num_heads=num_heads)
 

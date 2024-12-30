@@ -15,6 +15,7 @@ class ProDiffTeacher(nn.Module):
             hidden_size=hparams["hidden_size"],
             num_layers=hparams["enc_layers"],
             kernel_size=hparams["enc_ffn_kernel_size"],
+            dropout=hparams["dropout"],
             num_heads=hparams["num_heads"]
         )
         self.with_dur_embed = hparams.get('use_dur_embed', True)
