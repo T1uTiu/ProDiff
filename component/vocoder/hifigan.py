@@ -7,10 +7,10 @@ import torch
 
 import utils
 from modules.hifigan.hifigan import HifiGanGenerator
-from utils.hparams import hparams, set_hparams
-from vocoders.base_vocoder import register_vocoder
-from vocoders.pwg import PWG
-from vocoders.vocoder_utils import denoise
+from utils.hparams import set_hparams
+from component.vocoder.base_vocoder import register_vocoder
+from component.vocoder.pwg import PWG
+from component.vocoder.vocoder_utils import denoise
 
 
 def load_model(config_path, checkpoint_path):
@@ -37,7 +37,8 @@ total_time = 0
 
 @register_vocoder
 class HifiGAN(PWG):
-    def __init__(self):
+    def __init__(self, hparams):
+        super().__init__(hparams)
         base_dir = hparams['vocoder_ckpt']
         config_path = f'{base_dir}/config.yaml'
         if os.path.exists(config_path):
@@ -55,16 +56,20 @@ class HifiGAN(PWG):
         device = self.device
         with torch.no_grad():
             c = torch.FloatTensor(mel).unsqueeze(0).transpose(2, 1).to(device)
-            with utils.Timer('hifigan', print_time=hparams['profile_infer']):
+            with utils.Timer('hifigan', print_time=self.hparams['profile_infer']):
                 f0 = kwargs.get('f0')
-                if f0 is not None and hparams.get('use_nsf'):
+                if f0 is not None and self.hparams.get('use_nsf'):
                     f0 = torch.FloatTensor(f0[None, :]).to(device)
                     y = self.model(c, f0).view(-1)
                 else:
                     y = self.model(c).view(-1)
         wav_out = y.cpu().numpy()
-        if hparams.get('vocoder_denoise_c', 0.0) > 0:
-            wav_out = denoise(wav_out, v=hparams['vocoder_denoise_c'])
+        if self.hparams.get('vocoder_denoise_c', 0.0) > 0:
+            wav_out = denoise(wav_out, 
+                              v=self.hparams['vocoder_denoise_c'],
+                              fft_size=self.hparams['fft_size'],
+                              hop_size=self.hparams['hop_size'],
+                              win_size=self.hparams['win_size'],)
         return wav_out
 
     # @staticmethod

@@ -10,8 +10,7 @@ class DurPredictorInferer(Inferer):
     def build_model(self, ph_encoder):
         model = DurPredictor(ph_encoder, self.hparams)
         model.eval()
-        work_dir = os.path.join("checkpoints", self.hparams['exp_name'], "dur")
-        load_ckpt(model, work_dir, 'model')
+        load_ckpt(model, self.hparams["work_dir"], 'model')
         model.to(self.device)
         self.model = model
     

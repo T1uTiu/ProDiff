@@ -2,23 +2,18 @@ import pathlib
 
 import torch
 
-try:
-    from lightning.pytorch.utilities.rank_zero import rank_zero_info
-except ModuleNotFoundError:
-    rank_zero_info = print
-
 from modules.nsf_hifigan.models import load_model
 from modules.nsf_hifigan.nvSTFT import load_wav_to_torch, STFT
-from vocoders.base_vocoder import BaseVocoder, register_vocoder
-from utils.hparams import hparams
+from component.vocoder.base_vocoder import BaseVocoder, register_vocoder
 
 
 @register_vocoder
 class NsfHifiGAN(BaseVocoder):
-    def __init__(self):
+    def __init__(self, hparams):
+        super().__init__(hparams)
         model_path = pathlib.Path(hparams['vocoder_ckpt'])
         assert model_path.exists(), 'HifiGAN model file is not found!'
-        rank_zero_info(f'| Load HifiGAN: {model_path}')
+        print(f'| Load HifiGAN: {model_path}')
         self.model, self.h = load_model(model_path)
     
     @property
@@ -32,6 +27,7 @@ class NsfHifiGAN(BaseVocoder):
         return self.device
 
     def spec2wav_torch(self, mel, **kwargs):  # mel: [B, T, bins]
+        hparams = self.hparams
         if self.h.sampling_rate != hparams['audio_sample_rate']:
             print('Mismatch parameters: hparams[\'audio_sample_rate\']=', hparams['audio_sample_rate'], '!=',
                   self.h.sampling_rate, '(vocoder)')
@@ -62,6 +58,7 @@ class NsfHifiGAN(BaseVocoder):
         return y
 
     def spec2wav(self, mel, **kwargs):
+        hparams = self.hparams
         if self.h.sampling_rate != hparams['audio_sample_rate']:
             print('Mismatch parameters: hparams[\'audio_sample_rate\']=', hparams['audio_sample_rate'], '!=',
                   self.h.sampling_rate, '(vocoder)')

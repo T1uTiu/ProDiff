@@ -1,7 +1,7 @@
-import importlib
-from typing import Dict
-
 class BaseVocoder:
+    def __init__(self, hparams):
+        self.hparams = hparams
+        
     def spec2wav(self, mel):
         """
 
@@ -12,7 +12,7 @@ class BaseVocoder:
         raise NotImplementedError
 
     @staticmethod
-    def wav2spec(wav_fn):
+    def wav2spec(wav_fn, hparams):
         """
 
         :param wav_fn: str
@@ -20,7 +20,7 @@ class BaseVocoder:
         """
         raise NotImplementedError
 
-VOCODERS: Dict[str, BaseVocoder] = {}
+VOCODERS = {}
 def register_vocoder(cls):
     VOCODERS[cls.__name__.lower()] = cls
     VOCODERS[cls.__name__] = cls

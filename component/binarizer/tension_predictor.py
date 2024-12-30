@@ -13,7 +13,7 @@ from component.pe.base import get_pitch_extractor_cls
 from modules.commons.common_layers import SinusoidalSmoothingConv1d
 from modules.fastspeech.tts_modules import LengthRegulator
 from utils.data_gen_utils import get_mel2ph_dur
-from vocoders.base_vocoder import get_vocoder_cls
+from component.vocoder.base_vocoder import get_vocoder_cls
 
 
 @register_binarizer

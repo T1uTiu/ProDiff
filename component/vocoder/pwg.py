@@ -7,9 +7,8 @@ from sklearn.preprocessing import StandardScaler
 from torch import nn
 from modules.parallel_wavegan.models import ParallelWaveGANGenerator
 from modules.parallel_wavegan.utils import read_hdf5
-from utils.hparams import hparams
 from utils.pitch_utils import f0_to_coarse
-from vocoders.base_vocoder import BaseVocoder, register_vocoder
+from component.vocoder.base_vocoder import BaseVocoder, register_vocoder
 import numpy as np
 
 
@@ -52,7 +51,8 @@ def load_pwg_model(config_path, checkpoint_path, stats_path):
 
 @register_vocoder
 class PWG(BaseVocoder):
-    def __init__(self):
+    def __init__(self, hparams):
+        super().__init__(hparams)
         if hparams['vocoder_ckpt'] == '':  # load LJSpeech PWG pretrained model
             base_dir = 'wavegan_pretrained'
             ckpts = glob.glob(f'{base_dir}/checkpoint-*steps.pkl')
@@ -103,8 +103,8 @@ class PWG(BaseVocoder):
         return wav_out
 
     @staticmethod
-    def wav2spec(wav_fn, return_linear=False):
-        from preprocess.data_gen_utils import process_utterance
+    def wav2spec(wav_fn, hparams, return_linear=False):
+        from utils.data_gen_utils import process_utterance
         res = process_utterance(
             wav_fn, fft_size=hparams['fft_size'],
             hop_size=hparams['hop_size'],
@@ -122,7 +122,7 @@ class PWG(BaseVocoder):
             return res[0], res[1].T
 
     @staticmethod
-    def wav2mfcc(wav_fn):
+    def wav2mfcc(wav_fn, hparams):
         fft_size = hparams['fft_size']
         hop_size = hparams['hop_size']
         win_length = hparams['win_size']

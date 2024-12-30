@@ -8,8 +8,7 @@ class PitchPredictorInferer(Inferer):
     def build_model(self):
         model = PitchPredictor(self.hparams)
         model.eval()
-        work_dir = os.path.join("checkpoints", self.hparams['exp_name'], "pitch")
-        load_ckpt(model, work_dir, 'model')
+        load_ckpt(model, self.hparams["work_dir"], 'model')
         model.to(self.device)
         self.model = model
     

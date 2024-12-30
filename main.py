@@ -1,5 +1,4 @@
 import os
-from typing import Dict
 import click
 import torch
 
@@ -8,11 +7,10 @@ from handler.infer import InferHandler
 from component.train_task import SVSTask, DurPredictorTask, PitchPredictorTask
 from handler.train.handler import TrainHandler
 from utils.data_gen_utils import get_pitch
-from tasks.base_task import BaseTask
 from utils.audio import save_wav
 from utils.hparams import set_hparams, hparams
 from utils.pitch_utils import shift_pitch
-from vocoders.base_vocoder import get_vocoder_cls
+from component.vocoder.base_vocoder import get_vocoder_cls
 
 @click.group()
 def main():
@@ -28,7 +26,7 @@ def binarize(task, config, exp_name):
     hparams.setdefault("task", task)
     BinarizeHandler(hparams=hparams).handle()
 
-train_task_map: Dict[str, BaseTask] = {
+train_task_map = {
     "svs": SVSTask,
     "dur": DurPredictorTask,
     "pitch": PitchPredictorTask
@@ -57,8 +55,8 @@ def train(train_task, config, exp_name):
 @click.option("--pred_dur", is_flag=True)
 @click.option("--pred_pitch", type=str, default="")
 def infer(proj, config, exp_name, spk_name, lang, keyshift, gender, pred_dur, pred_pitch):
-    set_hparams(config=config, exp_name=exp_name, spk_name=spk_name)
-    InferHandler(hparams=hparams, pred_dur=pred_dur, pred_pitch=pred_pitch).handle(None, proj, lang, keyshift, gender)
+    # set_hparams(config=config, exp_name=exp_name, spk_name=spk_name)
+    InferHandler(exp_name=exp_name, pred_dur=pred_dur, pred_pitch=pred_pitch).handle(None, proj, spk_name, lang, keyshift, gender)
 
 @main.group()
 def vocode():

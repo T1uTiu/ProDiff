@@ -4,7 +4,7 @@ import matplotlib
 
 from utils.pl_utils import data_loader
 from utils.training_utils import RSQRTSchedule
-from vocoders.base_vocoder import get_vocoder_cls, BaseVocoder
+from component.vocoder.base_vocoder import get_vocoder_cls, BaseVocoder
 from modules.fastspeech.pe import PitchExtractor
 
 matplotlib.use('Agg')

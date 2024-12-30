@@ -17,8 +17,7 @@ class ProDiffTeacherInferrer(Inferer):
             self.hparams['f0_std'] = float(self.hparams['f0_std'])
         model = ProDiffTeacher(ph_encoder, self.hparams)
         model.eval()
-        work_dir = os.path.join("checkpoints", self.hparams['exp_name'], "svs")
-        load_ckpt(model, work_dir, 'model')
+        load_ckpt(model, self.hparams["work_dir"], 'model')
         model.to(self.device)
         self.model = model
 

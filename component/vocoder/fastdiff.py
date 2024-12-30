@@ -5,19 +5,16 @@ import librosa
 import numpy as np
 import torch
 import yaml
-from sklearn.preprocessing import StandardScaler
 from torch import nn
 
 from modules.FastDiff.module.FastDiff_model import FastDiff as FastDiff_model
 from modules.FastDiff.module.util import (compute_hyperparams_given_schedule,
                                           sampling_given_noise_schedule,
-                                          theta_timestep_loss)
-from modules.parallel_wavegan.utils import read_hdf5
-from utils.hparams import hparams
-from vocoders.base_vocoder import BaseVocoder, register_vocoder
+                                          )
+from component.vocoder.base_vocoder import BaseVocoder, register_vocoder
 
 
-def load_fastdiff_model(config_path, checkpoint_path):
+def load_fastdiff_model(config_path, checkpoint_path, reverse_step=4):
     # load config
     with open(config_path) as f:
         config = yaml.load(f, Loader=yaml.Loader)
@@ -60,11 +57,6 @@ def load_fastdiff_model(config_path, checkpoint_path):
             noise_schedule = torch.FloatTensor(noise_schedule).cuda()
     else:
         # Select Schedule
-        try:
-            reverse_step = int(hparams.get('N'))
-        except:
-            print('Please specify $N (the number of revere iterations) in config file. Now denoise with 4 iterations.')
-            reverse_step = 4
         if reverse_step == 1000:
             noise_schedule = torch.linspace(0.000001, 0.01, 1000).cuda()
         elif reverse_step == 200:
@@ -96,7 +88,8 @@ def load_fastdiff_model(config_path, checkpoint_path):
 
 @register_vocoder
 class FastDiff(BaseVocoder):
-    def __init__(self):
+    def __init__(self, hparams):
+        super().__init__(hparams)
         if hparams['vocoder_ckpt'] == '':  # load LJSpeech FastDiff pretrained model
             base_dir = 'checkpoint/FastDiff'
             config_path = f'{base_dir}/config.yaml'
@@ -126,7 +119,7 @@ class FastDiff(BaseVocoder):
         device = self.device
         with torch.no_grad():
             c = torch.FloatTensor(mel).unsqueeze(0).transpose(2, 1).to(device)
-            audio_length = c.shape[-1] * hparams["hop_size"]
+            audio_length = c.shape[-1] * self.hparams["hop_size"]
             y = sampling_given_noise_schedule(
                 self.model, (1, 1, audio_length), self.dh, self.noise_schedule, condition=c, ddim=False, return_sequence=False)
         wav_out = y.cpu().numpy()
@@ -134,7 +127,7 @@ class FastDiff(BaseVocoder):
 
     @staticmethod
     def wav2spec(wav_fn, hparams=None, return_linear=False):
-        from preprocess.data_gen_utils import process_utterance
+        from utils.data_gen_utils import process_utterance
         res = process_utterance(
             wav_fn, fft_size=hparams['fft_size'],
             hop_size=hparams['hop_size'],
@@ -152,7 +145,7 @@ class FastDiff(BaseVocoder):
             return res[0], res[1].T
 
     @staticmethod
-    def wav2mfcc(wav_fn):
+    def wav2mfcc(wav_fn, hparams):
         fft_size = hparams['fft_size']
         hop_size = hparams['hop_size']
         win_length = hparams['win_size']

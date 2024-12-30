@@ -15,17 +15,21 @@ from utils.audio import cross_fade, save_wav
 from utils.data_gen_utils import get_mel2ph_dur
 from utils.pitch_utils import resample_align_curve, shift_pitch
 from utils.text_encoder import TokenTextEncoder
-from vocoders.base_vocoder import get_vocoder_cls
+from utils.hparams_v2 import set_hparams as set_hparams_v2
+from component.vocoder.base_vocoder import get_vocoder_cls
 
 
 class InferHandler:
-    def __init__(self, hparams, pred_dur=False, pred_pitch=False):
-        self.hparams = hparams
+    def __init__(self, exp_name, pred_dur=False, pred_pitch=False):
+        self.hparams = set_hparams_v2(
+            exp_name=exp_name,
+            task="svs",
+        )
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.data_dir = os.path.join(hparams['data_dir'], "svs")
+        self.work_dir = self.hparams['work_dir']
 
-        hop_size = hparams['hop_size']
-        self.audio_sample_rate = hparams['audio_sample_rate']
+        hop_size = self.hparams['hop_size']
+        self.audio_sample_rate = self.hparams['audio_sample_rate']
         self.timestep = hop_size / self.audio_sample_rate
 
         self.ph_map, self.ph_encoder = self.build_phone_encoder()
@@ -33,43 +37,55 @@ class InferHandler:
         self.lang_map = self.build_lang_map()
 
         self.lr = LengthRegulator()
-        self.svs_inferer = get_inferer_cls("svs")(hparams)
+        self.svs_inferer = get_inferer_cls("svs")(self.hparams)
         self.svs_inferer.build_model(self.ph_encoder)
         self.pred_dur = pred_dur
         if pred_dur:
-            self.dur_predictor = get_inferer_cls("dur")(hparams)
+            is_local_pred_dur_model = os.path.exists(f"{self.work_dir}/dur/config.yaml")
+            dur_pred_hparams = set_hparams_v2(
+                exp_name=exp_name if is_local_pred_dur_model else None,
+                task="dur",
+                global_hparams=False
+            )
+            self.dur_predictor = get_inferer_cls("dur")(dur_pred_hparams)
             self.dur_predictor.build_model(self.ph_encoder)
         self.pred_pitch = pred_pitch != ""
         if self.pred_pitch:
             self.pred_pitch_spk_id = self.spk_map[pred_pitch]
-            self.pitch_predictor = get_inferer_cls("pitch")(hparams)
+            is_local_pred_pitch_model = os.path.exists(f"{self.work_dir}/pitch/config.yaml")
+            pitch_pred_hparams = set_hparams_v2(
+                exp_name=exp_name if is_local_pred_pitch_model else None,
+                task="pitch",
+                global_hparams=False
+            )
+            self.pitch_predictor = get_inferer_cls("pitch")(pitch_pred_hparams)
             self.pitch_predictor.build_model()
             self.midi_smooth = SinusoidalSmoothingConv1d(round(0.06/self.timestep)).eval()
         self.vocoder = self.build_vocoder()
     
     def build_phone_encoder(self):
-        ph_map_fn = os.path.join(self.data_dir, 'phone_set.json')
+        ph_map_fn = os.path.join(self.work_dir, 'phone_set.json')
         with open(ph_map_fn, 'r') as f:
             ph_map = json.load(f)
         ph_list = list(sorted(set(ph_map.values())))
         return ph_map, TokenTextEncoder(None, vocab_list=ph_list, replace_oov='SP')
 
     def build_spk_map(self):
-        spk_map_fn = os.path.join(self.data_dir, 'spk_map.json')
+        spk_map_fn = os.path.join(self.work_dir, 'spk_map.json')
         assert os.path.exists(spk_map_fn), f"Speaker map file {spk_map_fn} not found"
         with open(spk_map_fn, 'r') as f:
             spk_map = json.load(f)
         return spk_map
     
     def build_lang_map(self):
-        lang_map_fn = os.path.join(self.data_dir, 'lang_map.json')
+        lang_map_fn = os.path.join(self.work_dir, 'lang_map.json')
         assert os.path.exists(lang_map_fn), f"Language map file {lang_map_fn} not found"
         with open(lang_map_fn, 'r') as f:
             lang_map = json.load(f)
         return lang_map
 
     def build_vocoder(self):
-        vocoder = get_vocoder_cls(self.hparams["vocoder"])()
+        vocoder = get_vocoder_cls(self.hparams["vocoder"])(self.hparams)
         vocoder.to_device(self.device)
         return vocoder
 
@@ -77,10 +93,8 @@ class InferHandler:
         y = self.vocoder.spec2wav_torch(spec, **kwargs)
         return y[None]
 
-    def get_speaker_mix(self):
-        hparams = self.hparams
-        spk_name = hparams['spk_name'] # "spk0:0.5|spk1:0.5 ..."
-        if spk_name == '':
+    def get_speaker_mix(self, spk_name):
+        if spk_name is None or spk_name == '':
             # Get the first speaker
             spk_mix_map = {self.spk_map.keys()[0]: 1.0}
         else:
@@ -208,7 +222,7 @@ class InferHandler:
         
         spk_mix_embed = None
         if self.hparams["use_spk_id"]:
-            spk_mix_id, spk_mix_value = self.get_speaker_mix()
+            spk_mix_id, spk_mix_value = self.get_speaker_mix(segment["spk_name"])
             spk_mix_embed = torch.sum(
                 self.svs_inferer.model.spk_embed(spk_mix_id) * spk_mix_value.unsqueeze(3), 
                 dim=2, keepdim=False
@@ -239,7 +253,7 @@ class InferHandler:
         return wav_out
         
 
-    def handle(self, proj: List[dict] = None, proj_fn=None, lang=None, keyshift=0, gender=0):
+    def handle(self, proj: List[dict] = None, proj_fn=None, spk_name=None, lang=None, keyshift=0, gender=0):
         if proj is None:
             with open(proj_fn, 'r', encoding='utf-8') as f:
                 proj = json.load(f)
@@ -248,6 +262,7 @@ class InferHandler:
         for segment in proj:
             segment.setdefault('lang', lang)
             segment.setdefault("keyshift", int(keyshift))
+            segment.setdefault('spk_name', spk_name)
             segment["gender"]= float(gender)
             out = self.infer(segment)
             offset = round(segment.get('offset', 0) * self.audio_sample_rate) - total_length

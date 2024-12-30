@@ -13,7 +13,7 @@ from utils.tts_utils import sequence_mask
 from multiprocessing.pool import Pool
 from tasks.base_task import data_loader, BaseConcatDataset
 from utils.common_schedulers import RSQRTSchedule, NoneSchedule
-from vocoders.base_vocoder import get_vocoder_cls, BaseVocoder
+from component.vocoder.base_vocoder import get_vocoder_cls, BaseVocoder
 import os
 import numpy as np
 from tqdm import tqdm

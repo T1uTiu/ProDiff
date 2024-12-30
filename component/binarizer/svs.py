@@ -1,16 +1,14 @@
 import json
-import os
 import random
 
 import numpy as np
-import textgrid
 import torch
 from component.binarizer.base import Binarizer, register_binarizer
 from component.binarizer.binarizer_utils import build_lang_map, build_phone_encoder, build_spk_map
 from component.pe.base import get_pitch_extractor_cls
 from modules.fastspeech.tts_modules import LengthRegulator
 from utils.data_gen_utils import get_mel2ph_dur
-from vocoders.base_vocoder import get_vocoder_cls
+from component.vocoder.base_vocoder import get_vocoder_cls
 
 @register_binarizer
 class SVSBinarizer(Binarizer):
@@ -45,7 +43,7 @@ class SVSBinarizer(Binarizer):
                 ph_dur = [float(x) for x in label["ph_dur"].split(" ")]
                 ph_seq = self.ph_encoder.encode(ph_text)
                 item = {
-                    "wav_fn" : f"{data_dir}/wav/{label["name"]}.wav",
+                    "wav_fn" : f"{data_dir}/wav/{label['name']}.wav",
                     "ph_seq" : ph_seq,
                     "ph_dur" : ph_dur,
                     "spk_id" : spk_id,

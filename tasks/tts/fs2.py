@@ -2,7 +2,7 @@ import matplotlib
 matplotlib.use('Agg')
 
 from tasks.tts.tts_base import TTSBaseTask
-from vocoders.base_vocoder import get_vocoder_cls
+from component.vocoder.base_vocoder import get_vocoder_cls
 from tasks.tts.dataset_utils import FastSpeechDataset
 from modules.commons.ssim import ssim
 import os
