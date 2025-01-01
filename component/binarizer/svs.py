@@ -31,7 +31,6 @@ class SVSBinarizer(Binarizer):
         # components
         self.lr = LengthRegulator()
         self.pe = get_pitch_extractor_cls(hparams)(hparams)
-        self.vocoder = get_vocoder_cls(hparams["vocoder"])(hparams)
         # variance
         timesteps = hparams["hop_size"] / hparams["audio_sample_rate"]
         if hparams.get("use_voicing_embed", False):
