@@ -8,7 +8,6 @@ from component.train_task import SVSTask, DurPredictorTask, PitchPredictorTask
 from handler.train.handler import TrainHandler
 from utils.data_gen_utils import get_pitch
 from utils.audio import save_wav
-from utils.hparams import set_hparams, hparams
 from utils.hparams_v2 import set_hparams as set_hparams_v2
 from utils.pitch_utils import shift_pitch
 from component.vocoder.base_vocoder import get_vocoder_cls
@@ -37,9 +36,7 @@ train_task_map = {
 @click.option("--exp_name", type=str, required=True)
 def train(train_task, config, exp_name):
     assert train_task in train_task_map, f"Invalid train task: {train_task}, use one of {list(train_task_map.keys())}"
-    exp_name = f"{exp_name}_{train_task}"
-    set_hparams(config=config, exp_name=exp_name)
-    hparams["task"] = train_task
+    hparams = set_hparams_v2(config_fn=config, exp_name=exp_name, task=train_task)
     TrainHandler(hparams=hparams).handle(train_task_map[train_task])
 
 
