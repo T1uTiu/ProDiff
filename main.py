@@ -22,8 +22,7 @@ def main():
 @click.option("--config", type=str, required=True)
 @click.option("--exp_name", type=str, required=True)
 def binarize(task, config, exp_name):
-    exp_name = f"{exp_name}_{task}"
-    hparams = set_hparams_v2(config=config, exp_name=exp_name, task=task)
+    hparams = set_hparams_v2(config_fn=config, exp_name=exp_name, task=task)
     BinarizeHandler(hparams=hparams).handle()
 
 train_task_map = {

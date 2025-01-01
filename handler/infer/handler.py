@@ -24,6 +24,7 @@ class InferHandler:
         self.hparams = set_hparams_v2(
             exp_name=exp_name,
             task="svs",
+            make_work_dir=False
         )
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.work_dir = self.hparams['work_dir']

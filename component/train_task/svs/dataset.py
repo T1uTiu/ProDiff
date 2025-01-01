@@ -28,8 +28,6 @@ class SVSDataset(BaseDataset):
         else:
             hparams['f0_mean'], hparams['f0_std'] = self.f0_mean, self.f0_std = None, None
 
-        if hparams['pitch_type'] == 'cwt':
-            _, hparams['cwt_scales'] = get_lf0_cwt(np.ones(10))
 
 
     def collater(self, samples: List[dict]):
@@ -44,7 +42,8 @@ class SVSDataset(BaseDataset):
 
             "mel" : utils.collate_2d([torch.Tensor(s["mel"]) for s in samples], 0.0)
         }
-
+        if self.hparams.get("harmonic_aperiodic_seperate", False):
+            batch_item["aperiodic_mel"] = utils.collate_2d([torch.Tensor(s["aperiodic_mel"]) for s in samples], 0.0)
         batch_item["txt_lengths"] = torch.LongTensor([s["ph_seq"].size for s in samples])
         batch_item["mel_lengths"] = torch.LongTensor([s["mel"].shape[0] for s in samples])
         
@@ -56,5 +55,11 @@ class SVSDataset(BaseDataset):
         
         if self.hparams['use_lang_id']:
             batch_item["lang_seq"] = utils.collate_1d([torch.LongTensor(s["lang_seq"]) for s in samples], 0)
+
+        if self.hparams["use_voicing_embed"]:
+            batch_item["voicing"] = utils.collate_1d([torch.FloatTensor(s["voicing"]) for s in samples], 0.0)
+        
+        if self.hparams["use_breath_embed"]:
+            batch_item["breath"] = utils.collate_1d([torch.FloatTensor(s["breath"]) for s in samples], 0.0)
         
         return batch_item

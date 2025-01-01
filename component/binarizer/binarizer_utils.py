@@ -2,9 +2,12 @@ import csv
 import json
 import os
 
+import librosa
 import numpy as np
 import torch
+from modules.nsf_hifigan.nvSTFT import STFT
 from utils.text_encoder import TokenTextEncoder
+from modules.vr import load_sep_model
 
 
 def build_phone_encoder(data_dir: str, dictionary: dict):
@@ -56,3 +59,46 @@ def build_spk_map(data_dir, datasets):
     with open(spk_map_fn, 'w') as f:
         json.dump(spk_map, f)
     return spk_map
+
+def get_mel_spec(waveform: np.ndarray, 
+                 samplerate, num_mels, fft_size, win_size, hop_size, fmin, fmax, 
+                   keyshift=0, speed=1.0):
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    stft = STFT(samplerate, num_mels, fft_size, win_size, hop_size, fmin, fmax)
+    with torch.no_grad():
+        wav_torch = torch.from_numpy(waveform).to(device)
+        mel_torch = stft.get_mel(wav_torch.unsqueeze(0).to(device), keyshift=keyshift, speed=speed).squeeze(0).T
+        # log mel to log10 mel
+        mel_torch = 0.434294 * mel_torch
+        return mel_torch.cpu().numpy()
+
+VR_MODEL = None
+
+def extract_harmonic_aperiodic(waveform, model_path):
+    global VR_MODEL
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if VR_MODEL is None:
+        VR_MODEL = load_sep_model(model_path, device=device)
+    # infer
+    with torch.no_grad():
+        x = torch.from_numpy(waveform).to(device).reshape(1, 1, -1)
+        if not VR_MODEL.is_mono:
+            x = x.repeat(1, 2, 1)
+        x = VR_MODEL.predict_from_audio(x)
+        x = torch.mean(x, dim=1)
+        harmonic_part = x.squeeze().cpu().numpy()
+        aperiodic_part = waveform - harmonic_part
+    return harmonic_part, aperiodic_part
+
+def get_energy(waveform, mel_len, hop_size, win_size, domain="db"):
+    energy = librosa.feature.rms(y=waveform, frame_length=win_size, hop_length=hop_size)[0]
+    if len(energy) < mel_len:
+        energy = np.pad(energy, (0, mel_len - len(energy)))
+    energy = energy[:mel_len]
+    if domain == "db":
+        energy = librosa.amplitude_to_db(energy)
+    elif domain == "amplitude":
+        pass
+    else:
+        raise ValueError(f"Unknown domain: {domain}")
+    return energy

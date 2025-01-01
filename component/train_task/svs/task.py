@@ -21,6 +21,7 @@ class SVSTask(BaseTask):
                 lbd = 1.0
             self.loss_and_lambda[l] = lbd
         print("| Mel losses:", self.loss_and_lambda)
+        self.ha_sep = hparams.get("harmonic_aperiodic_seperate", False)
         self.build_phone_encoder()
 
     def get_dataset_cls(self):
@@ -34,19 +35,27 @@ class SVSTask(BaseTask):
     def run_model(self, sample: dict, return_output=False, infer=False):
         txt_tokens = sample["ph_seq"]  # [B, T_t]
         target = sample["mel"]  # [B, T_s, 80]
+        aperiodic_mel = sample.get("aperiodic_mel", None)
         mel2ph = sample["mel2ph"]
         f0 = sample["f0"]
         spk_embed_id = sample.get("spk_id", None)
         gender_embed_id = sample.get("gender_id", None)
         lang_seq = sample.get("lang_seq", None)
+        voicing = sample.get("voicing", None)
+        breath = sample.get("breath", None)
         # 模型输出
         output = self.model(txt_tokens, mel2ph, f0, 
                        lang_seq=lang_seq, spk_embed_id=spk_embed_id, gender_embed_id=gender_embed_id,
+                       voicing=voicing, breath=breath,
                        ref_mels=target, infer=infer)
         if infer:
             return output
         losses = {}
-        add_mel_loss(output, target, losses, loss_and_lambda=self.loss_and_lambda)
+        if not self.ha_sep:
+            add_mel_loss(output, target, losses, loss_and_lambda=self.loss_and_lambda)
+        else:
+            add_mel_loss(output[0], target, losses, loss_and_lambda=self.loss_and_lambda)
+            add_mel_loss(output[1], aperiodic_mel, losses, loss_and_lambda=self.loss_and_lambda)
         if not return_output:
             return losses
         else:
@@ -61,7 +70,11 @@ class SVSTask(BaseTask):
         outputs = utils.tensors_to_scalars(outputs)
         if batch_idx < self.hparams['num_valid_plots']:
             model_out = self.run_model(sample, return_output=True, infer=True)
-            self.plot_mel(batch_idx, sample["mel"], model_out)
+            if not self.ha_sep:
+                self.plot_mel(batch_idx, sample["mel"], model_out)
+            else:
+                self.plot_mel(batch_idx, sample["mel"], model_out[0], name="mel")
+                self.plot_mel(batch_idx, sample["aperiodic_mel"], model_out[1], name="aperiodic_mel")
         return outputs
     
     def plot_mel(self, batch_idx, spec, spec_out, name=None):

@@ -8,7 +8,7 @@ import textgrid
 import torch
 from torch.functional import F
 from component.binarizer.base import Binarizer, register_binarizer
-from component.binarizer.binarizer_utils import build_spk_map
+from component.binarizer.binarizer_utils import extract_harmonic_aperiodic, get_energy
 from component.pe.base import get_pitch_extractor_cls
 from modules.commons.common_layers import SinusoidalSmoothingConv1d
 from modules.fastspeech.tts_modules import LengthRegulator
@@ -17,16 +17,23 @@ from component.vocoder.base_vocoder import get_vocoder_cls
 
 
 @register_binarizer
-class TensionPredictorBinarizer(Binarizer):
+class VariPredictorBinarizer(Binarizer):
     def __init__(self, hparams):
         super().__init__(hparams)
+        # components
         self.lr = LengthRegulator()
         self.pe = get_pitch_extractor_cls(hparams)(hparams)
         self.vocoder = get_vocoder_cls(hparams["vocoder"])()
+        # variance
         timesteps = hparams["hop_size"] / hparams["audio_sample_rate"]
-        self.midi_smooth = SinusoidalSmoothingConv1d(
-            round(0.06 / timesteps)
-        ).eval()
+        if hparams.get("use_voicing_embed", False):
+            self.voicing_smooth = SinusoidalSmoothingConv1d(
+                round(0.12 / timesteps)
+            ).eval().to(self.device)
+        if hparams.get("use_breath_embed", False):
+            self.breath_smooth = SinusoidalSmoothingConv1d(
+                round(0.12 / timesteps)
+            ).eval().to(self.device)
     
     @staticmethod
     def category():
@@ -84,5 +91,18 @@ class TensionPredictorBinarizer(Binarizer):
         note_midi[note_rest] = interp_func(np.where(note_rest)[0])
         preprocessed_item["note_midi"] = note_midi
         preprocessed_item["note_rest"] = note_rest
-        # tension
+        # vocing and breath
+        # harmonic-noise separation
+        if self.hparams.get("use_voicing_embed", False) or self.hparams.get("use_breath_embed", False):
+            harmonic_part, aperiodic_part = extract_harmonic_aperiodic(wav, hparams["vr_ckpt"])
+        # voicing
+        if self.hparams.get("use_voicing_embed", False):
+            voicing = get_energy(harmonic_part, mel.shape[0], hparams["hop_size"], hparams["win_size"])
+            voicing = self.voicing_smooth(torch.from_numpy(voicing).to(self.device)[None])[0]
+            preprocessed_item["voicing"] = voicing.detach().cpu().numpy()
+        # breath
+        if self.hparams.get("use_breath_embed", False):
+            breath = get_energy(aperiodic_part, mel.shape[0], hparams["hop_size"], hparams["win_size"])
+            breath = self.breath_smooth(torch.from_numpy(breath).to(self.device)[None])[0]
+            preprocessed_item["breath"] = breath.detach().cpu().numpy()
         return preprocessed_item

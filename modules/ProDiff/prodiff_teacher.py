@@ -34,11 +34,15 @@ class ProDiffTeacher(nn.Module):
         if self.with_lang_embed:
             self.lang_embed = Embedding(len(hparams["dictionary"]), hparams['hidden_size'], ph_encoder.pad())
 
-        self.f0_embed_type = hparams.get('f0_embed_type', 'continuous')
-        if self.f0_embed_type == 'discrete':
-            self.pitch_embed = Embedding(300, hparams['hidden_size'], ph_encoder.pad())
-        else:
-            self.pitch_embed = Linear(1, hparams['hidden_size'])
+        self.pitch_embed = Linear(1, hparams['hidden_size'])
+
+        self.with_voicing_embed = hparams.get("use_voicing_embed", False)
+        if self.with_voicing_embed:
+            self.voicing_embed = Linear(1, hparams['hidden_size'])
+        
+        self.with_breath_embed = hparams.get("use_breath_embed", False)
+        if self.with_breath_embed:
+            self.breath_embed = Linear(1, hparams['hidden_size'])
 
         self.diffusion = GaussianDiffusion(
             out_dims=hparams["audio_num_mel_bins"],
@@ -55,6 +59,24 @@ class ProDiffTeacher(nn.Module):
             spec_min=hparams["spec_min"],
             spec_max=hparams["spec_max"],
         )
+        self.ha_sep = hparams.get("harmonic_aperiodic_seperate", False)
+        if self.ha_sep:
+            self.aperiodic_diffusion = GaussianDiffusion(
+                out_dims=hparams["audio_num_mel_bins"],
+                denoise_fn=DiffNet(
+                    in_dims=hparams['audio_num_mel_bins'],
+                    hidden_size=hparams["hidden_size"],
+                    residual_layers=hparams["residual_layers"],
+                    residual_channels=hparams["residual_channels"],
+                    dilation_cycle_length=hparams["dilation_cycle_length"],
+                ),
+                timesteps=hparams["timesteps"],
+                time_scale=hparams["timescale"],
+                schedule_type=hparams['schedule_type'],
+                spec_min=hparams["spec_min"],
+                spec_max=hparams["spec_max"],
+            )
+
 
     def add_spk_embed(self, spk_embed_id, spk_mix_embed):
         assert not (spk_embed_id is None and spk_mix_embed is None)
@@ -71,12 +93,8 @@ class ProDiffTeacher(nn.Module):
         return self.lang_embed(gender_embed_id)[:, None, :]
 
     def add_pitch(self, f0:torch.Tensor):
-        if self.f0_embed_type == 'discrete':
-            pitch = f0_to_coarse(f0)  # start from 0
-            pitch_embed = self.pitch_embed(pitch)
-        else:
-            f0_mel = (1 + f0 / 700).log()
-            pitch_embed = self.pitch_embed(f0_mel[:, : , None])
+        f0_mel = (1 + f0 / 700).log()
+        pitch_embed = self.pitch_embed(f0_mel[:, : , None])
         return pitch_embed
 
     def forward(self, txt_tokens, mel2ph, f0, 
@@ -106,9 +124,20 @@ class ProDiffTeacher(nn.Module):
             condition += self.add_spk_embed(spk_embed_id, spk_mix_embed)
         if self.with_gender_embed:
             condition += self.add_gender_embed(gender_embed_id, gender_mix_embed)
+        # voicing
+        if self.with_voicing_embed:
+            voicing_embed = self.voicing_embed(kwargs["voicing"][:, :, None])
+            condition += voicing_embed
+        # breath
+        if self.with_breath_embed:
+            breath_embed = self.breath_embed(kwargs["breath"][:, :, None])
+            condition += breath_embed
         nonpadding = (mel2ph > 0).float()[:, :, None]
         condition = condition * nonpadding
         # diffusion
         nonpadding = (mel2ph > 0).float().unsqueeze(1).unsqueeze(1)
         mel_out = self.diffusion(condition, nonpadding=nonpadding, ref_mels=ref_mels, infer=infer)
-        return mel_out
+        if not self.ha_sep:
+            return mel_out
+        aperiodic_mel_out = self.aperiodic_diffusion(condition, nonpadding=nonpadding, ref_mels=ref_mels, infer=infer)
+        return mel_out, aperiodic_mel_out
