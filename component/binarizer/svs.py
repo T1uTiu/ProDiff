@@ -24,22 +24,22 @@ class SVSBinarizer(Binarizer):
         # param
         self.samplerate = hparams["audio_sample_rate"]
         self.hop_size, self.fft_size, self.win_size = hparams["hop_size"], hparams["fft_size"], hparams["win_size"]
+        self.timesteps = self.hop_size / self.samplerate
         self.f_min, self.f_max = hparams["fmin"], hparams["fmax"]   
         self.num_mel_bins = hparams["audio_num_mel_bins"]
-        self.hn_sep_mel = self.hparams.get("harmonic_aperiodic_seperate", False)
-        self.hn_sep = self.hn_sep_mel or self.hparams.get("use_voicing_embed", False) or self.hparams.get("use_breath_embed", False)
+        self.ha_sep_mel = self.hparams.get("harmonic_aperiodic_seperate", False)
+        self.ha_sep = self.ha_sep_mel or self.hparams.get("use_voicing_embed", False) or self.hparams.get("use_breath_embed", False)
         # components
         self.lr = LengthRegulator()
         self.pe = get_pitch_extractor_cls(hparams)(hparams)
         # variance
-        timesteps = hparams["hop_size"] / hparams["audio_sample_rate"]
         if hparams.get("use_voicing_embed", False):
             self.voicing_smooth = SinusoidalSmoothingConv1d(
-                round(0.12 / timesteps)
+                round(0.12 / self.timesteps)
             ).eval().to(self.device)
         if hparams.get("use_breath_embed", False):
             self.breath_smooth = SinusoidalSmoothingConv1d(
-                round(0.12 / timesteps)
+                round(0.12 / self.timesteps)
             ).eval().to(self.device)
         # post process
         binarization_args = hparams["binarization_args"]
@@ -87,28 +87,31 @@ class SVSBinarizer(Binarizer):
         # wavform
         waveform, _ = librosa.load(item["wav_fn"], sr=self.samplerate)
         # harmonic-aperiodic separation
-        if self.hn_sep:
+        if self.ha_sep:
             harmonic_part, aperiodic_part = extract_harmonic_aperiodic(waveform, hparams["vr_ckpt"])
         # mel
-        if not self.hn_sep_mel:
-            mel = get_mel_spec(waveform, 
-                            self.samplerate, self.num_mel_bins, 
-                            self.fft_size, self.win_size, self.hop_size, 
-                            self.f_min, self.f_max
-                            )
+        if not self.ha_sep_mel:
+            mel = get_mel_spec(
+                waveform, 
+                self.samplerate, self.num_mel_bins, 
+                self.fft_size, self.win_size, self.hop_size, 
+                self.f_min, self.f_max
+            )
             preprocessed_item["mel"] = mel
         else:
-            mel = get_mel_spec(harmonic_part, 
-                            self.samplerate, self.num_mel_bins, 
-                            self.fft_size, self.win_size, self.hop_size, 
-                            self.f_min, self.f_max
-                            )
+            mel = get_mel_spec(
+                harmonic_part, 
+                self.samplerate, self.num_mel_bins, 
+                self.fft_size, self.win_size, self.hop_size, 
+                self.f_min, self.f_max
+            )
             preprocessed_item["mel"] = mel
-            aperiodic_mel = get_mel_spec(aperiodic_part,
-                            self.samplerate, self.num_mel_bins, 
-                            self.fft_size, self.win_size, self.hop_size, 
-                            self.f_min, self.f_max
-                            )
+            aperiodic_mel = get_mel_spec(
+                aperiodic_part,
+                self.samplerate, self.num_mel_bins, 
+                self.fft_size, self.win_size, self.hop_size, 
+                self.f_min, self.f_max
+            )
             preprocessed_item["aperiodic_mel"] = aperiodic_mel
         # summary
         preprocessed_item["sec"] = len(waveform) / self.samplerate
@@ -117,8 +120,7 @@ class SVSBinarizer(Binarizer):
         if hparams["use_gender_id"]:
             preprocessed_item["gender_id"] = item["gender_id"],
         # dur
-        timestep = self.hop_size / self.samplerate
-        preprocessed_item["mel2ph"] = get_mel2ph_dur(self.lr, torch.FloatTensor(item["ph_dur"]), mel.shape[0], timestep)
+        preprocessed_item["mel2ph"] = get_mel2ph_dur(self.lr, torch.FloatTensor(item["ph_dur"]), mel.shape[0], self.timesteps)
         # f0
         f0, uv = self.pe.get_pitch(
             waveform, 

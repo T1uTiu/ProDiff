@@ -51,7 +51,9 @@ class IndexedDatasetBuilder:
 
     def finalize(self):
         self.out_file.close()
-        np.save(open(f"{self.path}.idx", 'wb'), {'offsets': self.byte_offsets})
+        with open(f"{self.path}.idx", 'wb') as f:
+            np.save(f, {'offsets': self.byte_offsets})
+        self.out_file.close()
 
 
 if __name__ == "__main__":
