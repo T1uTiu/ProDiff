@@ -9,8 +9,11 @@ from utils.plot import spec_to_figure
 class SVSTask(BaseTask):
     def __init__(self, hparams):
         super(SVSTask, self).__init__(hparams=hparams)
+        self.ha_sep = hparams.get("harmonic_aperiodic_seperate", False)
         mel_losses = hparams['mel_loss'].split("|")
-        self.loss_and_lambda = {}
+        self.mel_loss_and_lambda = {}
+        if self.ha_sep:
+            self.ap_mel_loss_and_lambda = {}
         for l in mel_losses:
             if l == '':
                 continue
@@ -19,9 +22,12 @@ class SVSTask(BaseTask):
                 lbd = float(lbd)
             else:
                 lbd = 1.0
-            self.loss_and_lambda[l] = lbd
-        print("| Mel losses:", self.loss_and_lambda)
-        self.ha_sep = hparams.get("harmonic_aperiodic_seperate", False)
+            self.mel_loss_and_lambda[l] = lbd
+            if self.ha_sep:
+                self.ap_mel_loss_and_lambda["ap_" + l] = lbd
+        
+        print("| Mel losses:", self.mel_loss_and_lambda)
+        
         self.build_phone_encoder()
 
     def get_dataset_cls(self):
@@ -52,10 +58,10 @@ class SVSTask(BaseTask):
             return output
         losses = {}
         if not self.ha_sep:
-            add_mel_loss(output, mel, losses, loss_and_lambda=self.loss_and_lambda)
+            add_mel_loss(output, mel, losses, loss_and_lambda=self.mel_loss_and_lambda)
         else:
-            target = torch.cat([mel, aperiodic_mel], dim=1)
-            add_mel_loss(output, target, losses, loss_and_lambda=self.loss_and_lambda)
+            add_mel_loss(output[0], mel, losses, loss_and_lambda=self.mel_loss_and_lambda)
+            add_mel_loss(output[1], aperiodic_mel, losses, loss_and_lambda=self.ap_mel_loss_and_lambda)
         if not return_output:
             return losses
         else:
