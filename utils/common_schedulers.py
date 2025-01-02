@@ -2,10 +2,10 @@ from utils.hparams import hparams
 
 
 class NoneSchedule(object):
-    def __init__(self, optimizer):
+    def __init__(self, optimizer, lr):
         super().__init__()
         self.optimizer = optimizer
-        self.constant_lr = hparams['lr']
+        self.constant_lr = lr
         self.step(0)
 
     def step(self, num_updates):
@@ -22,13 +22,13 @@ class NoneSchedule(object):
 
 
 class RSQRTSchedule(object):
-    def __init__(self, optimizer):
+    def __init__(self, optimizer, lr, warmup_updates, hidden_size):
         super().__init__()
         self.optimizer = optimizer
-        self.constant_lr = hparams['lr']
-        self.warmup_updates = hparams['warmup_updates']
-        self.hidden_size = hparams['hidden_size']
-        self.lr = hparams['lr']
+        self.constant_lr = lr
+        self.warmup_updates = warmup_updates
+        self.hidden_size = hidden_size
+        self.lr = lr
         for param_group in optimizer.param_groups:
             param_group['lr'] = self.lr
         self.step(0)

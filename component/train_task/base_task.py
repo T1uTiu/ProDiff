@@ -147,9 +147,9 @@ class BaseTask(nn.Module):
 
     def build_scheduler(self, optimizer):
         if self.hparams['scheduler'] == 'rsqrt':
-            return RSQRTSchedule(optimizer)
+            return RSQRTSchedule(optimizer, self.hparams['lr'], self.hparams['warmup_updates'], self.hparams['hidden_size'])
         else:
-            return NoneSchedule(optimizer)
+            return NoneSchedule(optimizer, self.hparams['lr'])
 
     def build_optimizer(self, model):
         self.optimizer = optimizer = torch.optim.AdamW(

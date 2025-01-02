@@ -445,8 +445,7 @@ class TrainHandler:
     # utils
     ####################
     def get_task_ref(self):
-        from tasks.base_task import BaseTask
-        task: BaseTask = self.task.module if isinstance(self.task, DDP) else self.task
+        task = self.task.module if isinstance(self.task, DDP) else self.task
         return task
 
     def log_metrics_to_tb(self, metrics, step=None):
