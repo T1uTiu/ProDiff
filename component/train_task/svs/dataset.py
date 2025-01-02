@@ -42,8 +42,6 @@ class SVSDataset(BaseDataset):
 
             "mel" : utils.collate_2d([torch.Tensor(s["mel"]) for s in samples], 0.0)
         }
-        if self.hparams.get("harmonic_aperiodic_seperate", False):
-            batch_item["aperiodic_mel"] = utils.collate_2d([torch.Tensor(s["aperiodic_mel"]) for s in samples], 0.0)
         batch_item["txt_lengths"] = torch.LongTensor([s["ph_seq"].size for s in samples])
         batch_item["mel_lengths"] = torch.LongTensor([s["mel"].shape[0] for s in samples])
         

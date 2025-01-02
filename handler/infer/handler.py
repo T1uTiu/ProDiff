@@ -241,7 +241,7 @@ class InferHandler:
             if "voicing" in segment:
                 voicing = torch.FloatTensor([float(x) for x in segment["voicing"].split()]).to(self.device)[None, :]
             else:
-                voicing = torch.FloatTensor([-30.0] * mel_len).to(self.device)[None, :]
+                voicing = torch.FloatTensor([-10.0] * mel_len).to(self.device)[None, :]
         breath = None
         if self.hparams.get("use_breath_embed", False):
             if "breath" in segment:

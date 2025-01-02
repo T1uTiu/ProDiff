@@ -27,8 +27,7 @@ class SVSBinarizer(Binarizer):
         self.timesteps = self.hop_size / self.samplerate
         self.f_min, self.f_max = hparams["fmin"], hparams["fmax"]   
         self.num_mel_bins = hparams["audio_num_mel_bins"]
-        self.ha_sep_mel = self.hparams.get("harmonic_aperiodic_seperate", False)
-        self.ha_sep = self.ha_sep_mel or self.hparams.get("use_voicing_embed", False) or self.hparams.get("use_breath_embed", False)
+        self.ha_sep = self.hparams.get("use_voicing_embed", False) or self.hparams.get("use_breath_embed", False)
         # components
         self.lr = LengthRegulator()
         self.pe = get_pitch_extractor_cls(hparams)(hparams)
@@ -90,29 +89,13 @@ class SVSBinarizer(Binarizer):
         if self.ha_sep:
             harmonic_part, aperiodic_part = extract_harmonic_aperiodic(waveform, hparams["vr_ckpt"])
         # mel
-        if not self.ha_sep_mel:
-            mel = get_mel_spec(
-                waveform, 
-                self.samplerate, self.num_mel_bins, 
-                self.fft_size, self.win_size, self.hop_size, 
-                self.f_min, self.f_max
-            )
-            preprocessed_item["mel"] = mel
-        else:
-            mel = get_mel_spec(
-                harmonic_part, 
-                self.samplerate, self.num_mel_bins, 
-                self.fft_size, self.win_size, self.hop_size, 
-                self.f_min, self.f_max
-            )
-            preprocessed_item["mel"] = mel
-            aperiodic_mel = get_mel_spec(
-                aperiodic_part,
-                self.samplerate, self.num_mel_bins, 
-                self.fft_size, self.win_size, self.hop_size, 
-                self.f_min, self.f_max
-            )
-            preprocessed_item["aperiodic_mel"] = aperiodic_mel
+        mel = get_mel_spec(
+            waveform, 
+            self.samplerate, self.num_mel_bins, 
+            self.fft_size, self.win_size, self.hop_size, 
+            self.f_min, self.f_max
+        )
+        preprocessed_item["mel"] = mel
         # summary
         preprocessed_item["sec"] = len(waveform) / self.samplerate
         preprocessed_item["length"] = mel.shape[0]

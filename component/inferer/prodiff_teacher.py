@@ -35,10 +35,7 @@ class ProDiffTeacherInferrer(Inferer):
             voicing=vociing, breath=breath,
             infer=True
         )
-        if self.hparams.get('harmonic_aperiodic_seperate', False):
-            return mel_out[0] + mel_out[1]
-        else:
-            return mel_out
+        return mel_out
     
     @staticmethod
     def category():

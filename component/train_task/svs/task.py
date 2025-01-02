@@ -9,11 +9,8 @@ from utils.plot import spec_to_figure
 class SVSTask(BaseTask):
     def __init__(self, hparams):
         super(SVSTask, self).__init__(hparams=hparams)
-        self.ha_sep = hparams.get("harmonic_aperiodic_seperate", False)
         mel_losses = hparams['mel_loss'].split("|")
         self.mel_loss_and_lambda = {}
-        if self.ha_sep:
-            self.ap_mel_loss_and_lambda = {}
         for l in mel_losses:
             if l == '':
                 continue
@@ -23,8 +20,6 @@ class SVSTask(BaseTask):
             else:
                 lbd = 1.0
             self.mel_loss_and_lambda[l] = lbd
-            if self.ha_sep:
-                self.ap_mel_loss_and_lambda["ap_" + l] = lbd
         
         print("| Mel losses:", self.mel_loss_and_lambda)
         
@@ -40,8 +35,7 @@ class SVSTask(BaseTask):
 
     def run_model(self, sample: dict, return_output=False, infer=False):
         txt_tokens = sample["ph_seq"]  # [B, T_t]
-        mel = sample["mel"]  # [B, T_s, 80]
-        aperiodic_mel = sample.get("aperiodic_mel", None)
+        tgt_mel = sample["mel"]  # [B, T_s, 80]
         mel2ph = sample["mel2ph"]
         f0 = sample["f0"]
         spk_embed_id = sample.get("spk_id", None)
@@ -50,18 +44,18 @@ class SVSTask(BaseTask):
         voicing = sample.get("voicing", None)
         breath = sample.get("breath", None)
         # 模型输出
-        output = self.model(txt_tokens, mel2ph, f0, 
-                       lang_seq=lang_seq, spk_embed_id=spk_embed_id, gender_embed_id=gender_embed_id,
-                       voicing=voicing, breath=breath,
-                       ref_mels=mel, ref_ap_mels=aperiodic_mel, infer=infer)
+        output = self.model(
+            txt_tokens, mel2ph, f0, 
+            lang_seq=lang_seq, 
+            spk_embed_id=spk_embed_id, 
+            gender_embed_id=gender_embed_id,
+            voicing=voicing, breath=breath,
+            ref_mels=tgt_mel, infer=infer
+        )
         if infer:
             return output
         losses = {}
-        if not self.ha_sep:
-            add_mel_loss(output, mel, losses, loss_and_lambda=self.mel_loss_and_lambda)
-        else:
-            add_mel_loss(output[0], mel, losses, loss_and_lambda=self.mel_loss_and_lambda)
-            add_mel_loss(output[1], aperiodic_mel, losses, loss_and_lambda=self.ap_mel_loss_and_lambda)
+        add_mel_loss(output, tgt_mel, losses, loss_and_lambda=self.mel_loss_and_lambda)
         if not return_output:
             return losses
         else:
@@ -76,11 +70,7 @@ class SVSTask(BaseTask):
         outputs = utils.tensors_to_scalars(outputs)
         if batch_idx < self.hparams['num_valid_plots']:
             model_out = self.run_model(sample, return_output=True, infer=True)
-            if not self.ha_sep:
-                self.plot_mel(batch_idx, sample["mel"], model_out)
-            else:
-                self.plot_mel(batch_idx, sample["mel"], model_out[0], name="mel")
-                self.plot_mel(batch_idx, sample["aperiodic_mel"], model_out[1], name="aperiodic_mel")
+            self.plot_mel(batch_idx, sample["mel"], model_out)
         return outputs
     
     def plot_mel(self, batch_idx, spec, spec_out, name=None):

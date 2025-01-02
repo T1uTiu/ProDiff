@@ -59,23 +59,6 @@ class ProDiffTeacher(nn.Module):
             spec_min=hparams["spec_min"],
             spec_max=hparams["spec_max"],
         )
-        self.ha_sep = hparams.get("harmonic_aperiodic_seperate", False)
-        if self.ha_sep:
-            self.aperiodic_diffusion = GaussianDiffusion(
-                out_dims=hparams["audio_num_mel_bins"],
-                denoise_fn=DiffNet(
-                    in_dims=hparams['audio_num_mel_bins'],
-                    hidden_size=hparams["hidden_size"],
-                    residual_layers=hparams["residual_layers"],
-                    residual_channels=hparams["residual_channels"],
-                    dilation_cycle_length=hparams["dilation_cycle_length"],
-                ),
-                timesteps=hparams["timesteps"],
-                time_scale=hparams["timescale"],
-                schedule_type=hparams['schedule_type'],
-                spec_min=hparams["spec_min"],
-                spec_max=hparams["spec_max"],
-            )
 
 
     def add_spk_embed(self, spk_embed_id, spk_mix_embed):
@@ -102,7 +85,7 @@ class ProDiffTeacher(nn.Module):
                 spk_embed_id=None, spk_mix_embed=None, 
                 gender_embed_id=None, gender_mix_embed=None,
                 voicing=None, breath=None,
-                ref_mels=None, ref_ap_mels=None, 
+                ref_mels=None,  
                 infer=False, **kwargs):
         # dur embed
         if self.with_dur_embed:
@@ -139,7 +122,4 @@ class ProDiffTeacher(nn.Module):
         # diffusion
         nonpadding = (mel2ph > 0).float().unsqueeze(1).unsqueeze(1)
         mel_out = self.diffusion(condition, nonpadding=nonpadding, ref_mels=ref_mels, infer=infer)
-        if not self.ha_sep:
-            return mel_out
-        aperiodic_mel_out = self.aperiodic_diffusion(condition, nonpadding=nonpadding, ref_mels=ref_ap_mels, infer=infer)
-        return mel_out, aperiodic_mel_out
+        return mel_out
