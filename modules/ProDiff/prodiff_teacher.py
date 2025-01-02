@@ -142,4 +142,6 @@ class ProDiffTeacher(nn.Module):
         if not self.ha_sep:
             return mel_out
         aperiodic_mel_out = self.aperiodic_diffusion(condition, nonpadding=nonpadding, ref_mels=ref_ap_mels, infer=infer)
-        return mel_out, aperiodic_mel_out
+        if infer:
+            return mel_out, aperiodic_mel_out
+        return torch.cat([mel_out, aperiodic_mel_out], dim=1)

@@ -34,7 +34,7 @@ class SVSTask(BaseTask):
 
     def run_model(self, sample: dict, return_output=False, infer=False):
         txt_tokens = sample["ph_seq"]  # [B, T_t]
-        target = sample["mel"]  # [B, T_s, 80]
+        mel = sample["mel"]  # [B, T_s, 80]
         aperiodic_mel = sample.get("aperiodic_mel", None)
         mel2ph = sample["mel2ph"]
         f0 = sample["f0"]
@@ -47,15 +47,15 @@ class SVSTask(BaseTask):
         output = self.model(txt_tokens, mel2ph, f0, 
                        lang_seq=lang_seq, spk_embed_id=spk_embed_id, gender_embed_id=gender_embed_id,
                        voicing=voicing, breath=breath,
-                       ref_mels=target, ref_ap_mels=aperiodic_mel, infer=infer)
+                       ref_mels=mel, ref_ap_mels=aperiodic_mel, infer=infer)
         if infer:
             return output
         losses = {}
         if not self.ha_sep:
-            add_mel_loss(output, target, losses, loss_and_lambda=self.loss_and_lambda)
+            add_mel_loss(output, mel, losses, loss_and_lambda=self.loss_and_lambda)
         else:
-            add_mel_loss(output[0], target, losses, loss_and_lambda=self.loss_and_lambda)
-            add_mel_loss(output[1], aperiodic_mel, losses, loss_and_lambda=self.loss_and_lambda)
+            target = torch.cat([mel, aperiodic_mel], dim=1)
+            add_mel_loss(output, target, losses, loss_and_lambda=self.loss_and_lambda)
         if not return_output:
             return losses
         else:
