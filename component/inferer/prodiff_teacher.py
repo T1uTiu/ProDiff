@@ -26,9 +26,19 @@ class ProDiffTeacherInferrer(Inferer):
         spk_mix_embed = inp.get('spk_mix_embed', None)
         gender_mix_embed = inp.get("gender_mix_embed", None)
         lang_seq = inp.get('lang_seq', None)
-        return self.model(ph_seq, f0=f0_seq, mel2ph=mel2ph, 
-                          spk_mix_embed=spk_mix_embed, gender_mix_embed=gender_mix_embed,
-                          lang_seq=lang_seq, infer=True)
+        vociing = inp.get('voicing', None)
+        breath = inp.get('breath', None)
+        mel_out = self.model(
+            ph_seq, f0=f0_seq, mel2ph=mel2ph, 
+            spk_mix_embed=spk_mix_embed, gender_mix_embed=gender_mix_embed,
+            lang_seq=lang_seq, 
+            voicing=vociing, breath=breath,
+            infer=True
+        )
+        if self.hparams.get('harmonic_aperiodic_seperate', False):
+            return mel_out[0] + mel_out[1]
+        else:
+            return mel_out
     
     @staticmethod
     def category():

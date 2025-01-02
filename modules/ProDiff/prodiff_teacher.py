@@ -101,7 +101,9 @@ class ProDiffTeacher(nn.Module):
                 lang_seq=None, 
                 spk_embed_id=None, spk_mix_embed=None, 
                 gender_embed_id=None, gender_mix_embed=None,
-                ref_mels=None, infer=False, **kwargs):
+                voicing=None, breath=None,
+                ref_mels=None, ref_ap_mels=None, 
+                infer=False, **kwargs):
         # dur embed
         if self.with_dur_embed:
             dur = mel2ph_to_dur(mel2ph, txt_tokens.shape[1]).float()
@@ -126,11 +128,11 @@ class ProDiffTeacher(nn.Module):
             condition += self.add_gender_embed(gender_embed_id, gender_mix_embed)
         # voicing
         if self.with_voicing_embed:
-            voicing_embed = self.voicing_embed(kwargs["voicing"][:, :, None])
+            voicing_embed = self.voicing_embed(voicing[:, :, None])
             condition += voicing_embed
         # breath
         if self.with_breath_embed:
-            breath_embed = self.breath_embed(kwargs["breath"][:, :, None])
+            breath_embed = self.breath_embed(breath[:, :, None])
             condition += breath_embed
         nonpadding = (mel2ph > 0).float()[:, :, None]
         condition = condition * nonpadding
@@ -139,5 +141,5 @@ class ProDiffTeacher(nn.Module):
         mel_out = self.diffusion(condition, nonpadding=nonpadding, ref_mels=ref_mels, infer=infer)
         if not self.ha_sep:
             return mel_out
-        aperiodic_mel_out = self.aperiodic_diffusion(condition, nonpadding=nonpadding, ref_mels=ref_mels, infer=infer)
+        aperiodic_mel_out = self.aperiodic_diffusion(condition, nonpadding=nonpadding, ref_mels=ref_ap_mels, infer=infer)
         return mel_out, aperiodic_mel_out

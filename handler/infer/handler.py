@@ -236,7 +236,18 @@ class InferHandler:
                 self.svs_inferer.model.gender_embed(gender_mix_id) * gender_mix_value.unsqueeze(3),
                 dim=2, keepdim=False
             )
-        
+        voicing = None
+        if self.hparams.get("use_voicing_embed", False):
+            if "voicing" in segment:
+                voicing = torch.FloatTensor([float(x) for x in segment["voicing"].split()]).to(self.device)[None, :]
+            else:
+                voicing = torch.FloatTensor([-30.0] * mel_len).to(self.device)[None, :]
+        breath = None
+        if self.hparams.get("use_breath_embed", False):
+            if "breath" in segment:
+                breath = torch.FloatTensor([float(x) for x in segment["breath"].split()]).to(self.device)[None, :]
+            else:
+                breath = torch.FloatTensor([-50.0] * mel_len).to(self.device)[None, :]
         with torch.no_grad():
             start_time = time.time()
             mel_out = self.svs_inferer.run_model(
@@ -246,6 +257,8 @@ class InferHandler:
                 spk_mix_embed=spk_mix_embed, 
                 gender_mix_embed=gender_mix_embed,
                 lang_seq=lang_seq, 
+                voicing=voicing,
+                breath=breath,
                 infer=True
             )
             print(f"Inference Time: {time.time() - start_time}")

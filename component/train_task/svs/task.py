@@ -47,7 +47,7 @@ class SVSTask(BaseTask):
         output = self.model(txt_tokens, mel2ph, f0, 
                        lang_seq=lang_seq, spk_embed_id=spk_embed_id, gender_embed_id=gender_embed_id,
                        voicing=voicing, breath=breath,
-                       ref_mels=target, infer=infer)
+                       ref_mels=target, ref_ap_mels=aperiodic_mel, infer=infer)
         if infer:
             return output
         losses = {}
@@ -79,7 +79,7 @@ class SVSTask(BaseTask):
     
     def plot_mel(self, batch_idx, spec, spec_out, name=None):
         spec_cat = torch.cat([spec, spec_out], -1)
-        name = f'mel_{batch_idx}' if name is None else name
+        name = f'mel_{batch_idx}' if name is None else f"{name}_{batch_idx}"
         vmin = self.hparams['mel_vmin']
         vmax = self.hparams['mel_vmax']
         self.logger.add_figure(name, spec_to_figure(spec_cat[0], vmin, vmax), self.global_step)
