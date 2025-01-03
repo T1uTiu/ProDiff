@@ -4,7 +4,7 @@ from component.train_task.loss_utils import add_mel_loss
 from component.train_task.pitch_predictor.dataset import PitchPredictorDataset
 from modules.variance_predictor.pitch_predictor import PitchPredictor
 import utils
-from utils.plot import spec_f0_to_figure
+from utils.plot import spec_curse_to_figure
 
 
 class PitchPredictorTask(BaseTask):
@@ -69,4 +69,4 @@ class PitchPredictorTask(BaseTask):
     
     def plot_f0_spec(self, batch_idx, f0_tgt, f0_pred):
         name = f'f0_{batch_idx}'
-        self.logger.add_figure(name, spec_f0_to_figure(f0_tgt[0], f0_pred[0]), self.global_step)
+        self.logger.add_figure(name, spec_curse_to_figure(f0_tgt[0], f0_pred[0]), self.global_step)

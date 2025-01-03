@@ -13,7 +13,7 @@ def spec_to_figure(spec, vmin=None, vmax=None):
     return fig
 
 
-def spec_f0_to_figure(f0_tgt, f0_pred):
+def spec_curse_to_figure(f0_tgt, f0_pred):
     if isinstance(f0_tgt, torch.Tensor):
         f0_tgt = f0_tgt.cpu().numpy()
     if isinstance(f0_pred, torch.Tensor):

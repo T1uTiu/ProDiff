@@ -8,7 +8,7 @@ import textgrid
 import torch
 from torch.functional import F
 from component.binarizer.base import Binarizer, register_binarizer
-from component.binarizer.binarizer_utils import extract_harmonic_aperiodic, get_energy
+from component.binarizer.binarizer_utils import extract_harmonic_aperiodic, get_energy, get_mel_spec
 from component.pe.base import get_pitch_extractor_cls
 from modules.commons.common_layers import SinusoidalSmoothingConv1d
 from modules.fastspeech.tts_modules import LengthRegulator
@@ -18,26 +18,20 @@ from component.vocoder.base_vocoder import get_vocoder_cls
 
 @register_binarizer
 class VariPredictorBinarizer(Binarizer):
-    def __init__(self, hparams):
+    def __init__(self, hparams, vari_type):
         super().__init__(hparams)
+        self.vari_type = vari_type
         # components
         self.lr = LengthRegulator()
         self.pe = get_pitch_extractor_cls(hparams)(hparams)
-        self.vocoder = get_vocoder_cls(hparams["vocoder"])()
+        # param
+        self.samplerate = hparams["audio_sample_rate"]
+        self.hop_size, self.fft_size, self.win_size = hparams["hop_size"], hparams["fft_size"], hparams["win_size"]
+        self.timesteps = self.hop_size / self.samplerate 
         # variance
-        timesteps = hparams["hop_size"] / hparams["audio_sample_rate"]
-        if hparams.get("use_voicing_embed", False):
-            self.voicing_smooth = SinusoidalSmoothingConv1d(
-                round(0.12 / timesteps)
-            ).eval().to(self.device)
-        if hparams.get("use_breath_embed", False):
-            self.breath_smooth = SinusoidalSmoothingConv1d(
-                round(0.12 / timesteps)
-            ).eval().to(self.device)
-    
-    @staticmethod
-    def category():
-        return "pitch"
+        self.vari_smooth = SinusoidalSmoothingConv1d(
+            round(0.12 / self.timesteps)
+        ).eval().to(self.device)
     
     def load_meta_data(self):
         transcription_item_list = []
@@ -59,26 +53,25 @@ class VariPredictorBinarizer(Binarizer):
 
     def process_item(self, item: dict):
         hparams = self.hparams
-        lr, pe = self.lr, self.pe
-
-        wav, mel = self.vocoder.wav2spec(item["wav_fn"], hparams=hparams)
         preprocessed_item = {}
-        preprocessed_item["sec"] = len(wav) / hparams['audio_sample_rate']
-        preprocessed_item["length"] = mel.shape[0]
+        # wavform
+        waveform, _ = librosa.load(item["wav_fn"], sr=self.samplerate)
+        mel_len = round(len(waveform) / self.hop_size)
+        # summary
+        preprocessed_item["sec"] = len(waveform) / self.samplerate
+        preprocessed_item["length"] = mel_len
         # f0
-        f0, uv = pe.get_pitch(
-            wav, 
-            samplerate = hparams['audio_sample_rate'], 
-            length = mel.shape[0], 
-            hop_size = hparams['hop_size'], 
+        f0, uv = self.pe.get_pitch(
+            waveform, 
+            samplerate = self.samplerate, 
+            length = mel_len, 
+            hop_size = self.hop_size, 
             interp_uv = hparams['interp_uv']
         )
         assert not uv.all(), f"all unvoiced. item_name: {item['item_name']}, wav_fn: {item['wav_fn']}"
         preprocessed_item["f0"] = f0
-        preprocessed_item["pitch"] = librosa.hz_to_midi(f0.astype(np.float32))
         # note
-        timestep = hparams['hop_size'] / hparams['audio_sample_rate']
-        mel2note = get_mel2ph_dur(lr, torch.FloatTensor(item["note_dur"]), mel.shape[0], timestep)
+        mel2note = get_mel2ph_dur(self.lr, torch.FloatTensor(item["note_dur"]), mel_len, self.timesteps)
         preprocessed_item["mel2note"] = mel2note
         note_midi = np.array(
             [librosa.note_to_midi(nt, round_midi=False) if nt != "rest" else -1 for nt in item["note_seq"]],
@@ -91,18 +84,33 @@ class VariPredictorBinarizer(Binarizer):
         note_midi[note_rest] = interp_func(np.where(note_rest)[0])
         preprocessed_item["note_midi"] = note_midi
         preprocessed_item["note_rest"] = note_rest
-        # vocing and breath
         # harmonic-noise separation
-        if self.hparams.get("use_voicing_embed", False) or self.hparams.get("use_breath_embed", False):
-            harmonic_part, aperiodic_part = extract_harmonic_aperiodic(wav, hparams["vr_ckpt"])
+        harmonic_part, aperiodic_part = extract_harmonic_aperiodic(waveform, hparams["vr_ckpt"])
         # voicing
-        if self.hparams.get("use_voicing_embed", False):
-            voicing = get_energy(harmonic_part, mel.shape[0], hparams["hop_size"], hparams["win_size"])
-            voicing = self.voicing_smooth(torch.from_numpy(voicing).to(self.device)[None])[0]
+        if self.vari_type == "voicing":
+            voicing = get_energy(harmonic_part, mel_len, self.hop_size, self.win_size)
+            voicing = self.vari_smooth(torch.from_numpy(voicing).to(self.device)[None])[0]
             preprocessed_item["voicing"] = voicing.detach().cpu().numpy()
         # breath
-        if self.hparams.get("use_breath_embed", False):
-            breath = get_energy(aperiodic_part, mel.shape[0], hparams["hop_size"], hparams["win_size"])
-            breath = self.breath_smooth(torch.from_numpy(breath).to(self.device)[None])[0]
+        if self.vari_type == "breath":
+            breath = get_energy(aperiodic_part, mel_len, self.hop_size, self.win_size)
+            breath = self.vari_smooth(torch.from_numpy(breath).to(self.device)[None])[0]
             preprocessed_item["breath"] = breath.detach().cpu().numpy()
         return preprocessed_item
+    
+
+class VoicingPredictorBinarizer(VariPredictorBinarizer):
+    def __init__(self, hparams):
+        super().__init__(hparams, "voicing")
+    
+    @staticmethod
+    def category():
+        return "voicing"
+    
+class BreathPredictorBinarizer(VariPredictorBinarizer):
+    def __init__(self, hparams):
+        super().__init__(hparams, "breath")
+    
+    @staticmethod
+    def category():
+        return "breath"

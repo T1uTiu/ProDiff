@@ -10,7 +10,6 @@ from component.pe.base import get_pitch_extractor_cls
 from modules.commons.common_layers import SinusoidalSmoothingConv1d
 from modules.fastspeech.tts_modules import LengthRegulator
 from utils.data_gen_utils import get_mel2ph_dur
-from component.vocoder.base_vocoder import get_vocoder_cls
 
 @register_binarizer
 class SVSBinarizer(Binarizer):
@@ -59,12 +58,12 @@ class SVSBinarizer(Binarizer):
             spk_id = self.spk_map[dataset["speaker"]]
             with open(f"{data_dir}/label.json", "r", encoding="utf-8") as f:
                 labels = json.load(f)
-            for label in labels:
+            for item_name, label in labels.items():
                 ph_text = [f"{x}/{lang}" for x in label["ph_seq"].split(" ")]
                 ph_dur = [float(x) for x in label["ph_dur"].split(" ")]
                 ph_seq = self.ph_encoder.encode(ph_text)
                 item = {
-                    "wav_fn" : f"{data_dir}/wav/{label['name']}.wav",
+                    "wav_fn" : f"{data_dir}/wav/{item_name}.wav",
                     "ph_seq" : ph_seq,
                     "ph_dur" : ph_dur,
                     "spk_id" : spk_id,

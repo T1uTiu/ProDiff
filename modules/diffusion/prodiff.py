@@ -168,7 +168,7 @@ class GaussianDiffusion(nn.Module):
     def denorm_spec(self, x):
         return x
 
-class PitchDiffusion(GaussianDiffusion):
+class RepeatitiveDiffusion(GaussianDiffusion):
     def __init__(self, repeat_bins, denoise_fn,
                  timesteps=1000, time_scale=1,
                  betas=None, schedule_type="vpsde",

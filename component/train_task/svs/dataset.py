@@ -1,20 +1,13 @@
 import os
 from typing import List
-import matplotlib
-
-from component.train_task.base_dataset import BaseDataset
-matplotlib.use('Agg')
-
-import glob
-import importlib
 import numpy as np
 import torch
 import torch.distributions
 import torch.optim
 import torch.utils.data
-
 import utils
-from utils.cwt import get_lf0_cwt
+from component.train_task.base_dataset import BaseDataset
+
 
 class SVSDataset(BaseDataset):
     def __init__(self, prefix, shuffle, hparams):
@@ -39,11 +32,8 @@ class SVSDataset(BaseDataset):
             "ph_seq" : utils.collate_1d([torch.LongTensor(s["ph_seq"]) for s in samples], 0),
             "mel2ph" : utils.collate_1d([torch.LongTensor(s["mel2ph"]) for s in samples], 0),
             "f0" : utils.collate_1d([torch.FloatTensor(s["f0"]) for s in samples], 0.0),
-
             "mel" : utils.collate_2d([torch.Tensor(s["mel"]) for s in samples], 0.0)
         }
-        batch_item["txt_lengths"] = torch.LongTensor([s["ph_seq"].size for s in samples])
-        batch_item["mel_lengths"] = torch.LongTensor([s["mel"].shape[0] for s in samples])
         
         if self.hparams['use_spk_id']:
             batch_item["spk_id"] = torch.LongTensor([s["spk_id"] for s in samples])

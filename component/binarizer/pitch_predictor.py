@@ -1,10 +1,7 @@
 import json
-import os
 import librosa
-from matplotlib import pyplot as plt
 import numpy as np
 from scipy import interpolate
-import textgrid
 import torch
 from torch.functional import F
 from component.binarizer.base import Binarizer, register_binarizer
@@ -13,7 +10,6 @@ from component.pe.base import get_pitch_extractor_cls
 from modules.commons.common_layers import SinusoidalSmoothingConv1d
 from modules.fastspeech.tts_modules import LengthRegulator
 from utils.data_gen_utils import get_mel2ph_dur
-from component.vocoder.base_vocoder import get_vocoder_cls
 
 
 @register_binarizer
@@ -21,12 +17,15 @@ class PitchPredictorBinarizer(Binarizer):
     def __init__(self, hparams):
         super().__init__(hparams)
         self.spk_map = build_spk_map(self.data_dir, self.datasets)
+        # components
         self.lr = LengthRegulator()
         self.pe = get_pitch_extractor_cls(hparams)(hparams)
-        self.vocoder = get_vocoder_cls(hparams["vocoder"])()
-        timesteps = hparams["hop_size"] / hparams["audio_sample_rate"]
+        # param
+        self.samplerate = hparams["audio_sample_rate"]
+        self.hop_size, self.fft_size, self.win_size = hparams["hop_size"], hparams["fft_size"], hparams["win_size"]
+        self.timesteps = self.hop_size / self.samplerate 
         self.midi_smooth = SinusoidalSmoothingConv1d(
-            round(0.06 / timesteps)
+            round(0.06 / self.timesteps)
         ).eval()
     
     @staticmethod
@@ -55,28 +54,27 @@ class PitchPredictorBinarizer(Binarizer):
 
     def process_item(self, item: dict):
         hparams = self.hparams
-        lr, pe = self.lr, self.pe
-
-        wav, mel = self.vocoder.wav2spec(item["wav_fn"], hparams=hparams)
-        preprocessed_item = {
-            "spk_id" : item["spk_id"],
-        }
-        preprocessed_item["sec"] = len(wav) / hparams['audio_sample_rate']
-        preprocessed_item["length"] = mel.shape[0]
+        preprocessed_item = {}
+        # wavform
+        waveform, _ = librosa.load(item["wav_fn"], sr=self.samplerate)
+        mel_len = round(len(waveform) / self.hop_size)
+        # summary
+        preprocessed_item["sec"] = len(waveform) / self.samplerate
+        preprocessed_item["length"] = mel_len
+        # spk
+        preprocessed_item["spk_id"] = item["spk_id"]
         # f0
-        f0, uv = pe.get_pitch(
-            wav, 
-            samplerate = hparams['audio_sample_rate'], 
-            length = mel.shape[0], 
-            hop_size = hparams['hop_size'], 
+        f0, uv = self.pe.get_pitch(
+            waveform, 
+            samplerate = self.samplerate, 
+            length = mel_len, 
+            hop_size = self.hop_size, 
             interp_uv = hparams['interp_uv']
         )
         assert not uv.all(), f"all unvoiced. item_name: {item['item_name']}, wav_fn: {item['wav_fn']}"
-        preprocessed_item["f0"] = f0
         preprocessed_item["pitch"] = librosa.hz_to_midi(f0.astype(np.float32))
         # note
-        timestep = hparams['hop_size'] / hparams['audio_sample_rate']
-        mel2note = get_mel2ph_dur(lr, torch.FloatTensor(item["note_dur"]), mel.shape[0], timestep)
+        mel2note = get_mel2ph_dur(self.lr, torch.FloatTensor(item["note_dur"]), mel_len, self.timestep)
         preprocessed_item["mel2note"] = mel2note
         note_midi = np.array(
             [librosa.note_to_midi(nt, round_midi=False) if nt != "rest" else -1 for nt in item["note_seq"]],
@@ -92,5 +90,4 @@ class PitchPredictorBinarizer(Binarizer):
         # base f0
         frame_pitch = torch.gather(F.pad(torch.FloatTensor(note_midi), [1, 0], value=-1), 0, torch.LongTensor(mel2note))
         preprocessed_item["base_pitch"] = self.midi_smooth(frame_pitch[None])[0].detach().numpy()
-        preprocessed_item["base_f0"] = librosa.midi_to_hz(preprocessed_item["base_pitch"])
         return preprocessed_item
