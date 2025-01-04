@@ -109,14 +109,18 @@ class ProDiffTeacher(nn.Module):
             condition += self.add_spk_embed(spk_embed_id, spk_mix_embed)
         if self.with_gender_embed:
             condition += self.add_gender_embed(gender_embed_id, gender_mix_embed)
+        # variance
+        variance_embeds = []
         # voicing
         if self.with_voicing_embed:
             voicing_embed = self.voicing_embed(voicing[:, :, None])
-            condition += voicing_embed
+            variance_embeds.append(voicing_embed)
         # breath
         if self.with_breath_embed:
             breath_embed = self.breath_embed(breath[:, :, None])
-            condition += breath_embed
+            variance_embeds.append(breath_embed)
+        if len(variance_embeds) > 0:
+            condition += torch.stack(variance_embeds, dim=-1).sum(-1)
         nonpadding = (mel2ph > 0).float()[:, :, None]
         condition = condition * nonpadding
         # diffusion

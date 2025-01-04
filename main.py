@@ -45,9 +45,17 @@ def train(train_task, config, exp_name):
 @click.option("--gender", type=int, default=0)
 @click.option("--pred_dur", is_flag=True)
 @click.option("--pred_pitch", type=str, default="")
-def infer(proj, exp_name, spk_name, lang, keyshift, gender, pred_dur, pred_pitch):
+@click.option("--pred_voicing", is_flag=True)
+@click.option("--pred_breath", is_flag=True)
+def infer(proj, exp_name, spk_name, lang, keyshift, gender, pred_dur, pred_pitch, pred_voicing, pred_breath):
     from handler.infer import InferHandler
-    InferHandler(exp_name=exp_name, pred_dur=pred_dur, pred_pitch=pred_pitch).handle(None, proj, spk_name, lang, keyshift, gender)
+    InferHandler(
+        exp_name=exp_name, 
+        pred_dur=pred_dur, 
+        pred_pitch=pred_pitch,
+        pred_voicing=pred_voicing,
+        pred_breath=pred_breath
+    ).handle(None, proj, spk_name, lang, keyshift, gender)
 
 @main.group()
 def vocode():

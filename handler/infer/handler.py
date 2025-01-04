@@ -20,7 +20,7 @@ from component.vocoder.base_vocoder import get_vocoder_cls
 
 
 class InferHandler:
-    def __init__(self, exp_name, pred_dur=False, pred_pitch=False):
+    def __init__(self, exp_name, pred_dur=False, pred_pitch=False, pred_voicing=False, pred_breath=False):
         self.hparams = set_hparams_v2(
             exp_name=exp_name,
             task="svs",
@@ -57,11 +57,36 @@ class InferHandler:
             pitch_pred_hparams = set_hparams_v2(
                 exp_name=exp_name if is_local_pred_pitch_model else None,
                 task="pitch",
-                global_hparams=False
+                global_hparams=False,
+                make_work_dir=False
             )
             self.pitch_predictor = get_inferer_cls("pitch")(pitch_pred_hparams)
             self.pitch_predictor.build_model()
             self.midi_smooth = SinusoidalSmoothingConv1d(round(0.06/self.timestep)).eval()
+        self.pred_voicing = pred_voicing
+        if self.pred_voicing:
+            voicing_work_dir = os.path.join(*self.work_dir.split('\\')[:-1], 'voicing')
+            is_local_pred_voicing_model = os.path.exists(f"{voicing_work_dir}/config.yaml")
+            voicing_pred_hparams = set_hparams_v2(
+                exp_name=exp_name if is_local_pred_voicing_model else None,
+                task="voicing",
+                global_hparams=False,
+                make_work_dir=False
+            )
+            self.voicing_predictor = get_inferer_cls("voicing")(voicing_pred_hparams)
+            self.voicing_predictor.build_model()
+        self.pred_breath = pred_breath
+        if self.pred_breath:
+            breath_work_dir = os.path.join(*self.work_dir.split('\\')[:-1], 'breath')
+            is_local_pred_breath_model = os.path.exists(f"{breath_work_dir}/config.yaml")
+            breath_pred_hparams = set_hparams_v2(
+                exp_name=exp_name if is_local_pred_breath_model else None,
+                task="breath",
+                global_hparams=False,
+                make_work_dir=False
+            )
+            self.breath_predictor = get_inferer_cls("breath")(breath_pred_hparams)
+            self.breath_predictor.build_model()
         self.vocoder = self.build_vocoder()
     
     def build_phone_encoder(self):
@@ -176,9 +201,8 @@ class InferHandler:
         durations = torch.diff(ph_acc, dim=0, prepend=torch.LongTensor([0]).to(self.device))[None]  # => [B=1, T_txt]
         mel2ph = self.lr(durations, ph_token_seq == 0)  # => [B=1, T]
         mel_len = mel2ph.shape[1]
-        # pitch
-        if self.pred_pitch:
-            spk_id = torch.LongTensor([self.pred_pitch_spk_id]).to(self.device)
+        # note
+        if self.pred_breath or self.pred_pitch or self.pred_voicing:
             note_midi = np.array(
                 [librosa.note_to_midi(nt, round_midi=False) if nt != "rest" else -1 for nt in segment["note_seq"].split()],
                 dtype=np.float32
@@ -196,6 +220,9 @@ class InferHandler:
             note_midi = torch.FloatTensor(note_midi)
             note_dur_sec = torch.from_numpy(np.array(segment["note_dur_seq"].split(), np.float32))
             mel2note = torch.from_numpy(get_mel2ph_dur(self.lr, note_dur_sec, mel_len, self.timestep))
+        # pitch
+        if self.pred_pitch:
+            spk_id = torch.LongTensor([self.pred_pitch_spk_id]).to(self.device)
             base_f0 = torch.gather(F.pad(note_midi, [1, 0], value=-1), 0, mel2note)
             base_f0 = self.midi_smooth(base_f0[None])[0].to(self.device)[None, :]
             f0_seq = self.pitch_predictor.run_model(
@@ -241,13 +268,23 @@ class InferHandler:
             if "voicing" in segment:
                 voicing = torch.FloatTensor([float(x) for x in segment["voicing"].split()]).to(self.device)[None, :]
             else:
-                voicing = torch.FloatTensor([-10.0] * mel_len).to(self.device)[None, :]
+                voicing = self.voicing_predictor.run_model(
+                    note_midi = note_midi.to(self.device)[None, :],
+                    note_rest = note_rest.to(self.device)[None, :],
+                    mel2note = mel2note.to(self.device)[None, :],
+                    f0 = f0_seq,
+                )
         breath = None
         if self.hparams.get("use_breath_embed", False):
             if "breath" in segment:
                 breath = torch.FloatTensor([float(x) for x in segment["breath"].split()]).to(self.device)[None, :]
             else:
-                breath = torch.FloatTensor([-50.0] * mel_len).to(self.device)[None, :]
+                breath = self.breath_predictor.run_model(
+                    note_midi = note_midi.to(self.device)[None, :],
+                    note_rest = note_rest.to(self.device)[None, :],
+                    mel2note = mel2note.to(self.device)[None, :],
+                    f0 = f0_seq,
+                )
         with torch.no_grad():
             start_time = time.time()
             mel_out = self.svs_inferer.run_model(
