@@ -1,26 +1,22 @@
 import json
-import os
 import librosa
-from matplotlib import pyplot as plt
 import numpy as np
 from scipy import interpolate
-import textgrid
 import torch
 from torch.functional import F
 from component.binarizer.base import Binarizer, register_binarizer
-from component.binarizer.binarizer_utils import extract_harmonic_aperiodic, get_energy, get_mel_spec
+from component.binarizer.binarizer_utils import extract_harmonic_aperiodic, get_energy
 from component.pe.base import get_pitch_extractor_cls
 from modules.commons.common_layers import SinusoidalSmoothingConv1d
 from modules.fastspeech.tts_modules import LengthRegulator
 from utils.data_gen_utils import get_mel2ph_dur
-from component.vocoder.base_vocoder import get_vocoder_cls
 
 
-@register_binarizer
 class VariPredictorBinarizer(Binarizer):
     def __init__(self, hparams, vari_type):
         super().__init__(hparams)
         self.vari_type = vari_type
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         # components
         self.lr = LengthRegulator()
         self.pe = get_pitch_extractor_cls(hparams)(hparams)
@@ -39,12 +35,12 @@ class VariPredictorBinarizer(Binarizer):
             data_dir = dataset["data_dir"]
             with open(f"{data_dir}/label.json", "r", encoding="utf-8") as f:
                 labels = json.load(f)
-            for label in labels:
+            for item_name, label in labels.items():
                 # note
                 note_seq = label["note_seq"].split(" ")
                 note_dur = [float(x) for x in label["note_dur"].split(" ")]
                 item = {
-                    "wav_fn" : f"{data_dir}/wav/{label['name']}.wav",
+                    "wav_fn" : f"{data_dir}/wav/{item_name}.wav",
                     "note_seq": note_seq,
                     "note_dur": note_dur,
                 }
@@ -98,7 +94,7 @@ class VariPredictorBinarizer(Binarizer):
             preprocessed_item["breath"] = breath.detach().cpu().numpy()
         return preprocessed_item
     
-
+@register_binarizer
 class VoicingPredictorBinarizer(VariPredictorBinarizer):
     def __init__(self, hparams):
         super().__init__(hparams, "voicing")
@@ -107,6 +103,7 @@ class VoicingPredictorBinarizer(VariPredictorBinarizer):
     def category():
         return "voicing"
     
+@register_binarizer
 class BreathPredictorBinarizer(VariPredictorBinarizer):
     def __init__(self, hparams):
         super().__init__(hparams, "breath")
