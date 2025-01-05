@@ -9,9 +9,11 @@ import numpy as np
 import torch
 
 from component.inferer.base import get_inferer_cls
+from modules.ProDiff.prodiff_teacher import ProDiffTeacher
 from modules.commons.common_layers import SinusoidalSmoothingConv1d
 from modules.fastspeech.tts_modules import LengthRegulator
 from utils.audio import cross_fade, save_wav
+from utils.ckpt_utils import load_ckpt
 from utils.data_gen_utils import get_mel2ph_dur
 from utils.pitch_utils import resample_align_curve, shift_pitch
 from utils.text_encoder import TokenTextEncoder
@@ -38,8 +40,8 @@ class InferHandler:
         self.lang_map = self.build_lang_map()
 
         self.lr = LengthRegulator()
-        self.svs_inferer = get_inferer_cls("svs")(self.hparams)
-        self.svs_inferer.build_model(self.ph_encoder)
+        self.build_model()
+
         self.pred_dur = pred_dur
         if pred_dur:
             is_local_pred_dur_model = os.path.exists(f"{self.work_dir}/dur/config.yaml")
@@ -109,6 +111,36 @@ class InferHandler:
         with open(lang_map_fn, 'r') as f:
             lang_map = json.load(f)
         return lang_map
+
+    def build_model(self):
+        f0_stats_fn = f'{self.hparams["work_dir"]}/train_f0s_mean_std.npy'
+        if os.path.exists(f0_stats_fn):
+            self.hparams['f0_mean'], self.hparams['f0_std'] = np.load(f0_stats_fn)
+            self.hparams['f0_mean'] = float(self.hparams['f0_mean'])
+            self.hparams['f0_std'] = float(self.hparams['f0_std'])
+        model = ProDiffTeacher(self.ph_encoder, self.hparams)
+        model.eval()
+        load_ckpt(model, self.hparams["work_dir"], 'model')
+        model.to(self.device)
+        self.model = model
+
+    def run_model(self, **inp):
+        ph_seq = inp['ph_seq']
+        f0_seq = inp['f0_seq']
+        mel2ph = inp['mel2ph']
+        spk_mix_embed = inp.get('spk_mix_embed', None)
+        gender_mix_embed = inp.get("gender_mix_embed", None)
+        lang_seq = inp.get('lang_seq', None)
+        vociing = inp.get('voicing', None)
+        breath = inp.get('breath', None)
+        mel_out = self.model(
+            ph_seq, f0=f0_seq, mel2ph=mel2ph, 
+            spk_mix_embed=spk_mix_embed, gender_mix_embed=gender_mix_embed,
+            lang_seq=lang_seq, 
+            voicing=vociing, breath=breath,
+            infer=True
+        )
+        return mel_out
 
     def build_vocoder(self):
         vocoder = get_vocoder_cls(self.hparams["vocoder"])(self.hparams)
@@ -252,7 +284,7 @@ class InferHandler:
         if self.hparams["use_spk_id"]:
             spk_mix_id, spk_mix_value = self.get_speaker_mix(segment["spk_name"])
             spk_mix_embed = torch.sum(
-                self.svs_inferer.model.spk_embed(spk_mix_id) * spk_mix_value.unsqueeze(3), 
+                self.model.spk_embed(spk_mix_id) * spk_mix_value.unsqueeze(3), 
                 dim=2, keepdim=False
             )
         gender_mix_embed = None
@@ -260,7 +292,7 @@ class InferHandler:
             gender_value = segment["gender"]
             gender_mix_id, gender_mix_value = self.get_gender_mix(gender_value)
             gender_mix_embed = torch.sum(
-                self.svs_inferer.model.gender_embed(gender_mix_id) * gender_mix_value.unsqueeze(3),
+                self.model.gender_embed(gender_mix_id) * gender_mix_value.unsqueeze(3),
                 dim=2, keepdim=False
             )
         voicing = None
@@ -268,26 +300,32 @@ class InferHandler:
             if "voicing" in segment:
                 voicing = torch.FloatTensor([float(x) for x in segment["voicing"].split()]).to(self.device)[None, :]
             else:
-                voicing = self.voicing_predictor.run_model(
-                    note_midi = note_midi.to(self.device)[None, :],
-                    note_rest = note_rest.to(self.device)[None, :],
-                    mel2note = mel2note.to(self.device)[None, :],
-                    f0 = f0_seq,
-                )
+                if self.pred_voicing:
+                    voicing = self.voicing_predictor.run_model(
+                        note_midi = note_midi.to(self.device)[None, :],
+                        note_rest = note_rest.to(self.device)[None, :],
+                        mel2note = mel2note.to(self.device)[None, :],
+                        f0 = f0_seq,
+                    )
+                else:
+                    voicing = torch.FloatTensor([-10.0] * mel_len).to(self.device)[None, :]
         breath = None
         if self.hparams.get("use_breath_embed", False):
             if "breath" in segment:
                 breath = torch.FloatTensor([float(x) for x in segment["breath"].split()]).to(self.device)[None, :]
             else:
-                breath = self.breath_predictor.run_model(
-                    note_midi = note_midi.to(self.device)[None, :],
-                    note_rest = note_rest.to(self.device)[None, :],
-                    mel2note = mel2note.to(self.device)[None, :],
-                    f0 = f0_seq,
-                )
+                if self.pred_breath:
+                    breath = self.breath_predictor.run_model(
+                        note_midi = note_midi.to(self.device)[None, :],
+                        note_rest = note_rest.to(self.device)[None, :],
+                        mel2note = mel2note.to(self.device)[None, :],
+                        f0 = f0_seq,
+                    )
+                else:
+                    breath = torch.FloatTensor([-50.0] * mel_len).to(self.device)[None, :]
         with torch.no_grad():
             start_time = time.time()
-            mel_out = self.svs_inferer.run_model(
+            mel_out = self.run_model(
                 ph_seq=ph_token_seq, 
                 f0_seq=f0_seq, 
                 mel2ph=mel2ph, 

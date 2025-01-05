@@ -12,7 +12,7 @@ def main():
 @click.option("--exp_name", type=str, required=True)
 def binarize(task, config, exp_name):
     from handler.binarize import BinarizeHandler
-    hparams = set_hparams(config_fn=config, exp_name=exp_name, task=task)
+    hparams = set_hparams(config_fn=config, exp_name=exp_name, task=task, make_work_dir=False)
     BinarizeHandler(hparams=hparams).handle()
 
 
@@ -32,7 +32,7 @@ def train(train_task, config, exp_name):
         "breath": BreathPredictorTask,
     }
     assert train_task in train_task_map, f"Invalid train task: {train_task}, use one of {list(train_task_map.keys())}"
-    hparams = set_hparams(config_fn=config, exp_name=exp_name, task=train_task)
+    hparams = set_hparams(config_fn=config, exp_name=exp_name, task=train_task, make_work_dir=True)
     TrainHandler(hparams=hparams).handle(train_task_map[train_task])
 
 

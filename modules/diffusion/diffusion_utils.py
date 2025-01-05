@@ -25,7 +25,7 @@ def _logsnr_schedule_cosine(t, *, logsnr_min, logsnr_max):
 
 def get_noise_schedule_list(schedule_mode, timesteps, min_beta=0.0, max_beta=0.01, s=0.008):
     if schedule_mode == "linear":
-        schedule_list = np.linspace(0.000001, 0.01, timesteps)
+        schedule_list = np.linspace(1e-4, max_beta, timesteps)
     elif schedule_mode == "cosine":
         steps = timesteps + 1
         x = np.linspace(0, steps, steps)

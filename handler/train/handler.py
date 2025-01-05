@@ -489,15 +489,6 @@ class TrainHandler:
         random.seed(self.seed)
         np.random.seed(self.seed)
 
-        if len(self.hparams['save_codes']) > 0:
-            t = datetime.now().strftime('%Y%m%d%H%M%S')
-            code_dir = f'{self.work_dir}/codes/{t}'
-            subprocess.check_call(f'mkdir -p "{code_dir}"', shell=True)
-            for c in self.hparams['save_codes']:
-                if os.path.exists(c):
-                    subprocess.check_call(f'rsync -av --exclude=__pycache__  "{c}" "{code_dir}/"', shell=True)
-            print(f"| Copied codes to {code_dir}.")
-
         if len(self.all_gpu_ids) > 1: # 有多个GPU则使用DDP
             mp.spawn(self.ddp_run, nprocs=self.num_gpus, args=(task_cls, copy.deepcopy(self.hparams)))
         else:

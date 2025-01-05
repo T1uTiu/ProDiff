@@ -31,8 +31,8 @@ class VariPredictor(nn.Module):
                 residual_channels=vari_prediction_args["denoise_args"]["residual_channels"],
                 dilation_cycle_length=vari_prediction_args["denoise_args"]["dilation_cycle_length"],
             ),
-            timesteps=hparams["timesteps"],
-            time_scale=hparams["timescale"],
+            timesteps=vari_prediction_args["timesteps"],
+            time_scale=vari_prediction_args["timescale"],
             spec_min=vari_prediction_args["spec_min"],
             spec_max=vari_prediction_args["spec_max"],
         )

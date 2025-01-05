@@ -56,6 +56,7 @@ class ProDiffTeacher(nn.Module):
             timesteps=hparams["timesteps"],
             time_scale=hparams["timescale"],
             schedule_type=hparams['schedule_type'],
+            max_beta=hparams.get("max_beta", 0.02),
             spec_min=hparams["spec_min"],
             spec_max=hparams["spec_max"],
         )

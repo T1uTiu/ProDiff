@@ -1,202 +1,22 @@
-#############
-# basic
-#############
-ds_workers: 2
-amp: false
-seed: 1234
-debug: false
-save_codes: []
+base_config: "handler/base_config.yaml"
 
 #############
-# build dataset
+# dataset
 #############
 datasets:
-  - data_dir : data/test
-    speaker: test
+  - data_dir : data/opcp
+    speaker: opcp
     language: zh
-data_dir: data/test
-dictionary: 
-  global: dictionary/global.csv
-  zh: dictionary/zh.txt
-  jp: dictionary/jp.txt
+data_dir: data/binary_opcp
 test_num: 6
 valid_num: 6
-binarization_args:
-  shuffle: false
-pitch_extractor: rmvpe # parselmouth|rmvpe
-pe_ckpt: checkpoints/rmvpe/model.pt
-vr_ckpt: checkpoints/vr/model.pt
-interp_uv: true
-loud_norm: false
-min_frames: 0
-max_frames: 1548
-# analysis parameters
-audio_num_mel_bins: 128
-audio_sample_rate: 44100
-hop_size: 512  # For 22050Hz, 275 ~= 12.5 ms (0.0125 * sample_rate)
-win_size: 2048  # For 22050Hz, 1100 ~= 50 ms (If None, win_size: fft_size) (0.05 * sample_rate)
-fmin: 40  # Set this to 55 if your speaker is male! if female, 95 should help taking off noise. (To test depending on dataset. Pitch info: male~[65, 260], female~[100, 525])
-fmax: 16000  # To be increased/reduced depending on data.
-fft_size: 2048  # Extra window size is filled with 0 paddings to match this parameter
-min_level_db: -100
-mel_vmin: -6
-mel_vmax: 1.5
 
-
-#########
-# train and eval
-#########
-endless_ds: true
-sort_by_len: true
-print_nan_grads: false
-load_ckpt: ''
-save_best: true
-num_ckpt_keep: 3
-clip_grad_norm: 1
-accumulate_grad_batches: 1
-tb_log_interval: 10
-num_sanity_val_steps: -1  # steps of validation at the beginning
-check_val_every_n_epoch: 10
-val_check_interval: 2000
-valid_monitor_key: 'val_loss'
-valid_monitor_mode: 'min'
-max_epochs: 1000
-max_updates: 200000
-max_tokens: 32000
-max_sentences: 48
-max_valid_tokens: -1
-max_valid_sentences: 1
-resume_from_checkpoint: 0
-rename_tmux: true
-train_set_name: 'train'
-valid_set_name: 'valid'
-test_set_name: 'test'
-num_valid_plots: 10
-profile_infer: false
-gen_dir_name: ''
-
-#########
-# model
-#########
-dropout: 0.1
-harmonic_aperiodic_seperate: false # control synth full spec or separate harmonic and aperiodic
-
-# fft enc/dec
-dec_num_heads: 2
-enc_layers: 4
-dec_layers: 4
-ffn_hidden_size: 1024
-hidden_size: 256
-num_heads: 2
-enc_ffn_kernel_size: 9
-dec_ffn_kernel_size: 9
+#############
+# model option
+#############
 use_spk_id: true
-use_split_spk_id: false
-use_spk_embed: false
-use_pos_embed: true
 use_lang_id: true
-use_gender_id: false
-rel_pos: false
-
-# duration
 use_dur_embed: true
-dur_prediction_args:
-  enable: true
-  num_layers: 5
-  hidden_size: 512
-  dropout: 0.1
-  kernel_size: 3
-  log_offset: 1.0
-  loss_type: mse
-  lambda_pdur_loss: 0.3
-  lambda_wdur_loss: 1.0
-  lambda_sdur_loss: 0.1
-
-# pitch
 use_pitch_embed: true
-f0_prediction_args:
-  enable: false
-  spec_min: -8.0
-  spec_max: 8.0
-  repeat_bins: 64
-  encoder_args:
-    hidden_size: 128
-    num_layers: 4
-    ffn_kernel_size: 9
-    num_heads: 2
-  denoise_args:
-    dilation_cycle_length: 5
-    residual_layers: 20
-    residual_channels: 256
-  loss_type: l1:0.5|ssim:0.5
-
-# voicing
-use_voicing_embed: true
-voicing_prediction_args:
-  enable: false
-  spec_min: -8.0
-  spec_max: 8.0
-  repeat_bins: 48
-  encoder_args:
-    hidden_size: 128
-    num_layers: 4
-    ffn_kernel_size: 9
-    num_heads: 2
-  denoise_args:
-    dilation_cycle_length: 4
-    residual_layers: 10
-    residual_channels: 192
-  loss_type: l1:0.5|ssim:0.5
-
-# breath
-use_breath_embed: true
-breath_prediction_args:
-  enable: false
-  spec_min: -8.0
-  spec_max: 8.0
-  repeat_bins: 48
-  encoder_args:
-    hidden_size: 128
-    num_layers: 4
-    ffn_kernel_size: 9
-    num_heads: 2
-  denoise_args:
-    dilation_cycle_length: 4
-    residual_layers: 10
-    residual_channels: 192
-  loss_type: l1:0.5|ssim:0.5
-
-# energy
-use_energy_embed: false
-
-# mel
-mel_loss: l1:0.5|ssim:0.5 # l1|l2|gdl|ssim or l1:0.5|ssim:0.5
-
-# vocoder
-vocoder: nsfhifigan
-vocoder_ckpt: checkpoints/nsf_hifigan/model
-vocoder_denoise_c: 0.0
-
-# diffusion
-diff_decoder_type: 'wavenet'
-dilation_cycle_length: 1
-residual_layers: 20
-residual_channels: 256
-keep_bins: 80
-spec_min: []
-spec_max: []
-max_beta: 0.06
-timesteps: 4
-timescale: 1
-schedule_type: 'vpsde'
-
-###########
-# optimization
-###########
-lr: 1.0
-scheduler: rsqrt # rsqrt|none
-warmup_updates: 2000
-optimizer_adam_beta1: 0.9
-optimizer_adam_beta2: 0.98
-weight_decay: 0
-clip_grad_value: 0
+use_voicing_embed: false
+use_breath_embed: false

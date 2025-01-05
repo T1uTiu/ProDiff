@@ -4,6 +4,15 @@ import yaml
 
 hparams = {}
 
+def load_config(config_fn):
+    with open(config_fn) as f:
+        _hparams = yaml.safe_load(f)
+    if "base_config" in _hparams and _hparams["base_config"] != "":
+        base_hparams = load_config(_hparams["base_config"])
+        base_hparams.update(_hparams)
+        _hparams = base_hparams
+    return _hparams
+
 def set_hparams(config_fn=None, exp_name=None, task=None, global_hparams=True, make_work_dir=True):
     global hparams
     if config_fn is None or not os.path.exists(config_fn):
@@ -14,8 +23,7 @@ def set_hparams(config_fn=None, exp_name=None, task=None, global_hparams=True, m
         config_fn = os.path.join(config_fn, task, "config.yaml")
     assert os.path.exists(config_fn), f"Config file not found: {config_fn}"
     
-    with open(config_fn) as f:
-        _hparams = yaml.safe_load(f)
+    _hparams = load_config(config_fn)
 
     _hparams["task"] = task
     if exp_name is not None:
@@ -25,7 +33,8 @@ def set_hparams(config_fn=None, exp_name=None, task=None, global_hparams=True, m
         _hparams['work_dir'] = os.path.join("checkpoints", task)
     if make_work_dir:
         os.makedirs(_hparams['work_dir'], exist_ok=True)
-        shutil.copy(config_fn, os.path.join(_hparams['work_dir'], "config.yaml"))
+        with open(os.path.join(_hparams['work_dir'], "config.yaml"), "w") as f:
+            yaml.dump(_hparams, f)
     
     if global_hparams:
         hparams = _hparams

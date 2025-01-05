@@ -8,7 +8,7 @@ from tqdm import tqdm
 class GaussianDiffusion(nn.Module):
     def __init__(self, out_dims, denoise_fn,
                  timesteps=1000, time_scale=1, 
-                 betas=None, schedule_type="vpsde",
+                 betas=None, schedule_type="vpsde", max_beta=0.02,
                  spec_min=None, spec_max=None):
         super().__init__()
         self.denoise_fn = denoise_fn
@@ -21,7 +21,7 @@ class GaussianDiffusion(nn.Module):
                 schedule_mode=schedule_type,
                 timesteps=timesteps + 1,
                 min_beta=0.1,
-                max_beta=40,
+                max_beta=max_beta,
                 s=0.008,
             )
 
