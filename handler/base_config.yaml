@@ -132,6 +132,9 @@ f0_prediction_args:
 
 # voicing
 use_voicing_embed: true
+voicing_norm: true
+voicing_db_min: -96
+voicing_db_max: -12
 voicing_prediction_args:
   spec_min: -8.0
   spec_max: 8.0
@@ -151,6 +154,9 @@ voicing_prediction_args:
 
 # breath
 use_breath_embed: true
+breath_norm: true
+breath_db_min: -96
+breath_db_max: -12
 breath_prediction_args:
   spec_min: -8.0
   spec_max: 8.0

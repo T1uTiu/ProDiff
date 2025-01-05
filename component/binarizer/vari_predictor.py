@@ -5,7 +5,7 @@ from scipy import interpolate
 import torch
 from torch.functional import F
 from component.binarizer.base import Binarizer, register_binarizer
-from component.binarizer.binarizer_utils import extract_harmonic_aperiodic, get_energy
+from component.binarizer.binarizer_utils import extract_harmonic_aperiodic, get_breath, get_energy, get_voicing
 from component.pe.base import get_pitch_extractor_cls
 from modules.commons.common_layers import SinusoidalSmoothingConv1d
 from modules.fastspeech.tts_modules import LengthRegulator
@@ -84,14 +84,30 @@ class VariPredictorBinarizer(Binarizer):
         harmonic_part, aperiodic_part = extract_harmonic_aperiodic(waveform, hparams["vr_ckpt"])
         # voicing
         if self.vari_type == "voicing":
-            voicing = get_energy(harmonic_part, mel_len, self.hop_size, self.win_size)
-            voicing = self.vari_smooth(torch.from_numpy(voicing).to(self.device)[None])[0]
-            preprocessed_item["voicing"] = voicing.detach().cpu().numpy()
+            preprocessed_item["voicing"] = get_voicing(
+                sp=harmonic_part,
+                mel_len=mel_len,
+                hop_size=self.hop_size,
+                win_size=self.win_size,
+                smooth_moudle=self.vari_smooth,
+                norm=hparams["voicing_norm"],
+                db_min=hparams["voicing_db_min"],
+                db_max=hparams["voicing_db_max"],
+                device=self.device
+            )
         # breath
         if self.vari_type == "breath":
-            breath = get_energy(aperiodic_part, mel_len, self.hop_size, self.win_size)
-            breath = self.vari_smooth(torch.from_numpy(breath).to(self.device)[None])[0]
-            preprocessed_item["breath"] = breath.detach().cpu().numpy()
+            preprocessed_item["breath"] = get_breath(
+                ap=aperiodic_part,
+                mel_len=mel_len ,
+                hop_size=self.hop_size,
+                win_size=self.win_size,
+                smooth_moudle=self.vari_smooth,
+                norm=hparams["breath_norm"],
+                db_min=hparams["breath_db_min"],
+                db_max=hparams["breath_db_max"],
+                device=self.device
+            )
         return preprocessed_item
     
 @register_binarizer

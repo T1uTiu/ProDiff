@@ -154,10 +154,10 @@ dmypy.json
 /infer_out
 
 # 模型
-/checkpoints
+/checkpoints/*
 
 # 数据
-/data
+/data/*
 
 .vscode
 

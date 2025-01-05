@@ -5,7 +5,7 @@ import librosa
 import numpy as np
 import torch
 from component.binarizer.base import Binarizer, register_binarizer
-from component.binarizer.binarizer_utils import build_lang_map, build_phone_encoder, build_spk_map, extract_harmonic_aperiodic, get_energy, get_mel_spec
+from component.binarizer.binarizer_utils import build_lang_map, build_phone_encoder, build_spk_map, extract_harmonic_aperiodic, get_breath, get_energy, get_mel_spec, get_voicing
 from component.pe.base import get_pitch_extractor_cls
 from modules.commons.common_layers import SinusoidalSmoothingConv1d
 from modules.fastspeech.tts_modules import LengthRegulator
@@ -115,12 +115,28 @@ class SVSBinarizer(Binarizer):
         preprocessed_item["f0"] = f0
         # voicing
         if self.hparams.get("use_voicing_embed", False):
-            voicing = get_energy(harmonic_part, mel.shape[0], self.hop_size, self.win_size)
-            voicing = self.voicing_smooth(torch.from_numpy(voicing).to(self.device)[None])[0]
-            preprocessed_item["voicing"] = voicing.detach().cpu().numpy()
+            preprocessed_item["voicing"] = get_voicing(
+                sp=harmonic_part,
+                mel_len=mel.shape[0],
+                hop_size=self.hop_size,
+                win_size=self.win_size,
+                smooth_moudle=self.voicing_smooth,
+                norm=hparams["voicing_norm"],
+                db_min=hparams["voicing_db_min"],
+                db_max=hparams["voicing_db_max"],
+                device=self.device
+            )
         # breath
         if self.hparams.get("use_breath_embed", False):
-            breath = get_energy(aperiodic_part, mel.shape[0], self.hop_size, self.win_size)
-            breath = self.breath_smooth(torch.from_numpy(breath).to(self.device)[None])[0]
-            preprocessed_item["breath"] = breath.detach().cpu().numpy()
+            preprocessed_item["breath"] = get_breath(
+                ap=aperiodic_part,
+                mel_len=mel.shape[0],
+                hop_size=self.hop_size,
+                win_size=self.win_size,
+                smooth_moudle=self.breath_smooth,
+                norm=hparams["breath_norm"],
+                db_min=hparams["breath_db_min"],
+                db_max=hparams["breath_db_max"],
+                device=self.device
+            )
         return preprocessed_item

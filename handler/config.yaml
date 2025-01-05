@@ -7,6 +7,7 @@ datasets:
   - data_dir : data/opcp
     speaker: opcp
     language: zh
+num_spk: 1
 data_dir: data/binary_opcp
 test_num: 6
 valid_num: 6

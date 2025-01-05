@@ -24,7 +24,7 @@ class ProDiffTeacher(nn.Module):
 
         self.with_spk_embed = hparams.get('use_spk_id', True)
         if self.with_spk_embed:
-            self.spk_embed = Embedding(len(hparams['datasets']), hparams['hidden_size'])
+            self.spk_embed = Embedding(hparams['num_spk'], hparams['hidden_size'])
 
         self.with_gender_embed = hparams.get("use_gender_id", False)
         if self.with_gender_embed:

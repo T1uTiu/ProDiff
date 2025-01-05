@@ -102,3 +102,19 @@ def get_energy(waveform, mel_len, hop_size, win_size, domain="db"):
     else:
         raise ValueError(f"Unknown domain: {domain}")
     return energy
+
+def get_voicing(sp, mel_len, hop_size, win_size, smooth_moudle, norm=True, db_min=-96.0, db_max=-12.0, device="cuda"):
+    voicing = get_energy(sp, mel_len, hop_size, win_size)
+    voicing = smooth_moudle(torch.from_numpy(voicing).to(device)[None])[0]
+    if norm:
+        voicing = torch.clamp(voicing, db_min, db_max)
+        voicing = (voicing - db_min) / (db_max - db_min)
+    return voicing.detach().cpu().numpy()
+
+def get_breath(ap, mel_len, hop_size, win_size, smooth_moudle, norm=True, db_min=-96.0, db_max=-12.0, device="cuda"):
+    breath = get_energy(ap, mel_len, hop_size, win_size)
+    breath = smooth_moudle(torch.from_numpy(breath).to(device)[None])[0]
+    if norm:
+        breath = torch.clamp(breath, db_min, db_max)
+        breath = (breath - db_min) / (db_max - db_min)
+    return breath.detach().cpu().numpy()
