@@ -38,10 +38,13 @@ max_frames: 1548
 min_level_db: -100
 idx_ds_segment_size: 1024
 binarization_args:
+  with_phoneme: true
+  with_note: false
   with_spk_id: true
   with_lang_id: true
   with_voicing: false
   with_breath: false
+  with_tension: false
   shuffle: false
 
 
@@ -161,8 +164,30 @@ voicing_prediction_args:
 use_breath_embed: true
 breath_norm: false
 breath_db_min: -96
-breath_db_max: -12
+breath_db_max: -20
 breath_prediction_args:
+  spec_min: -8.0
+  spec_max: 8.0
+  repeat_bins: 48
+  encoder_args:
+    hidden_size: 128
+    num_layers: 4
+    ffn_kernel_size: 9
+    num_heads: 2
+  denoise_args:
+    dilation_cycle_length: 1
+    residual_layers: 20
+    residual_channels: 256
+  timesteps: 4
+  timescale: 1
+  loss_type: l1:0.5|ssim:0.5
+
+# tension
+use_tension_embed: true
+tension_norm: false
+tension_logit_min: -96
+tension_logit_max: -12
+tension_prediction_args:
   spec_min: -8.0
   spec_max: 8.0
   repeat_bins: 48

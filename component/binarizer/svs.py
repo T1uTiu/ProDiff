@@ -5,7 +5,7 @@ import librosa
 import numpy as np
 import torch
 from component.binarizer.base import Binarizer, register_binarizer
-from component.binarizer.binarizer_utils import build_lang_map, build_phone_encoder, build_spk_map, extract_harmonic_aperiodic, get_breath, get_energy, get_mel_spec, get_voicing
+from component.binarizer.binarizer_utils import build_lang_map, build_phone_encoder, build_spk_map, extract_harmonic_aperiodic, get_breath, get_energy, get_mel_spec, get_tension, get_voicing
 from component.pe.base import get_pitch_extractor_cls
 from modules.commons.common_layers import SinusoidalSmoothingConv1d
 from modules.fastspeech.tts_modules import LengthRegulator
@@ -49,6 +49,12 @@ class SVSBinarizer(Binarizer):
         self.need_breath = binarization_args.get("with_breath", False)
         if self.need_breath:
             self.breath_smooth = SinusoidalSmoothingConv1d(
+                round(0.12 / self.timesteps)
+            ).eval().to(self.device)
+
+        self.need_tension = binarization_args.get("with_tension", False)
+        if self.need_tension:
+            self.tension_smooth = SinusoidalSmoothingConv1d(
                 round(0.12 / self.timesteps)
             ).eval().to(self.device)
 
@@ -101,7 +107,7 @@ class SVSBinarizer(Binarizer):
         # wavform
         waveform, _ = librosa.load(item["wav_fn"], sr=self.samplerate)
         # harmonic-aperiodic separation
-        if self.need_voicing or self.need_breath:
+        if self.need_voicing or self.need_breath or self.need_tension:
             harmonic_part, aperiodic_part = extract_harmonic_aperiodic(waveform, hparams["vr_ckpt"])
         # mel
         mel = get_mel_spec(
@@ -136,7 +142,7 @@ class SVSBinarizer(Binarizer):
                 mel_len=mel.shape[0],
                 hop_size=self.hop_size,
                 win_size=self.win_size,
-                smooth_moudle=self.voicing_smooth,
+                smooth_func=self.voicing_smooth,
                 norm=hparams["voicing_norm"],
                 db_min=hparams["voicing_db_min"],
                 db_max=hparams["voicing_db_max"],
@@ -149,10 +155,22 @@ class SVSBinarizer(Binarizer):
                 mel_len=mel.shape[0],
                 hop_size=self.hop_size,
                 win_size=self.win_size,
-                smooth_moudle=self.breath_smooth,
+                smooth_func=self.breath_smooth,
                 norm=hparams["breath_norm"],
                 db_min=hparams["breath_db_min"],
                 db_max=hparams["breath_db_max"],
+                device=self.device
+            )
+        # tension
+        if self.need_tension:
+            preprocessed_item["tension"] = get_tension(
+                sp=harmonic_part,
+                mel_len=mel.shape[0],
+                f0=f0,
+                hop_size=self.hop_size,
+                win_size=self.win_size,
+                samplerate=self.samplerate,
+                smooth_func=self.tension_smooth,
                 device=self.device
             )
         return preprocessed_item

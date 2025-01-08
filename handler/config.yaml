@@ -12,10 +12,13 @@ data_dir: data/binary_opcp
 test_num: 6
 valid_num: 6
 binarization_args:
+  with_phoneme: true
+  with_note: false
   with_spk_id: true
   with_lang_id: true
   with_voicing: true
   with_breath: true
+  with_tension: true
   shuffle: false
 
 #############
