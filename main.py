@@ -47,14 +47,18 @@ def train(train_task, config, exp_name):
 @click.option("--pred_pitch", type=str, default="")
 @click.option("--pred_voicing", is_flag=True)
 @click.option("--pred_breath", is_flag=True)
-def infer(proj, exp_name, spk_name, lang, keyshift, gender, pred_dur, pred_pitch, pred_voicing, pred_breath):
+@click.option("--isolate_aspiration", is_flag=True)
+def infer(proj, exp_name, spk_name, lang, keyshift, gender, 
+          pred_dur, pred_pitch, pred_voicing, pred_breath,
+          isolate_aspiration):
     from handler.infer import InferHandler
     InferHandler(
         exp_name=exp_name, 
         pred_dur=pred_dur, 
         pred_pitch=pred_pitch,
         pred_voicing=pred_voicing,
-        pred_breath=pred_breath
+        pred_breath=pred_breath,
+        isolate_aspiration=isolate_aspiration
     ).handle(None, proj, spk_name, lang, keyshift, gender)
 
 @main.group()

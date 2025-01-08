@@ -8,6 +8,7 @@ from torch.functional import F
 import numpy as np
 import torch
 
+from component.binarizer.binarizer_utils import extract_harmonic_aperiodic
 from component.inferer.base import get_inferer_cls
 from modules.ProDiff.prodiff_teacher import ProDiffTeacher
 from modules.commons.common_layers import SinusoidalSmoothingConv1d
@@ -22,7 +23,9 @@ from component.vocoder.base_vocoder import get_vocoder_cls
 
 
 class InferHandler:
-    def __init__(self, exp_name, pred_dur=False, pred_pitch=False, pred_voicing=False, pred_breath=False):
+    def __init__(self, exp_name, 
+                 pred_dur=False, pred_pitch=False, pred_voicing=False, pred_breath=False,
+                 isolate_aspiration=False):
         self.hparams = set_hparams_v2(
             exp_name=exp_name,
             task="svs",
@@ -90,6 +93,7 @@ class InferHandler:
             self.breath_predictor = get_inferer_cls("breath")(breath_pred_hparams)
             self.breath_predictor.build_model()
         self.vocoder = self.build_vocoder()
+        self.isolate_aspiration = isolate_aspiration
     
     def build_phone_encoder(self):
         ph_map_fn = os.path.join(self.work_dir, 'phone_set.json')
@@ -338,7 +342,11 @@ class InferHandler:
             )
             print(f"Inference Time: {time.time() - start_time}")
             wav_out = self.run_vocoder(mel_out, f0=f0_seq)
+            
         wav_out = wav_out.squeeze().cpu().numpy()
+        if self.isolate_aspiration:
+            sp, ap = extract_harmonic_aperiodic(wav_out, self.hparams["vr_ckpt"])
+            return sp, ap
         return wav_out
         
 
@@ -346,7 +354,7 @@ class InferHandler:
         if proj is None:
             with open(proj_fn, 'r', encoding='utf-8') as f:
                 proj = json.load(f)
-        result = np.zeros(0)
+        result = [np.zeros(0), np.zeros(0)] if self.isolate_aspiration else np.zeros(0)
         total_length = 0
         for segment in proj:
             segment.setdefault('lang', lang)
@@ -356,11 +364,29 @@ class InferHandler:
             out = self.infer(segment)
             offset = round(segment.get('offset', 0) * self.audio_sample_rate) - total_length
             if offset >= 0:
-                result = np.append(result, np.zeros(offset))
-                result = np.append(result, out)
+                if not self.isolate_aspiration:
+                    result = np.append(result, np.zeros(offset))
+                    result = np.append(result, out)
+                else:
+                    result[0] = np.append(result[0], np.zeros(offset))
+                    result[1] = np.append(result[1], np.zeros(offset))
+                    result[0] = np.append(result[0], out[0])
+                    result[1] = np.append(result[1], out[1])
             else:
-                result = cross_fade(result, out, total_length + offset)
-            total_length += offset + out.shape[0]
+                if not self.isolate_aspiration:
+                    result = cross_fade(result, out, total_length + offset)
+                else:
+                    result[0] = cross_fade(result[0], out[0], total_length + offset)
+                    result[1] = cross_fade(result[1], out[1], total_length + offset)
+            
+            total_length += offset
+            total_length += out[0].shape[0] if self.isolate_aspiration else out.shape[0]
         title = proj_fn.split('/')[-1].split('.')[0]
-        out_fn = f'infer_out/{title}【{self.hparams["exp_name"]}】.wav'
-        save_wav(result, out_fn, self.audio_sample_rate)
+        if not self.isolate_aspiration:
+            out_fn = f'infer_out/{title}【{self.hparams["exp_name"]}】.wav'
+            save_wav(result, out_fn, self.audio_sample_rate)
+        else:
+            out_fn_sp = f'infer_out/{title}_sp【{self.hparams["exp_name"]}】.wav'
+            save_wav(result[0], out_fn_sp, self.audio_sample_rate)
+            out_fn_ap = f'infer_out/{title}_ap【{self.hparams["exp_name"]}】_ap.wav'
+            save_wav(result[1], out_fn_ap, self.audio_sample_rate)
