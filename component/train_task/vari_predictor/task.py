@@ -34,9 +34,11 @@ class VariPredictorTask(BaseTask):
         note_rest = sample["note_rest"]
         mel2note = sample["mel2note"]
         f0 = sample["f0"]
+        spk_id = sample.get("spk_id", None)
         # 模型输出
         output = self.model(note_midi, note_rest, mel2note, 
                              f0=f0, ref_vari=tgt_vari,
+                             spk_embed_id=spk_id,
                              infer=infer)
         if infer:
             return output

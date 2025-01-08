@@ -19,6 +19,8 @@ class VariPredictorDataset(BaseDataset):
             "f0" : utils.collate_1d([torch.FloatTensor(s["f0"]) for s in samples], 0.0),
             self.vari_type: utils.collate_1d([torch.FloatTensor(s[self.vari_type]) for s in samples], 0.0),
         }
+        if self.hparams['use_spk_id']:
+            batch_item["spk_id"] = torch.LongTensor([s["spk_id"] for s in samples])
         return batch_item
     
 class VoicingPredictorDataset(VariPredictorDataset):

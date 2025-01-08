@@ -27,7 +27,7 @@ class BinarizeHandler:
 
     def process_data(self, prefix):
         data_dir = self.binary_data_dir
-        builder = IndexedDatasetBuilder(path=f'{data_dir}/{prefix}')
+        builder = IndexedDatasetBuilder(data_dir, prefix, segment_size=self.hparams["idx_ds_segment_size"]) 
         lengths, f0s, total_sec = [], [], 0
 
         for item in tqdm(self.get_transcription_item_list(prefix)):

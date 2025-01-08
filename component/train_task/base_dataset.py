@@ -26,7 +26,7 @@ class BaseDataset(torch.utils.data.Dataset):
         if hasattr(self, 'avail_idxs') and self.avail_idxs is not None:
             index = self.avail_idxs[index]
         if self.indexed_ds is None:
-            self.indexed_ds = IndexedDataset(f'{self.data_dir}/{self.prefix}')
+            self.indexed_ds = IndexedDataset(self.data_dir, self.prefix, segment_size=self.hparams["idx_ds_segment_size"])
         return self.indexed_ds[index]
 
     def collater(self, samples):

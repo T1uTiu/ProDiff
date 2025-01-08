@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
-from modules.commons.common_layers import Linear, Embedding
+from modules.commons.common_layers import Embedding, Linear
 from modules.diffusion.denoise import DiffNet
 from modules.diffusion.prodiff import RepeatitiveDiffusion
 from modules.fastspeech.tts_modules import NoteEncoder, mel2ph_to_dur
@@ -11,14 +11,17 @@ class VariPredictor(nn.Module):
     def __init__(self, hparams, vari_type):
         super().__init__()
         vari_prediction_args = hparams[f'{vari_type}_prediction_args']
-        self.encoder = NoteEncoder(
+        self.note_encoder = NoteEncoder(
             hidden_size=vari_prediction_args["encoder_args"]['hidden_size'], 
             num_layers=vari_prediction_args["encoder_args"]['num_layers'], 
             kernel_size=vari_prediction_args["encoder_args"]['ffn_kernel_size'], 
             num_heads=vari_prediction_args["encoder_args"]['num_heads']
         )
         self.encode_out_linear = Linear(vari_prediction_args["encoder_args"]['hidden_size'], hparams['hidden_size'])
-
+        # spk
+        self.with_spk_embed = hparams.get('use_spk_id', True)
+        if self.with_spk_embed:
+            self.spk_embed = Embedding(hparams['num_spk'], hparams['hidden_size'])
         # pitch
         self.pitch_embed = Linear(1, hparams["hidden_size"])
         # diffusion
@@ -35,6 +38,8 @@ class VariPredictor(nn.Module):
             time_scale=vari_prediction_args["timescale"],
             spec_min=vari_prediction_args["spec_min"],
             spec_max=vari_prediction_args["spec_max"],
+            clamp_min=hparams[f"{vari_type}_clamp_min"],
+            clamp_max=hparams[f"{vari_type}_clamp_max"],
         )
 
     def add_f0(self, f0: torch.Tensor):
@@ -42,22 +47,32 @@ class VariPredictor(nn.Module):
         pitch_embed = self.pitch_embed(f0_mel[:, : , None])
         return pitch_embed
     
+    def add_spk_embed(self, spk_embed_id, spk_mix_embed):
+        assert not (spk_embed_id is None and spk_mix_embed is None)
+        if spk_mix_embed is not None:
+            spk_embed = spk_mix_embed
+        else:
+            spk_embed = self.spk_embed(spk_embed_id)[:, None, :]
+        return spk_embed
+
     def forward(self, note_midi, note_rest, mel2note, 
                 f0=None, ref_vari=None,
+                spk_embed_id=None, spk_mix_embed=None,
                 infer=False):
         # encode
         note_dur = mel2ph_to_dur(mel2note, note_midi.shape[1]).float()
-        encoder_out = self.encoder(note_midi, note_rest, note_dur)
+        encoder_out = self.note_encoder(note_midi, note_rest, note_dur)
         encoder_out = self.encode_out_linear(encoder_out)
 
         # length regulate
         condition = F.pad(encoder_out, [0, 0, 1, 0])
         mel2note_ = mel2note[..., None].repeat([1, 1, encoder_out.shape[-1]])
         condition = torch.gather(condition, 1, mel2note_)
-
         # f0
         condition += self.add_f0(f0)
-
+        # spk embed
+        if self.with_spk_embed:
+            condition += self.add_spk_embed(spk_embed_id, spk_mix_embed)
         # diffusion
         nonpadding = (mel2note > 0).float().unsqueeze(1).unsqueeze(1)
         vari_pred = self.diffusion(condition, nonpadding=nonpadding, ref_mels=ref_vari, infer=infer)

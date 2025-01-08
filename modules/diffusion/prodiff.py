@@ -172,8 +172,10 @@ class RepeatitiveDiffusion(GaussianDiffusion):
     def __init__(self, repeat_bins, denoise_fn,
                  timesteps=1000, time_scale=1,
                  betas=None, schedule_type="vpsde",
-                 spec_min=None, spec_max=None):
+                 spec_min=None, spec_max=None,
+                 clamp_min=None, clamp_max=None):
         self.repeat_bins = repeat_bins
+        self.clamp_min, self.clamp_max = clamp_min, clamp_max
         super().__init__(
             out_dims=repeat_bins, denoise_fn=denoise_fn,
             timesteps=timesteps, time_scale=time_scale,
@@ -182,9 +184,14 @@ class RepeatitiveDiffusion(GaussianDiffusion):
         )
 
     def norm_spec(self, x):
+        if self.clamp_min is not None and self.clamp_max is not None:
+            x = x.clamp(self.clamp_min, self.clamp_max)
         repeats = [1, 1, self.repeat_bins]
         return super().norm_spec(x.unsqueeze(-1).repeat(*repeats))
     
     def denorm_spec(self, x):
-        return super().denorm_spec(x).mean(dim=-1)
+        denorm_out = super().denorm_spec(x).mean(dim=-1)
+        if self.clamp_min is not None and self.clamp_max is not None:
+            denorm_out = denorm_out.clamp(self.clamp_min, self.clamp_max)
+        return denorm_out
 

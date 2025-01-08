@@ -36,7 +36,12 @@ interp_uv: true
 loud_norm: false
 max_frames: 1548
 min_level_db: -100
+idx_ds_segment_size: 1024
 binarization_args:
+  with_spk_id: true
+  with_lang_id: true
+  with_voicing: false
+  with_breath: false
   shuffle: false
 
 
@@ -125,14 +130,14 @@ f0_prediction_args:
     ffn_kernel_size: 9
     num_heads: 2
   denoise_args:
-    dilation_cycle_length: 5
+    dilation_cycle_length: 1
     residual_layers: 20
     residual_channels: 256
   loss_type: l1:0.5|ssim:0.5
 
 # voicing
 use_voicing_embed: true
-voicing_norm: true
+voicing_norm: false
 voicing_db_min: -96
 voicing_db_max: -12
 voicing_prediction_args:
@@ -145,16 +150,16 @@ voicing_prediction_args:
     ffn_kernel_size: 9
     num_heads: 2
   denoise_args:
-    dilation_cycle_length: 4
-    residual_layers: 10
-    residual_channels: 192
+    dilation_cycle_length: 1
+    residual_layers: 20
+    residual_channels: 256
   timesteps: 4
   timescale: 1
   loss_type: l1:0.5|ssim:0.5
 
 # breath
 use_breath_embed: true
-breath_norm: true
+breath_norm: false
 breath_db_min: -96
 breath_db_max: -12
 breath_prediction_args:
@@ -167,9 +172,9 @@ breath_prediction_args:
     ffn_kernel_size: 9
     num_heads: 2
   denoise_args:
-    dilation_cycle_length: 4
-    residual_layers: 10
-    residual_channels: 192
+    dilation_cycle_length: 1
+    residual_layers: 20
+    residual_channels: 256
   timesteps: 4
   timescale: 1
   loss_type: l1:0.5|ssim:0.5
@@ -182,14 +187,14 @@ use_gender_id: false
 # diffusion
 spec_min: []
 spec_max: []
-max_beta: 0.02
+max_beta: 40
 timesteps: 4
 timescale: 1
 schedule_type: 'vpsde' # vpsde|linear|cosine|logsnr
 diff_decoder_type: 'wavenet'
-dilation_cycle_length: 4
-residual_layers: 6
-residual_channels: 1024
+dilation_cycle_length: 1
+residual_layers: 20
+residual_channels: 256
 mel_loss: l1:0.5|ssim:0.5 # l1|l2|gdl|ssim or l1:0.5|ssim:0.5
 
 # vocoder

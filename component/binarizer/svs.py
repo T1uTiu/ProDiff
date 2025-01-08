@@ -15,32 +15,44 @@ from utils.data_gen_utils import get_mel2ph_dur
 class SVSBinarizer(Binarizer):
     def __init__(self, hparams):
         super().__init__(hparams)
+        binarization_args = hparams["binarization_args"]
         # basic info
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.ph_map, self.ph_encoder = build_phone_encoder(self.data_dir, hparams["dictionary"])
-        self.lang_map = build_lang_map(self.data_dir, hparams["dictionary"])
-        self.spk_map = build_spk_map(self.data_dir, self.datasets)
+
+        self.need_spk_id = binarization_args.get("with_spk_id", True)
+        if self.need_spk_id:
+            self.spk_map = build_spk_map(self.data_dir, self.datasets)
+
+        self.need_lang_id = binarization_args.get("with_lang_id", True)
+        if self.need_lang_id:
+            self.lang_map = build_lang_map(self.data_dir, hparams["dictionary"])
+        
         # param
         self.samplerate = hparams["audio_sample_rate"]
         self.hop_size, self.fft_size, self.win_size = hparams["hop_size"], hparams["fft_size"], hparams["win_size"]
         self.timesteps = self.hop_size / self.samplerate
         self.f_min, self.f_max = hparams["fmin"], hparams["fmax"]   
         self.num_mel_bins = hparams["audio_num_mel_bins"]
-        self.ha_sep = self.hparams.get("use_voicing_embed", False) or self.hparams.get("use_breath_embed", False)
+
         # components
         self.lr = LengthRegulator()
         self.pe = get_pitch_extractor_cls(hparams)(hparams)
+
         # variance
-        if hparams.get("use_voicing_embed", False):
+        self.need_voicing = binarization_args.get("with_voicing", False)
+        if self.need_voicing:
             self.voicing_smooth = SinusoidalSmoothingConv1d(
                 round(0.12 / self.timesteps)
             ).eval().to(self.device)
-        if hparams.get("use_breath_embed", False):
+
+        self.need_breath = binarization_args.get("with_breath", False)
+        if self.need_breath:
             self.breath_smooth = SinusoidalSmoothingConv1d(
                 round(0.12 / self.timesteps)
             ).eval().to(self.device)
+
         # post process
-        binarization_args = hparams["binarization_args"]
         if binarization_args['shuffle']:
             random.seed(3407)
             random.shuffle(self.transcription_item_list)
@@ -66,9 +78,11 @@ class SVSBinarizer(Binarizer):
                     "wav_fn" : f"{data_dir}/wav/{item_name}.wav",
                     "ph_seq" : ph_seq,
                     "ph_dur" : ph_dur,
-                    "spk_id" : spk_id,
-                    "lang_seq" : [lang_id]*len(ph_seq),
                 }
+                if self.need_spk_id:
+                    item["spk_id"] = spk_id
+                if self.need_lang_id:
+                    item["lang_seq"] = [lang_id]*len(ph_seq)
                 if self.hparams["use_gender_id"]:
                     item["gender_id"] = dataset["gender"]
                 transcription_item_list.append(item)
@@ -77,15 +91,17 @@ class SVSBinarizer(Binarizer):
     def process_item(self, item: dict):
         hparams = self.hparams
         preprocessed_item = {
-            "spk_id" : item["spk_id"],
             "ph_seq" : np.array(item["ph_seq"], dtype=np.int64),
             "ph_dur" : np.array(item["ph_dur"], dtype=np.float32),
-            "lang_seq" : np.array(item["lang_seq"], dtype=np.int64),
         }
+        if self.need_spk_id:
+            preprocessed_item["spk_id"] = item["spk_id"]
+        if self.need_lang_id:
+            preprocessed_item["lang_seq"] = np.array(item["lang_seq"], dtype=np.int64)
         # wavform
         waveform, _ = librosa.load(item["wav_fn"], sr=self.samplerate)
         # harmonic-aperiodic separation
-        if self.ha_sep:
+        if self.need_voicing or self.need_breath:
             harmonic_part, aperiodic_part = extract_harmonic_aperiodic(waveform, hparams["vr_ckpt"])
         # mel
         mel = get_mel_spec(
@@ -114,7 +130,7 @@ class SVSBinarizer(Binarizer):
         assert not uv.all(), f"all unvoiced. item_name: {item['item_name']}, wav_fn: {item['wav_fn']}"
         preprocessed_item["f0"] = f0
         # voicing
-        if self.hparams.get("use_voicing_embed", False):
+        if self.need_voicing:
             preprocessed_item["voicing"] = get_voicing(
                 sp=harmonic_part,
                 mel_len=mel.shape[0],
@@ -127,7 +143,7 @@ class SVSBinarizer(Binarizer):
                 device=self.device
             )
         # breath
-        if self.hparams.get("use_breath_embed", False):
+        if self.need_breath:
             preprocessed_item["breath"] = get_breath(
                 ap=aperiodic_part,
                 mel_len=mel.shape[0],
