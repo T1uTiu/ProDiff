@@ -5,13 +5,12 @@ from modules.commons.common_layers import *
 from modules.diffusion.denoise import DiffNet
 from modules.diffusion.prodiff import GaussianDiffusion
 from modules.fastspeech.tts_modules import FastspeechEncoder, mel2ph_to_dur
-from utils.pitch_utils import f0_to_coarse
 
 class ProDiffTeacher(nn.Module):
-    def __init__(self, ph_encoder, hparams):
+    def __init__(self, vocab_size, hparams):
         super(ProDiffTeacher, self).__init__()
         self.encoder = FastspeechEncoder(
-            ph_encoder=ph_encoder,
+            vocab_size=vocab_size,
             hidden_size=hparams["hidden_size"],
             num_layers=hparams["enc_layers"],
             kernel_size=hparams["enc_ffn_kernel_size"],
@@ -32,7 +31,7 @@ class ProDiffTeacher(nn.Module):
 
         self.with_lang_embed = hparams.get('use_lang_id', True)
         if self.with_lang_embed:
-            self.lang_embed = Embedding(len(hparams["dictionary"]), hparams['hidden_size'], ph_encoder.pad())
+            self.lang_embed = Embedding(len(hparams["dictionary"]), hparams['hidden_size'], 0)
 
         self.pitch_embed = Linear(1, hparams['hidden_size'])
 

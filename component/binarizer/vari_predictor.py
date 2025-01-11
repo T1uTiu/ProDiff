@@ -5,18 +5,17 @@ from scipy import interpolate
 import torch
 from torch.functional import F
 from component.binarizer.base import Binarizer, register_binarizer
-from component.binarizer.binarizer_utils import build_lang_map, build_phone_encoder, build_spk_map, extract_harmonic_aperiodic, get_breath, get_energy, get_voicing
+from component.binarizer.binarizer_utils import build_lang_map, build_phone_encoder, build_spk_map, extract_harmonic_aperiodic, get_breath, get_energy, get_tension, get_voicing
 from component.pe.base import get_pitch_extractor_cls
 from modules.commons.common_layers import SinusoidalSmoothingConv1d
 from modules.fastspeech.tts_modules import LengthRegulator
 from utils.data_gen_utils import get_mel2ph_dur
 
-
+@register_binarizer
 class VariPredictorBinarizer(Binarizer):
-    def __init__(self, hparams, vari_type):
+    def __init__(self, hparams):
         super().__init__(hparams)
         binarization_args = hparams["binarization_args"]
-        self.vari_type = vari_type
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         # basic info
         self.ph_map, self.ph_encoder = build_phone_encoder(self.data_dir, hparams["dictionary"])
@@ -34,10 +33,28 @@ class VariPredictorBinarizer(Binarizer):
         self.hop_size, self.fft_size, self.win_size = hparams["hop_size"], hparams["fft_size"], hparams["win_size"]
         self.timesteps = self.hop_size / self.samplerate 
         # variance
-        self.vari_smooth = SinusoidalSmoothingConv1d(
-            round(0.12 / self.timesteps)
-        ).eval().to(self.device)
+        self.need_voicing = binarization_args.get("with_voicing", False)
+        if self.need_voicing:
+            self.voicing_smooth = SinusoidalSmoothingConv1d(
+                round(0.12 / self.timesteps)
+            ).eval().to(self.device)
+
+        self.need_breath = binarization_args.get("with_breath", False)
+        if self.need_breath:
+            self.breath_smooth = SinusoidalSmoothingConv1d(
+                round(0.12 / self.timesteps)
+            ).eval().to(self.device)
+
+        self.need_tension = binarization_args.get("with_tension", False)
+        if self.need_tension:
+            self.tension_smooth = SinusoidalSmoothingConv1d(
+                round(0.12 / self.timesteps)
+            ).eval().to(self.device)
     
+    @staticmethod
+    def category():
+        return "vari"
+
     def load_meta_data(self):
         transcription_item_list = []
         for dataset in self.datasets:
@@ -96,6 +113,8 @@ class VariPredictorBinarizer(Binarizer):
         )
         assert not uv.all(), f"all unvoiced. item_name: {item['item_name']}, wav_fn: {item['wav_fn']}"
         preprocessed_item["f0"] = f0
+        # ph dur
+        preprocessed_item["mel2ph"] = get_mel2ph_dur(self.lr, torch.FloatTensor(item["ph_dur"]), mel_len, self.timesteps)
         # note
         mel2note = get_mel2ph_dur(self.lr, torch.FloatTensor(item["note_dur"]), mel_len, self.timesteps)
         preprocessed_item["mel2note"] = mel2note
@@ -113,47 +132,42 @@ class VariPredictorBinarizer(Binarizer):
         # harmonic-noise separation
         harmonic_part, aperiodic_part = extract_harmonic_aperiodic(waveform, hparams["vr_ckpt"])
         # voicing
-        if self.vari_type == "voicing":
+        if self.need_voicing:
             preprocessed_item["voicing"] = get_voicing(
                 sp=harmonic_part,
                 mel_len=mel_len,
                 hop_size=self.hop_size,
                 win_size=self.win_size,
-                smooth_func=self.vari_smooth,
+                smooth_func=self.voicing_smooth,
                 norm=hparams["voicing_norm"],
                 db_min=hparams["voicing_db_min"],
                 db_max=hparams["voicing_db_max"],
                 device=self.device
             )
         # breath
-        if self.vari_type == "breath":
+        if self.need_breath:
             preprocessed_item["breath"] = get_breath(
                 ap=aperiodic_part,
-                mel_len=mel_len ,
+                mel_len=mel_len,
                 hop_size=self.hop_size,
                 win_size=self.win_size,
-                smooth_func=self.vari_smooth,
+                smooth_func=self.breath_smooth,
                 norm=hparams["breath_norm"],
                 db_min=hparams["breath_db_min"],
                 db_max=hparams["breath_db_max"],
                 device=self.device
             )
+        # tension
+        if self.need_tension:
+            preprocessed_item["tension"] = get_tension(
+                sp=harmonic_part,
+                mel_len=mel_len,
+                f0=f0,
+                hop_size=self.hop_size,
+                win_size=self.win_size,
+                samplerate=self.samplerate,
+                smooth_func=self.tension_smooth,
+                device=self.device
+            )
         return preprocessed_item
     
-@register_binarizer
-class VoicingPredictorBinarizer(VariPredictorBinarizer):
-    def __init__(self, hparams):
-        super().__init__(hparams, "voicing")
-    
-    @staticmethod
-    def category():
-        return "voicing"
-    
-@register_binarizer
-class BreathPredictorBinarizer(VariPredictorBinarizer):
-    def __init__(self, hparams):
-        super().__init__(hparams, "breath")
-    
-    @staticmethod
-    def category():
-        return "breath"

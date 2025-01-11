@@ -4,7 +4,7 @@ from torch.nn import functional as F
 
 from modules.commons.common_layers import Linear, Embedding
 from modules.diffusion.denoise import DiffNet
-from modules.diffusion.prodiff import RepeatitiveDiffusion
+from modules.diffusion.prodiff import PitchDiffusion
 from modules.fastspeech.tts_modules import NoteEncoder, mel2ph_to_dur
 
 class PitchPredictor(nn.Module):
@@ -25,7 +25,7 @@ class PitchPredictor(nn.Module):
 
         # pitch
         self.delta_pitch_embed = Linear(1, hparams["hidden_size"])
-        self.diffusion = RepeatitiveDiffusion(
+        self.diffusion = PitchDiffusion(
             repeat_bins=f0_prediction_args["repeat_bins"],\
             denoise_fn=DiffNet(
                 in_dims=f0_prediction_args["repeat_bins"],

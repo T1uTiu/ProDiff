@@ -49,5 +49,8 @@ class SVSDataset(BaseDataset):
         
         if self.hparams["use_breath_embed"]:
             batch_item["breath"] = utils.collate_1d([torch.FloatTensor(s["breath"]) for s in samples], 0.0)
+
+        if self.hparams["use_tension_embed"]:
+            batch_item["tension"] = utils.collate_1d([torch.FloatTensor(s["tension"]) for s in samples], 0.0)
         
         return batch_item

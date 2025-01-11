@@ -29,7 +29,7 @@ class SVSTask(BaseTask):
         return SVSDataset
 
     def build_model(self):
-        self.model = ProDiffTeacher(self.ph_encoder, self.hparams)
+        self.model = ProDiffTeacher(len(self.ph_encoder), self.hparams)
         utils.num_params(self.model) # 打印模型参数量
         return self.model
 

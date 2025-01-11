@@ -123,9 +123,9 @@ dur_prediction_args:
 
 # pitch
 use_pitch_embed: true
+pitch_spec_min: -8.0
+pitch_spec_max: 8.0
 f0_prediction_args:
-  spec_min: -8.0
-  spec_max: 8.0
   repeat_bins: 64
   encoder_args:
     hidden_size: 128
@@ -141,55 +141,23 @@ f0_prediction_args:
 # voicing
 use_voicing_embed: true
 voicing_norm: false
-voicing_db_min: -96
-voicing_db_max: -12
-voicing_prediction_args:
-  spec_min: -8.0
-  spec_max: 8.0
-  repeat_bins: 48
-  encoder_args:
-    hidden_size: 128
-    num_layers: 4
-    ffn_kernel_size: 9
-    num_heads: 2
-  denoise_args:
-    dilation_cycle_length: 1
-    residual_layers: 20
-    residual_channels: 256
-  timesteps: 4
-  timescale: 1
-  loss_type: l1:0.5|ssim:0.5
+voicing_db_min: -96.0
+voicing_db_max: -12.0
 
 # breath
 use_breath_embed: true
 breath_norm: false
-breath_db_min: -96
-breath_db_max: -20
-breath_prediction_args:
-  spec_min: -8.0
-  spec_max: 8.0
-  repeat_bins: 48
-  encoder_args:
-    hidden_size: 128
-    num_layers: 4
-    ffn_kernel_size: 9
-    num_heads: 2
-  denoise_args:
-    dilation_cycle_length: 1
-    residual_layers: 20
-    residual_channels: 256
-  timesteps: 4
-  timescale: 1
-  loss_type: l1:0.5|ssim:0.5
+breath_db_min: -96.0
+breath_db_max: -20.0
 
 # tension
 use_tension_embed: true
 tension_norm: false
-tension_logit_min: -96
-tension_logit_max: -12
-tension_prediction_args:
-  spec_min: -8.0
-  spec_max: 8.0
+tension_logit_min: -10.0
+tension_logit_max: 10.0
+
+# vari
+vari_prediction_args:
   repeat_bins: 48
   encoder_args:
     hidden_size: 128

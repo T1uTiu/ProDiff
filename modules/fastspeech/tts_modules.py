@@ -7,7 +7,7 @@ from torch.nn import functional as F
 
 from modules.commons.espnet_positional_embedding import RelPositionalEncoding
 from modules.commons.common_layers import Embedding, SinusoidalPositionalEmbedding, Linear, EncSALayer, DecSALayer, BatchNorm1dTBC
-
+from utils.text_encoder import PAD_ID
 
 DEFAULT_MAX_SOURCE_POSITIONS = 2000
 DEFAULT_MAX_TARGET_POSITIONS = 2000
@@ -289,10 +289,10 @@ class FFTBlocks(nn.Module):
 
 
 class FastspeechEncoder(FFTBlocks):
-    def __init__(self, ph_encoder, hidden_size, num_layers, kernel_size, dropout=0.1, num_heads=2,  rel_pos=False):
+    def __init__(self, vocab_size, hidden_size, num_layers, kernel_size, dropout=0.1, num_heads=2,  rel_pos=False):
         super().__init__(hidden_size, num_layers, kernel_size, dropout=dropout, num_heads=num_heads,
                          use_pos_embed=False)  # use_pos_embed_alpha for compatibility
-        self.embed_tokens = Embedding(len(ph_encoder), hidden_size, ph_encoder.pad())
+        self.embed_tokens = Embedding(vocab_size, hidden_size, PAD_ID)
         self.embed_scale = math.sqrt(hidden_size)
         self.padding_idx = 0
         self.rel_pos = rel_pos

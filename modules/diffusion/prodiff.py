@@ -1,4 +1,5 @@
 from functools import partial
+from typing import Union
 from modules.diffusion.diffusion_utils import *
 import numpy as np
 import torch
@@ -7,12 +8,13 @@ from tqdm import tqdm
 
 class GaussianDiffusion(nn.Module):
     def __init__(self, out_dims, denoise_fn,
-                 timesteps=1000, time_scale=1, 
+                 timesteps=1000, time_scale=1, num_features=1,
                  betas=None, schedule_type="vpsde", max_beta=0.02,
                  spec_min=None, spec_max=None):
         super().__init__()
         self.denoise_fn = denoise_fn
         self.mel_bins = out_dims
+        self.num_features = num_features
 
         if exists(betas):
             betas = betas.detach().cpu().numpy() if isinstance(betas, torch.Tensor) else betas
@@ -132,8 +134,10 @@ class GaussianDiffusion(nn.Module):
         return trace
 
     def diffuse_fn(self, x_start, t, noise=None):
-        x_start = self.norm_spec(x_start)
-        x_start = x_start.transpose(1, 2)[:, None, :, :]  # [B, 1, M, T]
+        x_start = self.norm_spec(x_start) # [B, T, M] or [B, F, T, M]
+        x_start = x_start.transpose(-2, -1)  # [B, M, T] or [B, F, T, M]
+        if self.num_features == 1:
+            x_start = x_start[:, None, :, :] # [B, F, M, T]
         zero_idx = t < 0 # for items where t is -1
         t[zero_idx] = 0
         noise = default(noise, lambda: torch.randn_like(x_start))
@@ -168,17 +172,17 @@ class GaussianDiffusion(nn.Module):
     def denorm_spec(self, x):
         return x
 
-class RepeatitiveDiffusion(GaussianDiffusion):
+class PitchDiffusion(GaussianDiffusion):
     def __init__(self, repeat_bins, denoise_fn,
                  timesteps=1000, time_scale=1,
                  betas=None, schedule_type="vpsde",
-                 spec_min=None, spec_max=None,
-                 clamp_min=None, clamp_max=None):
+                 spec_min: float=None, spec_max: float =None,
+                 clamp_min: float=None, clamp_max: float=None):
         self.repeat_bins = repeat_bins
         self.clamp_min, self.clamp_max = clamp_min, clamp_max
         super().__init__(
             out_dims=repeat_bins, denoise_fn=denoise_fn,
-            timesteps=timesteps, time_scale=time_scale,
+            timesteps=timesteps, time_scale=time_scale, num_features=1,
             betas=betas, schedule_type=schedule_type,
             spec_min=[spec_min], spec_max=[spec_max]
         )
@@ -194,4 +198,57 @@ class RepeatitiveDiffusion(GaussianDiffusion):
         if self.clamp_min is not None and self.clamp_max is not None:
             denorm_out = denorm_out.clamp(self.clamp_min, self.clamp_max)
         return denorm_out
+    
+class MultiVariDiffusion(GaussianDiffusion):
+    def __init__(self, repeat_bins, denoise_fn,
+                 timesteps=1000, time_scale=1,
+                 betas=None, schedule_type="vpsde",
+                 spec_min: list=None, spec_max: list=None,
+                 clamp_min: list=None, clamp_max: list=None):
+        assert len(spec_min) == len(spec_max) == len(clamp_min) == len(clamp_max)
+        self.num_features = len(spec_min)
+        self.clamp_min, self.clamp_max = clamp_min, clamp_max
+        self.repeat_bins = repeat_bins
+        spec_min = [[v] for v in spec_min]
+        spec_max = [[v] for v in spec_max]
+        super().__init__(
+            out_dims=repeat_bins, denoise_fn=denoise_fn,
+            timesteps=timesteps, time_scale=time_scale, num_features=self.num_features,
+            betas=betas, schedule_type=schedule_type,
+            spec_min=spec_min, spec_max=spec_max
+        )
+
+    def clamp_spec(self, xs: list):
+        clamped = []
+        for x, cmin, cmax in zip(xs, self.clamp_min, self.clamp_max):
+            if cmin is not None and cmax is not None:
+                clamped.append(x.clamp(cmin, cmax))
+            else:
+                clamped.append(x)
+        xs = torch.stack(clamped, dim=1)
+        return xs
+
+    def norm_spec(self, xs: list):
+        """
+        :param xs: sequence of [B, T]
+        :return: [B, F, T, R] or [B, T, R]
+        """
+        xs = self.clamp_spec(xs)
+        repeats = [1, 1, 1, self.repeat_bins]
+        if self.num_features == 1:
+            xs = xs.squeeze(1)
+            repeats = [1, 1, self.repeat_bins]
+        return super().norm_spec(xs.unsqueeze(-1).repeat(*repeats))
+    
+    def denorm_spec(self, xs):
+        """
+        :param xs: [B, T, R] or [B, F, T, R] => mean => [B, T] or [B, F, T]
+        :return: sequence of [B, T]
+        """
+        denorm_out = super().denorm_spec(xs).mean(dim=-1)
+        if self.num_features == 1:
+            denorm_out = [denorm_out]
+        else:
+            denorm_out = denorm_out.unbind(1)
+        return self.clamp_spec(denorm_out)
 

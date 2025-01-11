@@ -23,13 +23,12 @@ def binarize(task, config, exp_name):
 @click.option("--exp_name", type=str, required=True)
 def train(train_task, config, exp_name):
     from handler.train.handler import TrainHandler
-    from component.train_task import SVSTask, DurPredictorTask, PitchPredictorTask, VoicingPredictorTask, BreathPredictorTask
+    from component.train_task import SVSTask, DurPredictorTask, PitchPredictorTask, VariPredictorTask
     train_task_map = {
         "svs": SVSTask,
         "dur": DurPredictorTask,
         "pitch": PitchPredictorTask,
-        "voicing": VoicingPredictorTask,
-        "breath": BreathPredictorTask,
+        "vari": VariPredictorTask,
     }
     assert train_task in train_task_map, f"Invalid train task: {train_task}, use one of {list(train_task_map.keys())}"
     hparams = set_hparams(config_fn=config, exp_name=exp_name, task=train_task, make_work_dir=True)
@@ -48,9 +47,10 @@ def train(train_task, config, exp_name):
 @click.option("--pred_voicing", is_flag=True)
 @click.option("--pred_breath", is_flag=True)
 @click.option("--isolate_aspiration", is_flag=True)
+@click.option("--isolate_base_harmonic", is_flag=True)
 def infer(proj, exp_name, spk_name, lang, keyshift, gender, 
           pred_dur, pred_pitch, pred_voicing, pred_breath,
-          isolate_aspiration):
+          isolate_aspiration, isolate_base_harmonic):
     from handler.infer import InferHandler
     InferHandler(
         exp_name=exp_name, 
@@ -58,7 +58,8 @@ def infer(proj, exp_name, spk_name, lang, keyshift, gender,
         pred_pitch=pred_pitch,
         pred_voicing=pred_voicing,
         pred_breath=pred_breath,
-        isolate_aspiration=isolate_aspiration
+        isolate_aspiration=isolate_aspiration,
+        isolate_base_harmonic=isolate_base_harmonic,
     ).handle(None, proj, spk_name, lang, keyshift, gender)
 
 @main.group()

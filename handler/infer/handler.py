@@ -8,7 +8,7 @@ from torch.functional import F
 import numpy as np
 import torch
 
-from component.binarizer.binarizer_utils import extract_harmonic_aperiodic
+from component.binarizer.binarizer_utils import extract_harmonic_aperiodic, get_kth_harmonic
 from component.inferer.base import get_inferer_cls
 from modules.ProDiff.prodiff_teacher import ProDiffTeacher
 from modules.commons.common_layers import SinusoidalSmoothingConv1d
@@ -25,7 +25,7 @@ from component.vocoder.base_vocoder import get_vocoder_cls
 class InferHandler:
     def __init__(self, exp_name, 
                  pred_dur=False, pred_pitch=False, pred_voicing=False, pred_breath=False,
-                 isolate_aspiration=False):
+                 isolate_aspiration=False, isolate_base_harmonic=False):
         self.hparams = set_hparams_v2(
             exp_name=exp_name,
             task="svs",
@@ -34,9 +34,10 @@ class InferHandler:
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.work_dir = self.hparams['work_dir']
 
-        hop_size = self.hparams['hop_size']
+        self.hop_size = self.hparams['hop_size']
+        self.win_size = self.hparams['win_size']
         self.audio_sample_rate = self.hparams['audio_sample_rate']
-        self.timestep = hop_size / self.audio_sample_rate
+        self.timestep = self.hop_size / self.audio_sample_rate
 
         self.ph_map, self.ph_encoder = self.build_phone_encoder()
         self.spk_map = self.build_spk_map()
@@ -94,6 +95,7 @@ class InferHandler:
             self.breath_predictor.build_model()
         self.vocoder = self.build_vocoder()
         self.isolate_aspiration = isolate_aspiration
+        self.isolate_base_harmonic = isolate_base_harmonic
     
     def build_phone_encoder(self):
         ph_map_fn = os.path.join(self.work_dir, 'phone_set.json')
@@ -122,7 +124,7 @@ class InferHandler:
             self.hparams['f0_mean'], self.hparams['f0_std'] = np.load(f0_stats_fn)
             self.hparams['f0_mean'] = float(self.hparams['f0_mean'])
             self.hparams['f0_std'] = float(self.hparams['f0_std'])
-        model = ProDiffTeacher(self.ph_encoder, self.hparams)
+        model = ProDiffTeacher(len(self.ph_encoder), self.hparams)
         model.eval()
         load_ckpt(model, self.hparams["work_dir"], 'model')
         model.to(self.device)
@@ -346,6 +348,10 @@ class InferHandler:
         wav_out = wav_out.squeeze().cpu().numpy()
         if self.isolate_aspiration:
             sp, ap = extract_harmonic_aperiodic(wav_out, self.hparams["vr_ckpt"])
+            if self.isolate_base_harmonic:
+                f0 = f0_seq.squeeze().cpu().numpy()
+                base_harmonic = get_kth_harmonic(0, sp, f0, self.hop_size, self.win_size, self.audio_sample_rate)
+                return sp-base_harmonic, ap, base_harmonic
             return sp, ap
         return wav_out
         
@@ -354,33 +360,29 @@ class InferHandler:
         if proj is None:
             with open(proj_fn, 'r', encoding='utf-8') as f:
                 proj = json.load(f)
-        result = [np.zeros(0), np.zeros(0)] if self.isolate_aspiration else np.zeros(0)
-        total_length = 0
+        result, total_length = [np.zeros(0)], [0]
+        if self.isolate_aspiration:
+            result.append(np.zeros(0))
+            total_length.append(0)
+        if self.isolate_base_harmonic:
+            result.append(np.zeros(0))
+            total_length.append(0)
         for segment in proj:
             segment.setdefault('lang', lang)
             segment.setdefault("keyshift", int(keyshift))
             segment.setdefault('spk_name', spk_name)
             segment["gender"]= float(gender)
             out = self.infer(segment)
-            offset = round(segment.get('offset', 0) * self.audio_sample_rate) - total_length
-            if offset >= 0:
-                if not self.isolate_aspiration:
-                    result = np.append(result, np.zeros(offset))
-                    result = np.append(result, out)
+            offset = [round(segment.get('offset', 0) * self.audio_sample_rate) - total_length[i] for i in range(len(result))]
+            for i, (offset_part, out_part) in enumerate(zip(offset, out)):
+                if offset_part >= 0:
+                    result[i] = np.append(result[i], np.zeros(offset_part))
+                    result[i] = np.append(result[i], out_part)
                 else:
-                    result[0] = np.append(result[0], np.zeros(offset))
-                    result[1] = np.append(result[1], np.zeros(offset))
-                    result[0] = np.append(result[0], out[0])
-                    result[1] = np.append(result[1], out[1])
-            else:
-                if not self.isolate_aspiration:
-                    result = cross_fade(result, out, total_length + offset)
-                else:
-                    result[0] = cross_fade(result[0], out[0], total_length + offset)
-                    result[1] = cross_fade(result[1], out[1], total_length + offset)
-            
-            total_length += offset
-            total_length += out[0].shape[0] if self.isolate_aspiration else out.shape[0]
+                    result[i] = cross_fade(result[i], out_part, total_length[i] + offset_part)
+            for i in range(len(result)):
+                total_length[i] += offset[i]
+                total_length[i] += out[i].shape[0]
         title = proj_fn.split('/')[-1].split('.')[0]
         if not self.isolate_aspiration:
             out_fn = f'infer_out/{title}【{self.hparams["exp_name"]}】.wav'
@@ -388,5 +390,8 @@ class InferHandler:
         else:
             out_fn_sp = f'infer_out/{title}_sp【{self.hparams["exp_name"]}】.wav'
             save_wav(result[0], out_fn_sp, self.audio_sample_rate)
-            out_fn_ap = f'infer_out/{title}_ap【{self.hparams["exp_name"]}】_ap.wav'
+            out_fn_ap = f'infer_out/{title}_ap【{self.hparams["exp_name"]}】.wav'
             save_wav(result[1], out_fn_ap, self.audio_sample_rate)
+            if self.isolate_base_harmonic:
+                out_fn_bh = f'infer_out/{title}_bh【{self.hparams["exp_name"]}】.wav'
+                save_wav(result[2], out_fn_bh, self.audio_sample_rate)
