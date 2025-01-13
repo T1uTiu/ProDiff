@@ -118,5 +118,11 @@ def preprocess(data_dir, lang, override_ph_num, override_note_midi, override_ori
         override_ori_label=override_ori_label
     )
 
+@main.command()
+@click.option("--exp_name", type=str, required=True)
+def web(exp_name):
+    from handler.web import WebHandler
+    WebHandler(exp_name=exp_name).handle()
+
 if __name__ == "__main__":
     main()  
