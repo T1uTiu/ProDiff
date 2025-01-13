@@ -25,7 +25,7 @@ class DurPredictorBinarizer(Binarizer):
             lang = dataset["language"]
             with open(f"{data_dir}/label.json", "r", encoding="utf-8") as f:
                 labels = json.load(f)
-            for label in labels:
+            for item_name, label in labels.items():
                 ph_text = [self.ph_map[f"{p}/{lang}"] for p in label["ph_seq"].split(' ')]
                 ph_seq = self.ph_encoder.encode(ph_text)
                 item = {

@@ -3,7 +3,6 @@ from component.train_task.dur_predictor.dataset import DurPredictorDataset
 from component.train_task.loss_utils import add_dur_loss
 from modules.variance_predictor.dur_predictor import DurPredictor
 import utils
-from utils.hparams import hparams
 
 
 
@@ -25,7 +24,7 @@ class DurPredictorTask(BaseTask):
         return DurPredictorDataset
 
     def build_model(self):
-        self.model = DurPredictor(self.ph_encoder, hparams)
+        self.model = DurPredictor(len(self.ph_encoder), self.hparams)
         utils.num_params(self.model) # 打印模型参数量
         return self.model
 
@@ -45,27 +44,20 @@ class DurPredictorTask(BaseTask):
             return losses, dur_pred
 
     def validation_step(self, sample: dict, batch_idx):
-        outputs = {}
-        txt_tokens = sample["ph_seq"]  # [B, T_ph]
-        word_dur = sample["word_dur"]  # [B, T_w]
-        onset = sample["onset"]  # [B, T_ph]
-        target = sample["ph_dur"]  # [B, T_ph]
-
-        outputs['losses'] = {}
-        outputs['losses'], model_out = self.run_model(self.model, sample, return_output=True, infer=False)
-
+        outputs = {
+            "nsamples": sample["nsamples"],
+        }
+        outputs['losses'], model_out = self.run_model(sample, return_output=True, infer=False)
         outputs['total_loss'] = sum(outputs['losses'].values())
-        outputs['nsamples'] = sample["nsamples"]
         outputs = utils.tensors_to_scalars(outputs)
-        if batch_idx < hparams['num_valid_plots']:
-            model_out = self.model(
-                txt_tokens, onset, word_dur, infer=True)
+        if batch_idx < self.hparams['num_valid_plots']:
+            model_out = self.run_model(sample, return_output=True, infer=True)
             self.plot_dur(batch_idx, sample, model_out)
         return outputs
 
     def plot_dur(self, batch_idx, sample, dur_pred):
         dur_tgt = sample["ph_dur"]
-        ph_text = self.phone_encoder.decode(sample["ph_seq"][0].cpu().numpy()).split()
+        ph_text = self.ph_encoder.decode(sample["ph_seq"][0].cpu().numpy()).split()
         # self.logger.add_figure(
         #     f"dur_{batch_idx}", dur_to_figure(dur_tgt, dur_pred, ph_text), self.global_step
         # )

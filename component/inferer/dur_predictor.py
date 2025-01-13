@@ -8,7 +8,7 @@ from utils.ckpt_utils import load_ckpt
 @register_inferer
 class DurPredictorInferer(Inferer):
     def build_model(self, ph_encoder):
-        model = DurPredictor(ph_encoder, self.hparams)
+        model = DurPredictor(len(ph_encoder), self.hparams)
         model.eval()
         load_ckpt(model, self.hparams["work_dir"], 'model')
         model.to(self.device)

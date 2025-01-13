@@ -353,7 +353,7 @@ class InferHandler:
                 base_harmonic = get_kth_harmonic(0, sp, f0, self.hop_size, self.win_size, self.audio_sample_rate)
                 return sp-base_harmonic, ap, base_harmonic
             return sp, ap
-        return wav_out
+        return [wav_out]
         
 
     def handle(self, proj: List[dict] = None, proj_fn=None, spk_name=None, lang=None, keyshift=0, gender=0):
@@ -386,7 +386,7 @@ class InferHandler:
         title = proj_fn.split('/')[-1].split('.')[0]
         if not self.isolate_aspiration:
             out_fn = f'infer_out/{title}【{self.hparams["exp_name"]}】.wav'
-            save_wav(result, out_fn, self.audio_sample_rate)
+            save_wav(result[0], out_fn, self.audio_sample_rate)
         else:
             out_fn_sp = f'infer_out/{title}_sp【{self.hparams["exp_name"]}】.wav'
             save_wav(result[0], out_fn_sp, self.audio_sample_rate)

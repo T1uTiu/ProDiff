@@ -5,10 +5,10 @@ from modules.fastspeech.tts_modules import FastspeechEncoder, DurationPredictor
 
 
 class DurPredictor(torch.nn.Module):
-    def __init__(self, ph_encoder, hparams):
+    def __init__(self, vocab_size, hparams):
         super(DurPredictor, self).__init__()
         self.encoder = FastspeechEncoder(
-            ph_encoder=ph_encoder, 
+            vocab_size=vocab_size, 
             hidden_size=hparams['hidden_size'], 
             num_layers=hparams['enc_layers'], 
             kernel_size=hparams['enc_ffn_kernel_size'], 
