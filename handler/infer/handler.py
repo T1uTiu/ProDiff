@@ -18,7 +18,7 @@ from utils.ckpt_utils import load_ckpt
 from utils.data_gen_utils import get_mel2ph_dur
 from utils.pitch_utils import resample_align_curve, shift_pitch
 from utils.text_encoder import TokenTextEncoder
-from utils.hparams_v2 import set_hparams as set_hparams_v2
+from utils.hparams_v2 import set_hparams
 from component.vocoder.base_vocoder import get_vocoder_cls
 
 
@@ -26,7 +26,7 @@ class InferHandler:
     def __init__(self, exp_name, 
                  pred_dur=False, pred_pitch=False, pred_voicing=False, pred_breath=False,
                  isolate_aspiration=False, isolate_base_harmonic=False):
-        self.hparams = set_hparams_v2(
+        self.hparams = set_hparams(
             exp_name=exp_name,
             task="svs",
             make_work_dir=False
@@ -49,7 +49,7 @@ class InferHandler:
         self.pred_dur = pred_dur
         if pred_dur:
             is_local_pred_dur_model = os.path.exists(f"{self.work_dir}/dur/config.yaml")
-            dur_pred_hparams = set_hparams_v2(
+            dur_pred_hparams = set_hparams(
                 exp_name=exp_name if is_local_pred_dur_model else None,
                 task="dur",
                 global_hparams=False
@@ -60,7 +60,7 @@ class InferHandler:
         if self.pred_pitch:
             self.pred_pitch_spk_id = self.spk_map[pred_pitch]
             is_local_pred_pitch_model = os.path.exists(f"{self.work_dir}/pitch/config.yaml")
-            pitch_pred_hparams = set_hparams_v2(
+            pitch_pred_hparams = set_hparams(
                 exp_name=exp_name if is_local_pred_pitch_model else None,
                 task="pitch",
                 global_hparams=False,
@@ -73,7 +73,7 @@ class InferHandler:
         if self.pred_voicing:
             voicing_work_dir = os.path.join(*self.work_dir.split('\\')[:-1], 'voicing')
             is_local_pred_voicing_model = os.path.exists(f"{voicing_work_dir}/config.yaml")
-            voicing_pred_hparams = set_hparams_v2(
+            voicing_pred_hparams = set_hparams(
                 exp_name=exp_name if is_local_pred_voicing_model else None,
                 task="voicing",
                 global_hparams=False,
@@ -85,7 +85,7 @@ class InferHandler:
         if self.pred_breath:
             breath_work_dir = os.path.join(*self.work_dir.split('\\')[:-1], 'breath')
             is_local_pred_breath_model = os.path.exists(f"{breath_work_dir}/config.yaml")
-            breath_pred_hparams = set_hparams_v2(
+            breath_pred_hparams = set_hparams(
                 exp_name=exp_name if is_local_pred_breath_model else None,
                 task="breath",
                 global_hparams=False,
@@ -353,7 +353,7 @@ class InferHandler:
                 base_harmonic = get_kth_harmonic(0, sp, f0, self.hop_size, self.win_size, self.audio_sample_rate)
                 return sp-base_harmonic, ap, base_harmonic
             return sp, ap
-        return wav_out
+        return [wav_out]
         
 
     def handle(self, proj: List[dict] = None, proj_fn=None, spk_name=None, lang=None, keyshift=0, gender=0):
@@ -386,7 +386,7 @@ class InferHandler:
         title = proj_fn.split('/')[-1].split('.')[0]
         if not self.isolate_aspiration:
             out_fn = f'infer_out/{title}【{self.hparams["exp_name"]}】.wav'
-            save_wav(result, out_fn, self.audio_sample_rate)
+            save_wav(result[0], out_fn, self.audio_sample_rate)
         else:
             out_fn_sp = f'infer_out/{title}_sp【{self.hparams["exp_name"]}】.wav'
             save_wav(result[0], out_fn_sp, self.audio_sample_rate)
