@@ -37,10 +37,11 @@ class PitchPredictorTask(BaseTask):
         mel2note = sample["mel2note"]
         pitch = sample["pitch"]
         base_pitch = sample["base_pitch"]
+        pitch_retake = sample["pitch_retake"]
         spk_id = sample.get("spk_id", None)
         # 模型输出
         delta_pitch_pred = self.model(note_midi, note_rest, mel2note, 
-                             base_pitch, pitch=pitch, 
+                             base_pitch, pitch=pitch, pitch_retake = pitch_retake,
                              spk_id=spk_id, infer=infer)
         if infer:
             return delta_pitch_pred
