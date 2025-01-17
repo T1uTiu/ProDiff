@@ -1,5 +1,7 @@
 server_host = "localhost"
 server_port = 7694
 
-get_speakers_api = "/api/speakers"
-get_languages_api = "/api/languages"
+get_basic_info_api = "/api/basic_info"
+
+post_infer_api = "/api/infer"
+post_pred_dur_api = "/api/pred_dur"

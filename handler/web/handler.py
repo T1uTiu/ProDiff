@@ -1,14 +1,30 @@
 import json
 import os
 import fastapi
+import librosa
+import numpy as np
+from scipy import interpolate
 import uvicorn
+import torch
+import torch.nn.functional as F
+from itertools import chain
+from typing import List
 
+from component.inferer.base import get_inferer_cls
+from component.vocoder.base_vocoder import get_vocoder_cls
+from modules.ProDiff.prodiff_teacher import ProDiffTeacher
+from modules.commons.common_layers import SinusoidalSmoothingConv1d
+from modules.fastspeech.tts_modules import LengthRegulator
+from utils.ckpt_utils import load_ckpt
+from utils.data_gen_utils import get_mel2ph_dur
 from utils.hparams_v2 import set_hparams
+from utils.text_encoder import TokenTextEncoder
 from . import config
 
 class WebHandler:
     def __init__(self, exp_name):
         # model
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.exp_name = exp_name
         self.hparams = set_hparams(
             exp_name=exp_name,
@@ -16,12 +32,29 @@ class WebHandler:
             make_work_dir=False
         )
         self.work_dir = self.hparams["work_dir"]
-        self.spk_map = self.build_spk_map()
-        self.lang_map = self.build_lang_map()
+        self.build_spk_map()
+        self.build_lang_map()
+        self.build_phone_encoder()
+        self.lr = LengthRegulator()
+        self.timestep = self.hparams["hop_size"] / self.hparams["audio_sample_rate"]
+        self.midi_smooth = SinusoidalSmoothingConv1d(round(0.06/self.timestep)).eval()
+        self.build_model()
+        self.build_vocoder()
+        
+        # dur predictor
+        is_local_pred_dur_model = os.path.exists(f"{self.work_dir}/dur/config.yaml")
+        dur_pred_hparams = set_hparams(
+            exp_name=exp_name if is_local_pred_dur_model else None,
+            task="dur",
+            global_hparams=False
+        )
+        self.dur_predictor = get_inferer_cls("dur")(dur_pred_hparams)
+        self.dur_predictor.build_model(self.ph_encoder)
         # web
-        self.app = fastapi.FastAPI()
-        self.app.add_api_route(config.get_languages_api, self.api_get_languages, methods=['GET'])
-        self.app.add_api_route(config.get_speakers_api, self.api_get_speakers, methods=['GET'])
+        self.app = fastapi.FastAPI(debug=True)
+        self.app.add_api_route(config.get_basic_info_api, self.api_get_basic_info, methods=['GET'])
+        self.app.add_api_route(config.post_infer_api, self.api_infer, methods=["POST"])
+        self.app.add_api_route(config.post_pred_dur_api, self.api_pred_dur, methods=["POST"])
         
 
     def build_spk_map(self):
@@ -29,20 +62,276 @@ class WebHandler:
         assert os.path.exists(spk_map_fn), f"Speaker map file {spk_map_fn} not found"
         with open(spk_map_fn, 'r') as f:
             spk_map = json.load(f)
-        return spk_map
+        self.spk_map = spk_map
         
     def build_lang_map(self):
         lang_map_fn = os.path.join(self.work_dir, 'lang_map.json')
         assert os.path.exists(lang_map_fn), f"Language map file {lang_map_fn} not found"
         with open(lang_map_fn, 'r') as f:
             lang_map = json.load(f)
-        return lang_map
-
-    async def api_get_languages(self):
-        return list(self.lang_map.keys())
+        self.lang_map = lang_map
     
-    async def api_get_speakers(self):
-        return list(self.spk_map.keys())
+    def build_phone_encoder(self):
+        # build ph_map and ph_encoder
+        ph_map_fn = os.path.join(self.work_dir, 'phone_set.json')
+        with open(ph_map_fn, 'r') as f:
+            ph_map = json.load(f)
+        ph_list = list(sorted(set(ph_map.values())))
+        self.ph_map = ph_map
+        self.ph_encoder = TokenTextEncoder(None, vocab_list=ph_list, replace_oov='SP')
+        # build dictionary
+        self.dictionay = {}
+        for lang, dictionary_fn in self.hparams["dictionary"].items():
+            if lang == "global":
+                continue
+            self.dictionay[lang] = {"AP": ["AP"], "SP": ["SP"]}
+            f = open(dictionary_fn, 'r')
+            for x in f.readlines():
+                line = x.split("\n")[0].split('\t')
+                word = line[0]
+                ph_list = line[1].split(' ')
+                self.dictionay[lang][word] = ph_list
+            f.close()
+        # build ph type
+        self.consonant_set = {}
+        for lang, dictionary_fn in self.hparams["dictionary"].items():
+            if lang == "global":
+                continue
+            lang_ph_list_fn = os.path.dirname(dictionary_fn) + f"/{lang}_phones.txt"
+            self.consonant_set[lang] = set()
+            with open(lang_ph_list_fn, "r") as f:
+                for x in f.readlines():
+                    line = x.split("\n")[0].split(' ')
+                    ph, ph_type = line[0], line[1]
+                    if ph_type == "consonant":
+                        self.consonant_set[lang].add(ph)
+    def build_model(self):
+        f0_stats_fn = f'{self.hparams["work_dir"]}/train_f0s_mean_std.npy'
+        if os.path.exists(f0_stats_fn):
+            self.hparams['f0_mean'], self.hparams['f0_std'] = np.load(f0_stats_fn)
+            self.hparams['f0_mean'] = float(self.hparams['f0_mean'])
+            self.hparams['f0_std'] = float(self.hparams['f0_std'])
+        model = ProDiffTeacher(len(self.ph_encoder), self.hparams)
+        model.eval()
+        load_ckpt(model, self.hparams["work_dir"], 'model')
+        model.to(self.device)
+        self.model = model
+
+    def run_model(self, **inp):
+        ph_seq = inp['ph_seq']
+        f0_seq = inp['f0_seq']
+        mel2ph = inp['mel2ph']
+        spk_mix_embed = inp.get('spk_mix_embed', None)
+        gender_mix_embed = inp.get("gender_mix_embed", None)
+        lang_seq = inp.get('lang_seq', None)
+        vociing = inp.get('voicing', None)
+        breath = inp.get('breath', None)
+        mel_out = self.model(
+            ph_seq, f0=f0_seq, mel2ph=mel2ph, 
+            spk_mix_embed=spk_mix_embed, gender_mix_embed=gender_mix_embed,
+            lang_seq=lang_seq, 
+            voicing=vociing, breath=breath,
+            infer=True
+        )
+        return mel_out
+
+    def build_vocoder(self):
+        vocoder = get_vocoder_cls(self.hparams["vocoder"])(self.hparams)
+        vocoder.to_device(self.device)
+        self.vocoder = vocoder
+    
+    def run_vocoder(self, spec, **kwargs):
+        y = self.vocoder.spec2wav_torch(spec, **kwargs)
+        return y[None]
+
+    def pred_dur(self, ph_seq: torch.LongTensor, ph_num: List[int], note_dur: List[float]) -> torch.FloatTensor:
+        """
+        param ph_seq: tensor of phonemes after encoding, [B=1, T_ph]
+        param ph_num: list of phoneme numbers in each word
+        param note_dur: list of note durations in ms
+        return ph_dur: tensor of phoneme durations, [T_ph]
+        """
+        ph_num = torch.LongTensor(ph_num)
+        ph2word = self.lr(ph_num[None])[0]
+        onset = torch.diff(ph2word, dim=0, prepend=ph2word.new_zeros(1)).to(self.device)[None, :]
+        word_dur = torch.FloatTensor(note_dur)[None, :] # [B=1, T_w]
+        word_dur = torch.gather(F.pad(word_dur, [1, 0], value=0), 1, ph2word[None, :]).to(self.device)# [B=1, T_txt]
+        ph_dur = self.dur_predictor.run_model(
+            ph_seq=ph_seq,
+            onset=onset,
+            word_dur=word_dur,
+            ph_num=ph_num,
+            note_dur=note_dur
+        ).to(self.device)
+        return ph_dur
+
+    def get_speaker_mix(self, spk_name):
+        if spk_name is None or spk_name == '':
+            # Get the first speaker
+            spk_mix_map = {self.spk_map.keys()[0]: 1.0}
+        elif "|" in spk_name:
+            spk_mix_map = dict([x.split(':') for x in spk_name.split('|')])
+            for k in spk_mix_map:
+                spk_mix_map[k] = float(spk_mix_map[k])
+        else:
+            spk_mix_map = {spk_name: 1.0}
+        spk_mix_id_list = []
+        spk_mix_value_list = []
+        for name, value in spk_mix_map.items():
+            assert name in self.spk_map, f"Speaker name {name} not found in spk_map"
+            spk_mix_id_list.append(self.spk_map[name])
+            spk_mix_value_list.append(value)
+        spk_mix_id = torch.LongTensor(spk_mix_id_list).to(self.device)[None, None]
+        spk_mix_value = torch.FloatTensor(spk_mix_value_list).to(self.device)[None, None]
+        spk_mix_value_sum = spk_mix_value.sum()
+        spk_mix_value /= spk_mix_value_sum # Normalize
+        return spk_mix_id, spk_mix_value
+
+    def get_ph_text(self, ph: str, lang=None):
+        if not self.hparams["use_lang_id"]:
+            return ph
+        return f"{ph}/{lang}" if "/" not in ph else ph
+
+    def get_ph_num_list(self, lang: str, raw_ph_text_list: List[str]) -> List[int]:
+        ph_num = []
+        for ph in raw_ph_text_list:
+            if ph in self.consonant_set[lang]:
+                ph_num[-1] += 1
+            else:
+                ph_num.append(1)
+        return ph_num
+    
+    async def api_get_basic_info(self):
+        return {
+            "languages": list(self.lang_map.keys()),
+            "speakers": list(self.spk_map.keys()),
+            "hop_size": self.hparams["hop_size"],
+            "samplerate": self.hparams["audio_sample_rate"],
+        }
+    
+    async def api_pred_dur(self, req: dict):
+        # check params
+        assert "language" in req, "language is required"
+        assert "word_list" in req, "word_list is required"
+        assert "word_dur_list" in req, "word_dur_list is required"
+        assert "start_time" in req, "start_time is required"
+
+        # process input
+        language = req["language"]
+
+        word_list = ["SP"] + req["word_list"]
+        raw_ph_text_list = list(chain.from_iterable([ 
+            self.dictionay[language].get(word, ["SP"]) for word in word_list
+        ]))
+        ph_text_list = [
+            self.ph_map.get(self.get_ph_text(ph, language), "SP") for ph in raw_ph_text_list
+        ]
+        ph_token_seq = torch.LongTensor(
+            self.ph_encoder.encode(ph_text_list)
+        ).to(self.device)[None, :] # [B=1, T_txt]
+
+        ph_num_list = self.get_ph_num_list(language, raw_ph_text_list)
+        ph_num = torch.LongTensor(ph_num_list)
+        ph2word = self.lr(ph_num[None])[0]
+        onset = torch.diff(ph2word, dim=0, prepend=ph2word.new_zeros(1)).to(self.device)[None, :]
+
+        padding_note_time = 0.5
+        word_dur_list = [padding_note_time] + req["word_dur_list"]
+        word_dur_seq = torch.FloatTensor(word_dur_list)[None, :] # [B=1, T_w]
+        word_dur_seq = torch.gather(F.pad(word_dur_seq, [1, 0], value=0), 1, ph2word[None, :]).to(self.device)# [B=1, T_txt]
+
+        # model infer
+        ph_dur = self.dur_predictor.run_model(
+            ph_seq=ph_token_seq,
+            onset=onset,
+            word_dur=word_dur_seq,
+            ph_num=ph_num,
+            note_dur=word_dur_list
+        ).to(self.device)
+
+        # post process: rm the padding SP
+        segment_start_time = req["start_time"]
+        ph_dur_list: List[float] = ph_dur.cpu().detach().numpy().tolist()
+        padding_SP_time = ph_dur_list[0]
+        start_time = segment_start_time - padding_note_time + padding_SP_time
+        ph_text_list = ph_text_list[1:]
+        ph_num_list[1] += ph_num_list[0]-1
+        ph_num_list = ph_num_list[1:]
+        ph_dur_list = ph_dur_list[1:]
+        note_ph_list = []
+        idx = 0
+        ph_start_time = start_time
+        for num in ph_num_list:
+            note_ph_list.append([])
+            for i in range(idx, idx + num):
+                note_ph_list[-1].append({
+                    "ph": ph_text_list[i],
+                    "start_time": ph_start_time,
+                    "end_time": ph_start_time + ph_dur_list[i]
+                })
+                ph_start_time += ph_dur_list[i]
+            idx += num
+        return {
+            "start_time": start_time,
+            "note_ph_list": note_ph_list,
+        }
+
+    async def api_infer(self, req: dict):
+        # check params
+        assert "speaker" in req, "speaker is required"
+        assert "language" in req, "language is required"
+        assert "ph_text_list" in req, "ph_text_list is required"
+        assert "ph_dur_list" in req, "ph_dur_list is required"
+        assert "pitch_list" in req, "pitch_list is required"
+
+        # speaker
+        spk_mix_id, spk_mix_value = self.get_speaker_mix(req["speaker"])
+        spk_mix_embed = torch.sum(
+            self.model.spk_embed(spk_mix_id) * spk_mix_value.unsqueeze(3), 
+            dim=2, keepdim=False
+        )
+        # ph
+        ph_text_list = req["ph_text_list"]
+        ph_token_seq = torch.LongTensor(
+            self.ph_encoder.encode(ph_text_list)
+        ).to(self.device)[None, :] # [B=1, T_txt]
+        # lang
+        language = req["language"]
+        lang_seq = torch.LongTensor(
+            [self.lang_map[language]] * len(ph_text_list)
+        ).to(self.device)[None, :] # [B=1, T_txt]
+        
+
+        ph_dur_list = req["ph_dur_list"]
+        ph_dur_seq = torch.FloatTensor(ph_dur_list).to(self.device)
+        ph_acc = torch.round(torch.cumsum(ph_dur_seq, dim=0) / self.timestep + 0.5).long()
+        durations = torch.diff(ph_acc, dim=0, prepend=torch.LongTensor([0]).to(self.device))[None]  # => [B=1, T_txt]
+        mel2ph = self.lr(durations, ph_token_seq == 0)  # => [B=1, T]
+        mel_len = mel2ph.shape[1]
+
+        # pitch
+        f0_arr = librosa.midi_to_hz(np.array(req["pitch_list"]))
+        f0 = torch.FloatTensor(f0_arr).to(self.device)
+        if f0.shape[0] < mel_len:
+            f0 = torch.cat((f0, torch.full((mel_len - f0.shape[0],), fill_value=f0[-1], device=self.device)), dim=0)
+        elif f0.shape[0] > mel_len:
+            f0 = f0[:mel_len]
+        f0 = f0[None, :]
+
+        with torch.no_grad():
+            mel_out = self.run_model(
+                ph_seq=ph_token_seq, 
+                f0_seq=f0, 
+                mel2ph=mel2ph, 
+                spk_mix_embed=spk_mix_embed, 
+                lang_seq=lang_seq, 
+                infer=True
+            )
+            wav_out = self.run_vocoder(mel_out, f0=f0)
+        wav_out = wav_out.squeeze().cpu().numpy()
+        return {
+            "wav": wav_out.tolist()
+        }
 
     def handle(self):
         uvicorn.run(self.app, host=config.server_host, port=config.server_port)
