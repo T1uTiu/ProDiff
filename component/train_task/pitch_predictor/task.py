@@ -40,7 +40,7 @@ class PitchPredictorTask(BaseTask):
         spk_id = sample.get("spk_id", None)
         # 模型输出
         delta_pitch_pred = self.model(note_midi, note_rest, mel2note, 
-                             base_pitch, f0=pitch, 
+                             base_pitch, pitch=pitch, 
                              spk_id=spk_id, infer=infer)
         if infer:
             return delta_pitch_pred

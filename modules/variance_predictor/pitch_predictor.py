@@ -36,8 +36,6 @@ class PitchPredictor(nn.Module):
             ),
             timesteps=hparams["timesteps"],
             time_scale=hparams["timescale"],
-            spec_min=f0_prediction_args["spec_min"],
-            spec_max=f0_prediction_args["spec_max"],
         )
 
     def forward(self, note_midi, note_rest, mel2note, 
