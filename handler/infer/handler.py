@@ -260,6 +260,8 @@ class InferHandler:
             mel2note = torch.from_numpy(get_mel2ph_dur(self.lr, note_dur_sec, mel_len, self.timestep))
         # pitch
         if self.pred_pitch:
+            expr = segment.get("pitch_expr", 1.)
+            pitch_expr = torch.FloatTensor([expr]).to(self.device)[None, :]
             spk_id = torch.LongTensor([self.pred_pitch_spk_id]).to(self.device)
             base_f0 = torch.gather(F.pad(note_midi, [1, 0], value=-1), 0, mel2note)
             base_f0 = self.midi_smooth(base_f0[None])[0].to(self.device)[None, :]
@@ -268,6 +270,7 @@ class InferHandler:
                 note_rest = note_rest.to(self.device)[None, :],
                 mel2note = mel2note.to(self.device)[None, :],
                 base_f0 = base_f0,
+                pitch_expr = pitch_expr,
                 spk_id = spk_id,
             )
             f0_seq += base_f0

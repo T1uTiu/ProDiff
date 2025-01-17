@@ -25,6 +25,7 @@ class PitchPredictor(nn.Module):
 
         # pitch
         self.delta_pitch_embed = Linear(1, hparams["hidden_size"])
+        self.pitch_retake_embed = Embedding(2, hparams['hidden_size'])
         self.diffusion = PitchDiffusion(
             repeat_bins=f0_prediction_args["repeat_bins"],\
             denoise_fn=DiffNet(
@@ -36,8 +37,6 @@ class PitchPredictor(nn.Module):
             ),
             timesteps=hparams["timesteps"],
             time_scale=hparams["timescale"],
-            spec_min=f0_prediction_args["spec_min"],
-            spec_max=f0_prediction_args["spec_max"],
         )
 
     def forward(self, note_midi, note_rest, mel2note, 
@@ -58,9 +57,27 @@ class PitchPredictor(nn.Module):
             spk_embed = self.spk_embed(spk_id)[:, None, :]
             condition += spk_embed
 
+        # pitch retake
+        is_pitch_retake = pitch_retake is not None
+        if not is_pitch_retake:
+            pitch_retake = torch.ones_like(mel2note, dtype=torch.long)
+
+        if pitch_expr is None:
+            pitch_retake_embed = self.pitch_retake_embed(pitch_retake.long())
+        else:
+            retake_true_embed = self.pitch_retake_embed(
+                torch.ones(1, 1, dtype=torch.long, device=note_midi.device)
+            )
+            retake_false_embed = self.pitch_retake_embed(
+                torch.zeros(1, 1, dtype=torch.long, device=note_midi.device)
+            )
+            pitch_expr = (pitch_expr * pitch_retake)[:, :, None]
+            pitch_retake_embed = retake_true_embed * pitch_expr + retake_false_embed * (1 - pitch_expr)
+        condition += pitch_retake_embed
+
         # delta_pitch
-        if not infer:
-            delta_pitch = pitch - base_pitch
+        if is_pitch_retake:
+            delta_pitch = (pitch - base_pitch) * ~pitch_retake
         else:
             delta_pitch = torch.zeros_like(base_pitch)
         delta_pitch_embed = self.delta_pitch_embed(delta_pitch[:, :, None])

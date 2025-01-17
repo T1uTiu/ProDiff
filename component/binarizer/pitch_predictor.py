@@ -23,9 +23,9 @@ class PitchPredictorBinarizer(Binarizer):
         # param
         self.samplerate = hparams["audio_sample_rate"]
         self.hop_size, self.fft_size, self.win_size = hparams["hop_size"], hparams["fft_size"], hparams["win_size"]
-        self.timesteps = self.hop_size / self.samplerate 
+        self.timestep = self.hop_size / self.samplerate 
         self.midi_smooth = SinusoidalSmoothingConv1d(
-            round(0.06 / self.timesteps)
+            round(0.06 / self.timestep)
         ).eval()
     
     @staticmethod
@@ -39,12 +39,12 @@ class PitchPredictorBinarizer(Binarizer):
             spk_id = self.spk_map[dataset["speaker"]]
             with open(f"{data_dir}/label.json", "r", encoding="utf-8") as f:
                 labels = json.load(f)
-            for label in labels:
+            for item_name, label in labels.items():
                 # note
                 note_seq = label["note_seq"].split(" ")
                 note_dur = [float(x) for x in label["note_dur"].split(" ")]
                 item = {
-                    "wav_fn" : f"{data_dir}/wav/{label['name']}.wav",
+                    "wav_fn" : f"{data_dir}/wav/{item_name}.wav",
                     "spk_id" : spk_id,
                     "note_seq": note_seq,
                     "note_dur": note_dur,
