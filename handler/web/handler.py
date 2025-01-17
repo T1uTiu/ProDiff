@@ -52,11 +52,23 @@ class WebHandler:
         )
         self.dur_predictor = get_inferer_cls("dur")(dur_pred_hparams)
         self.dur_predictor.build_model(self.ph_encoder)
+        # pitch predictor
+        is_local_pred_pitch_model = os.path.exists(f"{self.work_dir}/pitch/config.yaml")
+        pitch_pred_hparams = set_hparams(
+            exp_name=exp_name if is_local_pred_pitch_model else None,
+            task="pitch",
+            global_hparams=False,
+            make_work_dir=False
+        )
+        self.pitch_predictor = get_inferer_cls("pitch")(pitch_pred_hparams)
+        self.pitch_predictor.build_model()
+        self.midi_smooth = SinusoidalSmoothingConv1d(round(0.06/self.timestep)).eval()
         # web
         self.app = fastapi.FastAPI(debug=True)
         self.app.add_api_route(config.get_basic_info_api, self.api_get_basic_info, methods=['GET'])
         self.app.add_api_route(config.post_infer_api, self.api_infer, methods=["POST"])
         self.app.add_api_route(config.post_pred_dur_api, self.api_pred_dur, methods=["POST"])
+        self.app.add_api_route(config.post_pred_pitch_api, self.api_pred_pitch, methods=["POST"])
         
 
     def build_spk_map(self):
@@ -146,27 +158,6 @@ class WebHandler:
         y = self.vocoder.spec2wav_torch(spec, **kwargs)
         return y[None]
 
-    def pred_dur(self, ph_seq: torch.LongTensor, ph_num: List[int], note_dur: List[float]) -> torch.FloatTensor:
-        """
-        param ph_seq: tensor of phonemes after encoding, [B=1, T_ph]
-        param ph_num: list of phoneme numbers in each word
-        param note_dur: list of note durations in ms
-        return ph_dur: tensor of phoneme durations, [T_ph]
-        """
-        ph_num = torch.LongTensor(ph_num)
-        ph2word = self.lr(ph_num[None])[0]
-        onset = torch.diff(ph2word, dim=0, prepend=ph2word.new_zeros(1)).to(self.device)[None, :]
-        word_dur = torch.FloatTensor(note_dur)[None, :] # [B=1, T_w]
-        word_dur = torch.gather(F.pad(word_dur, [1, 0], value=0), 1, ph2word[None, :]).to(self.device)# [B=1, T_txt]
-        ph_dur = self.dur_predictor.run_model(
-            ph_seq=ph_seq,
-            onset=onset,
-            word_dur=word_dur,
-            ph_num=ph_num,
-            note_dur=note_dur
-        ).to(self.device)
-        return ph_dur
-
     def get_speaker_mix(self, spk_name):
         if spk_name is None or spk_name == '':
             # Get the first speaker
@@ -203,6 +194,49 @@ class WebHandler:
                 ph_num.append(1)
         return ph_num
     
+    async def api_pred_pitch(self, req: dict):
+        # check params
+        assert "speaker" in req, "speaker is required"
+        assert "note_midi_list" in req, "note_midi_list is required"
+        assert "note_dur_list" in req, "note_dur_list is required"
+        # process input
+        note_midi = np.array(req["note_midi_list"], dtype=np.float32)
+        note_rest = note_midi == -1
+        if np.all(note_rest):
+            note_midi = np.full_like(note_midi, 60.)
+        else:
+            interp_func = interpolate.interp1d(
+                np.where(~note_rest)[0], note_midi[~note_rest],
+                kind='nearest', fill_value='extrapolate'
+            )
+            note_midi[note_rest] = interp_func(np.where(note_rest)[0])
+        note_rest = torch.BoolTensor(note_rest)
+        note_midi = torch.FloatTensor(note_midi)
+        note_dur_sec = torch.from_numpy(np.array(req["note_dur_list"], np.float32))
+        duration = torch.sum(note_dur_sec).item()
+        length = round(duration / self.timestep)
+        mel2note = torch.from_numpy(get_mel2ph_dur(self.lr, note_dur_sec, length, self.timestep))
+        expr = req.get("pitch_expr", 1.)
+        pitch_expr = torch.FloatTensor([expr]).to(self.device)[None, :]
+        speaker = req["speaker"]
+        spk_id = torch.LongTensor([self.spk_map.get(speaker, 0)]).to(self.device)
+        base_pitch = torch.gather(F.pad(note_midi, [1, 0], value=-1), 0, mel2note)
+        base_pitch = self.midi_smooth(base_pitch[None])[0].to(self.device)[None, :]
+        # model infer
+        delta_pitch = self.pitch_predictor.run_model(
+            note_midi = note_midi.to(self.device)[None, :],
+            note_rest = note_rest.to(self.device)[None, :],
+            mel2note = mel2note.to(self.device)[None, :],
+            base_pitch = base_pitch,
+            pitch_expr = pitch_expr,
+            spk_id = spk_id,
+        )
+        pitch = base_pitch + delta_pitch
+        pitch = pitch[0].cpu().detach().numpy()
+        return {
+            "pitch": pitch.tolist()
+        }
+
     async def api_get_basic_info(self):
         return {
             "languages": list(self.lang_map.keys()),

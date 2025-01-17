@@ -5,3 +5,4 @@ get_basic_info_api = "/api/basic_info"
 
 post_infer_api = "/api/infer"
 post_pred_dur_api = "/api/pred_dur"
+post_pred_pitch_api = "/api/pred_pitch"

@@ -41,6 +41,7 @@ class PitchPredictor(nn.Module):
 
     def forward(self, note_midi, note_rest, mel2note, 
                 base_pitch, pitch=None, 
+                pitch_retake=None, pitch_expr=None,
                 spk_id=None, infer=False):
         # encode
         note_dur = mel2ph_to_dur(mel2note, note_midi.shape[1]).float()
