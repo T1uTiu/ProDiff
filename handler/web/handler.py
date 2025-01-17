@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from itertools import chain
 from typing import List
 
+from component.binarizer.binarizer_utils import extract_harmonic_aperiodic
 from component.inferer.base import get_inferer_cls
 from component.vocoder.base_vocoder import get_vocoder_cls
 from modules.ProDiff.prodiff_teacher import ProDiffTeacher
@@ -18,6 +19,7 @@ from modules.fastspeech.tts_modules import LengthRegulator
 from utils.ckpt_utils import load_ckpt
 from utils.data_gen_utils import get_mel2ph_dur
 from utils.hparams_v2 import set_hparams
+from utils.pitch_utils import resample_align_curve
 from utils.text_encoder import TokenTextEncoder
 from . import config
 
@@ -329,6 +331,25 @@ class WebHandler:
             )
             wav_out = self.run_vocoder(mel_out, f0=f0)
         wav_out = wav_out.squeeze().cpu().numpy()
+        # 谐波分离
+        sp, ap = extract_harmonic_aperiodic(wav_out, self.hparams["vr_ckpt"])
+        voicing = resample_align_curve(
+            np.array(req["voicing_list"]),
+            original_timestep=self.timestep,
+            target_timestep=1/self.hparams["audio_sample_rate"],
+            align_length=wav_out.shape[0]
+        )
+        voicing = librosa.db_to_amplitude(voicing)
+        sp *= voicing
+        breath = resample_align_curve(
+            np.array(req["breath_list"]),
+            original_timestep=self.timestep,
+            target_timestep=1/self.hparams["audio_sample_rate"],
+            align_length=wav_out.shape[0]
+        )
+        breath = librosa.db_to_amplitude(breath)
+        ap *= breath
+        wav_out = sp + ap
         return {
             "wav": wav_out.tolist()
         }
