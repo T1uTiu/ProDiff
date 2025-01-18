@@ -126,6 +126,10 @@ use_pitch_embed: true
 pitch_spec_min: -8.0
 pitch_spec_max: 8.0
 f0_prediction_args:
+  spec_min: -8.0
+  spec_max: 8.0
+  clamp_min: -12.0
+  clamp_max: 12.0
   repeat_bins: 64
   encoder_args:
     hidden_size: 128
@@ -133,10 +137,12 @@ f0_prediction_args:
     ffn_kernel_size: 9
     num_heads: 2
   denoise_args:
-    dilation_cycle_length: 1
+    dilation_cycle_length: 5
     residual_layers: 20
     residual_channels: 256
-  loss_type: l1:0.5|ssim:0.5
+  timesteps: 4
+  timescale: 1000
+  loss_type: mse
 
 # voicing
 use_voicing_embed: true
@@ -188,6 +194,8 @@ diff_decoder_type: 'wavenet'
 dilation_cycle_length: 1
 residual_layers: 20
 residual_channels: 256
+sampling_algorithm: euler
+sampling_steps: 20
 mel_loss: l1:0.5|ssim:0.5 # l1|l2|gdl|ssim or l1:0.5|ssim:0.5
 
 # vocoder

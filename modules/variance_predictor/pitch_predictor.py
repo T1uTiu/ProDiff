@@ -5,6 +5,7 @@ from torch.nn import functional as F
 from modules.commons.common_layers import Linear, Embedding
 from modules.diffusion.denoise import DiffNet
 from modules.diffusion.prodiff import PitchDiffusion
+from modules.diffusion.reflow import PitchRectifiedFlow
 from modules.fastspeech.tts_modules import FastspeechEncoder, NoteEncoder, mel2ph_to_dur
 
 class PitchPredictor(nn.Module):
@@ -38,7 +39,7 @@ class PitchPredictor(nn.Module):
         # pitch
         self.delta_pitch_embed = Linear(1, hparams["hidden_size"])
         self.pitch_retake_embed = Embedding(2, hparams['hidden_size'])
-        self.diffusion = PitchDiffusion(
+        self.diffusion = PitchRectifiedFlow(
             repeat_bins=f0_prediction_args["repeat_bins"],\
             denoise_fn=DiffNet(
                 in_dims=f0_prediction_args["repeat_bins"],
@@ -47,8 +48,13 @@ class PitchPredictor(nn.Module):
                 residual_channels=f0_prediction_args["denoise_args"]["residual_channels"],
                 dilation_cycle_length=f0_prediction_args["denoise_args"]["dilation_cycle_length"],
             ),
-            timesteps=hparams["timesteps"],
-            time_scale=hparams["timescale"],
+            time_scale=f0_prediction_args["timescale"],
+            sampling_algorithm=hparams["sampling_algorithm"],
+            sampling_steps=hparams["sampling_steps"],
+            spec_min=f0_prediction_args["spec_min"],
+            spec_max=f0_prediction_args["spec_max"],
+            clamp_min=f0_prediction_args["clamp_min"],
+            clamp_max=f0_prediction_args["clamp_max"],
         )
 
     def forward(self, txt_tokens, mel2ph,
@@ -109,9 +115,8 @@ class PitchPredictor(nn.Module):
         condition += delta_pitch_embed
 
         # diffusion
-        nonpadding = (mel2note > 0).float().unsqueeze(1).unsqueeze(1)
         if not infer:
-            pitch_pred = self.diffusion(condition, nonpadding=nonpadding, ref_mels=pitch-base_pitch, infer=infer)
+            pitch_pred = self.diffusion(condition, pitch-base_pitch, infer=False)
         else:
-            pitch_pred = self.diffusion(condition, nonpadding=nonpadding, infer=infer)
+            pitch_pred = self.diffusion(condition, infer=True)
         return pitch_pred

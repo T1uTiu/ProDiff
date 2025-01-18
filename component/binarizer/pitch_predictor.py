@@ -72,6 +72,7 @@ class PitchPredictorBinarizer(Binarizer):
         # wavform
         waveform, _ = librosa.load(item["wav_fn"], sr=self.samplerate)
         mel_len = round(len(waveform) / self.hop_size)
+        preprocessed_item["mel2ph"] = get_mel2ph_dur(self.lr, torch.FloatTensor(item["ph_dur"]), mel_len, self.timestep)
         # summary
         preprocessed_item["sec"] = len(waveform) / self.samplerate
         preprocessed_item["length"] = mel_len

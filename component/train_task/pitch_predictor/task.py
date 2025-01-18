@@ -1,6 +1,6 @@
 import torch
 from component.train_task.base_task import BaseTask
-from component.train_task.loss_utils import add_mel_loss
+from component.train_task.loss_utils import RectifiedFlowLoss
 from component.train_task.pitch_predictor.dataset import PitchPredictorDataset
 from modules.variance_predictor.pitch_predictor import PitchPredictor
 import utils
@@ -13,18 +13,9 @@ class PitchPredictorTask(BaseTask):
         self.build_phone_encoder()
         self.f0_prediction_args = hparams['f0_prediction_args']
         self.f0_repeat = [1, 1, self.f0_prediction_args['repeat_bins']]
-        pitch_losses = self.f0_prediction_args['loss_type'].split("|")
-        self.loss_and_lambda = {}
-        for l in pitch_losses:
-            if l == '':
-                continue
-            if ':' in l:
-                l, lbd = l.split(":")
-                lbd = float(lbd)
-            else:
-                lbd = 1.0
-            self.loss_and_lambda[l] = lbd
-        print("| Pitch losses:", self.loss_and_lambda)
+        loss_type = self.f0_prediction_args['loss_type']
+        self.pich_loss = RectifiedFlowLoss(loss_type, log_norm=True)
+        print("| Pitch losses:", loss_type)
 
     def get_dataset_cls(self):
         return PitchPredictorDataset
@@ -43,22 +34,22 @@ class PitchPredictorTask(BaseTask):
         pitch_retake = sample["pitch_retake"]
         spk_id = sample.get("spk_id", None)
         # 模型输出
-        delta_pitch_pred = self.model(
+        output = self.model(
             txt_tokens, mel2ph,
             note_midi, note_rest, mel2note, 
             base_pitch, pitch=pitch, pitch_retake=pitch_retake,
             spk_id=spk_id, infer=infer
         )
         if infer:
-            return delta_pitch_pred
+            return output
         losses = {}
-        delta_pitch_gt = pitch - base_pitch
-        delta_pitch_gt = delta_pitch_gt.unsqueeze(-1).repeat(*self.f0_repeat)
-        add_mel_loss(delta_pitch_pred, delta_pitch_gt, losses, loss_and_lambda=self.loss_and_lambda)
+        non_padding = (mel2ph > 0).unsqueeze(-1) if mel2ph is not None else None
+        pitch_pred, pitch_gt, t = output
+        losses['pitch'] = self.pich_loss(pitch_pred, pitch_gt, t=t, non_padding=non_padding)
         if not return_output:
             return losses
         else:
-            return losses, delta_pitch_pred
+            return losses, output
     
     def validation_step(self, sample, batch_idx):
         outputs = {
