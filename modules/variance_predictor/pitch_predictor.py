@@ -5,19 +5,31 @@ from torch.nn import functional as F
 from modules.commons.common_layers import Linear, Embedding
 from modules.diffusion.denoise import DiffNet
 from modules.diffusion.prodiff import PitchDiffusion
-from modules.fastspeech.tts_modules import NoteEncoder, mel2ph_to_dur
+from modules.fastspeech.tts_modules import FastspeechEncoder, NoteEncoder, mel2ph_to_dur
 
 class PitchPredictor(nn.Module):
-    def __init__(self, hparams):
+    def __init__(self, vocab_size, hparams):
         super().__init__()
+        self.with_dur_embed = hparams.get('use_dur_embed', True)
+        if self.with_dur_embed:
+            self.dur_embed = Linear(1, hparams["hidden_size"])
+        self.encoder = FastspeechEncoder(
+            vocab_size=vocab_size,
+            hidden_size=hparams["hidden_size"],
+            num_layers=hparams["enc_layers"],
+            kernel_size=hparams["enc_ffn_kernel_size"],
+            dropout=hparams["dropout"],
+            num_heads=hparams["num_heads"]
+        )
+
         f0_prediction_args = hparams['f0_prediction_args']
-        self.encoder = NoteEncoder(
+        self.note_encoder = NoteEncoder(
             hidden_size=f0_prediction_args["encoder_args"]['hidden_size'], 
             num_layers=f0_prediction_args["encoder_args"]['num_layers'], 
             kernel_size=f0_prediction_args["encoder_args"]['ffn_kernel_size'], 
             num_heads=f0_prediction_args["encoder_args"]['num_heads']
         )
-        self.encode_out_linear = Linear(f0_prediction_args["encoder_args"]['hidden_size'], hparams['hidden_size'])
+        self.note_encode_out_linear = Linear(f0_prediction_args["encoder_args"]['hidden_size'], hparams['hidden_size'])
 
         self.with_spk_embed = hparams.get('use_spk_id', True)
         if self.with_spk_embed:
@@ -39,18 +51,31 @@ class PitchPredictor(nn.Module):
             time_scale=hparams["timescale"],
         )
 
-    def forward(self, note_midi, note_rest, mel2note, 
+    def forward(self, txt_tokens, mel2ph,
+                note_midi, note_rest, mel2note, 
                 base_pitch, pitch=None, 
+                pitch_retake=None, pitch_expr=None,
                 spk_id=None, infer=False):
+        # dur embed
+        if self.with_dur_embed:
+            dur = mel2ph_to_dur(mel2ph, txt_tokens.shape[1]).float()
+            extra_embed = self.dur_embed(dur[:, :, None])
         # encode
-        note_dur = mel2ph_to_dur(mel2note, note_midi.shape[1]).float()
-        encoder_out = self.encoder(note_midi, note_rest, note_dur)
-        encoder_out = self.encode_out_linear(encoder_out)
-
+        encoder_out = self.encoder(txt_tokens, extra_embed)
         # length regulate
         condition = F.pad(encoder_out, [0, 0, 1, 0])
-        mel2note_ = mel2note[..., None].repeat([1, 1, encoder_out.shape[-1]])
-        condition = torch.gather(condition, 1, mel2note_)
+        mel2ph_ = mel2ph[..., None].repeat([1, 1, encoder_out.shape[-1]])
+        condition = torch.gather(condition, 1, mel2ph_)
+
+        # encode
+        note_dur = mel2ph_to_dur(mel2note, note_midi.shape[1]).float()
+        note_encoder_out = self.note_encoder(note_midi, note_rest, note_dur)
+        note_encoder_out = self.note_encode_out_linear(note_encoder_out)
+        # length regulate
+        note_encoder_out = F.pad(note_encoder_out, [0, 0, 1, 0])
+        mel2note_ = mel2note[..., None].repeat([1, 1, note_encoder_out.shape[-1]])
+        note_condition = torch.gather(note_encoder_out, 1, mel2note_)
+        condition += note_condition
 
         # spk
         if self.with_spk_embed:

@@ -18,6 +18,8 @@ class PitchPredictorDataset(BaseDataset):
         
         batch_item = {
             "nsamples" : len(samples),
+            "ph_seq" : utils.collate_1d([torch.LongTensor(s["ph_seq"]) for s in samples], 0),
+            "mel2ph" : utils.collate_1d([torch.LongTensor(s["mel2ph"]) for s in samples], 0),
             "note_midi": utils.collate_1d([torch.Tensor(s["note_midi"]) for s in samples], -1),
             "note_rest": utils.collate_1d([torch.BoolTensor(s["note_rest"]) for s in samples], True),
             "mel2note" : utils.collate_1d([torch.LongTensor(s["mel2note"]) for s in samples], 0),

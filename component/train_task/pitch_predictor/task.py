@@ -10,6 +10,7 @@ from utils.plot import spec_curse_to_figure
 class PitchPredictorTask(BaseTask):
     def __init__(self, hparams):
         super().__init__(hparams=hparams)
+        self.build_phone_encoder()
         self.f0_prediction_args = hparams['f0_prediction_args']
         self.f0_repeat = [1, 1, self.f0_prediction_args['repeat_bins']]
         pitch_losses = self.f0_prediction_args['loss_type'].split("|")
@@ -29,9 +30,11 @@ class PitchPredictorTask(BaseTask):
         return PitchPredictorDataset
     
     def build_model(self):
-        self.model = PitchPredictor(self.hparams)
+        self.model = PitchPredictor(len(self.ph_encoder), self.hparams)
 
     def run_model(self, sample, return_output=False, infer=False):
+        txt_tokens = sample["ph_seq"]  # [B, T_ph]
+        mel2ph = sample["mel2ph"]
         note_midi = sample["note_midi"] 
         note_rest = sample["note_rest"]
         mel2note = sample["mel2note"]
@@ -40,9 +43,12 @@ class PitchPredictorTask(BaseTask):
         pitch_retake = sample["pitch_retake"]
         spk_id = sample.get("spk_id", None)
         # 模型输出
-        delta_pitch_pred = self.model(note_midi, note_rest, mel2note, 
-                             base_pitch, pitch=pitch, pitch_retake = pitch_retake,
-                             spk_id=spk_id, infer=infer)
+        delta_pitch_pred = self.model(
+            txt_tokens, mel2ph,
+            note_midi, note_rest, mel2note, 
+            base_pitch, pitch=pitch, pitch_retake=pitch_retake,
+            spk_id=spk_id, infer=infer
+        )
         if infer:
             return delta_pitch_pred
         losses = {}
