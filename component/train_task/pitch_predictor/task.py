@@ -24,8 +24,6 @@ class PitchPredictorTask(BaseTask):
         self.model = PitchPredictor(len(self.ph_encoder), self.hparams)
 
     def run_model(self, sample, return_output=False, infer=False):
-        txt_tokens = sample["ph_seq"]  # [B, T_ph]
-        mel2ph = sample["mel2ph"]
         note_midi = sample["note_midi"] 
         note_rest = sample["note_rest"]
         mel2note = sample["mel2note"]
@@ -35,7 +33,6 @@ class PitchPredictorTask(BaseTask):
         spk_id = sample.get("spk_id", None)
         # 模型输出
         output = self.model(
-            txt_tokens, mel2ph,
             note_midi, note_rest, mel2note, 
             base_pitch, pitch=pitch, pitch_retake=pitch_retake,
             spk_id=spk_id, infer=infer
@@ -43,7 +40,7 @@ class PitchPredictorTask(BaseTask):
         if infer:
             return output
         losses = {}
-        non_padding = (mel2ph > 0).unsqueeze(-1) if mel2ph is not None else None
+        non_padding = (mel2note > 0).unsqueeze(-1) if mel2note is not None else None
         pitch_pred, pitch_gt, t = output
         losses['pitch'] = self.pich_loss(pitch_pred, pitch_gt, t=t, non_padding=non_padding)
         if not return_output:
