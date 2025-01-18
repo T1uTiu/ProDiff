@@ -4,12 +4,11 @@ from torch.nn import functional as F
 
 from modules.commons.common_layers import Linear, Embedding
 from modules.diffusion.denoise import DiffNet
-from modules.diffusion.prodiff import PitchDiffusion
 from modules.diffusion.reflow import PitchRectifiedFlow
-from modules.fastspeech.tts_modules import FastspeechEncoder, NoteEncoder, mel2ph_to_dur
+from modules.fastspeech.tts_modules import NoteEncoder, mel2ph_to_dur
 
 class PitchPredictor(nn.Module):
-    def __init__(self, vocab_size, hparams):
+    def __init__(self, hparams):
         super().__init__()
 
         f0_prediction_args = hparams['f0_prediction_args']

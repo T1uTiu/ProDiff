@@ -10,7 +10,6 @@ from utils.plot import spec_curse_to_figure
 class PitchPredictorTask(BaseTask):
     def __init__(self, hparams):
         super().__init__(hparams=hparams)
-        self.build_phone_encoder()
         self.f0_prediction_args = hparams['f0_prediction_args']
         self.f0_repeat = [1, 1, self.f0_prediction_args['repeat_bins']]
         loss_type = self.f0_prediction_args['loss_type']
@@ -21,7 +20,7 @@ class PitchPredictorTask(BaseTask):
         return PitchPredictorDataset
     
     def build_model(self):
-        self.model = PitchPredictor(len(self.ph_encoder), self.hparams)
+        self.model = PitchPredictor(self.hparams)
 
     def run_model(self, sample, return_output=False, infer=False):
         note_midi = sample["note_midi"] 
