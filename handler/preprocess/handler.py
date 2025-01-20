@@ -48,7 +48,17 @@ class PreprocessHandler:
                 else:
                     ph_num[-1] += 1
             label["ph_num"] = " ".join(map(str, ph_num))
-        
+
+    def cal_note_seq(self, note_midi: float, note_rest: bool):
+        midi_num = round(note_midi, 0)
+        cent = int(round(note_midi - midi_num, 2) * 100)
+        if cent > 0:
+            cent = f"+{cent}"
+        elif cent == 0:
+            cent = ""
+        seq = f"{librosa.midi_to_note(midi_num, unicode=False)}{cent}"
+        return seq if not note_rest else "rest"
+
     def add_note_midi_label(self, labels, override=False):
         rawmidi_dir = f"{self.data_dir}/midi"
         for item_name, label in tqdm(labels.items()):
@@ -58,7 +68,7 @@ class PreprocessHandler:
                 raw_midi = pickle.loads(f.read())
             note_midi = raw_midi["note_midi"]
             note_rest = raw_midi["note_rest"]
-            note_seq = [librosa.midi_to_note(m) if not note_rest[i] else "rest" for i, m in enumerate(note_midi)]
+            note_seq = [self.cal_note_seq(midi, rest) for midi, rest in zip(note_midi, note_rest)]
             note_dur = [f"{x:.4f}" for x in raw_midi["note_dur"]]
             label["note_seq"] = " ".join(note_seq)
             label["note_dur"] = " ".join(note_dur)

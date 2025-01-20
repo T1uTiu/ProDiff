@@ -5,7 +5,7 @@ from scipy import interpolate
 import torch
 from torch.functional import F
 from component.binarizer.base import Binarizer, register_binarizer
-from component.binarizer.binarizer_utils import build_phone_encoder, build_spk_map
+from component.binarizer.binarizer_utils import build_spk_map
 from component.pe.base import get_pitch_extractor_cls
 from modules.commons.common_layers import SinusoidalSmoothingConv1d
 from modules.fastspeech.tts_modules import LengthRegulator
@@ -17,7 +17,6 @@ class PitchPredictorBinarizer(Binarizer):
     def __init__(self, hparams):
         super().__init__(hparams)
         binarization_args = hparams["binarization_args"]
-        self.ph_map, self.ph_encoder = build_phone_encoder(self.data_dir, hparams["dictionary"])
         self.need_spk_id = binarization_args.get("with_spk_id", True)
         if self.need_spk_id:
             self.spk_map = build_spk_map(self.data_dir, self.datasets)
@@ -41,22 +40,15 @@ class PitchPredictorBinarizer(Binarizer):
         for dataset in self.datasets:
             data_dir = dataset["data_dir"]
             spk_id = self.spk_map[dataset["speaker"]]
-            lang = dataset["language"]
             with open(f"{data_dir}/label.json", "r", encoding="utf-8") as f:
                 labels = json.load(f)
             for item_name, label in labels.items():
-                # ph
-                ph_text = [f"{x}/{lang}" for x in label["ph_seq"].split(" ")]
-                ph_dur = [float(x) for x in label["ph_dur"].split(" ")]
-                ph_seq = self.ph_encoder.encode(ph_text)
                 # note
                 note_seq = label["note_seq"].split(" ")
                 note_dur = [float(x) for x in label["note_dur"].split(" ")]
                 item = {
                     "wav_fn" : f"{data_dir}/wav/{item_name}.wav",
                     "spk_id" : spk_id,
-                    "ph_seq": ph_seq,
-                    "ph_dur": ph_dur,
                     "note_seq": note_seq,
                     "note_dur": note_dur,
                 }
@@ -65,14 +57,10 @@ class PitchPredictorBinarizer(Binarizer):
 
     def process_item(self, item: dict):
         hparams = self.hparams
-        preprocessed_item = {
-            "ph_seq" : np.array(item["ph_seq"], dtype=np.int64),
-            "ph_dur" : np.array(item["ph_dur"], dtype=np.float32),
-        }
+        preprocessed_item = {}
         # wavform
         waveform, _ = librosa.load(item["wav_fn"], sr=self.samplerate)
         mel_len = round(len(waveform) / self.hop_size)
-        preprocessed_item["mel2ph"] = get_mel2ph_dur(self.lr, torch.FloatTensor(item["ph_dur"]), mel_len, self.timestep)
         # summary
         preprocessed_item["sec"] = len(waveform) / self.samplerate
         preprocessed_item["length"] = mel_len
