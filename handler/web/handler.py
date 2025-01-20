@@ -34,7 +34,7 @@ class WebHandler:
             make_work_dir=False
         )
         self.work_dir = self.hparams["work_dir"]
-        self.build_spk_map()
+        self.spk_map = self.build_spk_map(os.path.join(self.work_dir, 'spk_map.json'))
         self.build_lang_map()
         self.build_phone_encoder()
         self.lr = LengthRegulator()
@@ -60,6 +60,7 @@ class WebHandler:
             global_hparams=False,
             make_work_dir=False
         )
+        self.pitch_pred_spk_map = self.build_spk_map(os.path.join(pitch_pred_hparams["work_dir"], 'spk_map.json'))
         self.pitch_predictor = get_inferer_cls("pitch")(pitch_pred_hparams)
         self.pitch_predictor.build_model()
         self.midi_smooth = SinusoidalSmoothingConv1d(round(0.06/self.timestep)).eval()
@@ -69,14 +70,12 @@ class WebHandler:
         self.app.add_api_route(config.post_infer_api, self.api_infer, methods=["POST"])
         self.app.add_api_route(config.post_pred_dur_api, self.api_pred_dur, methods=["POST"])
         self.app.add_api_route(config.post_pred_pitch_api, self.api_pred_pitch, methods=["POST"])
-        
-
-    def build_spk_map(self):
-        spk_map_fn = os.path.join(self.work_dir, 'spk_map.json')
+    
+    def build_spk_map(self, spk_map_fn):
         assert os.path.exists(spk_map_fn), f"Speaker map file {spk_map_fn} not found"
         with open(spk_map_fn, 'r') as f:
             spk_map = json.load(f)
-        self.spk_map = spk_map
+        return spk_map
         
     def build_lang_map(self):
         lang_map_fn = os.path.join(self.work_dir, 'lang_map.json')
@@ -119,6 +118,7 @@ class WebHandler:
                     ph, ph_type = line[0], line[1]
                     if ph_type == "consonant":
                         self.consonant_set[lang].add(ph)
+                    self.dictionay[lang][ph] = [ph]
     def build_model(self):
         f0_stats_fn = f'{self.hparams["work_dir"]}/train_f0s_mean_std.npy'
         if os.path.exists(f0_stats_fn):
@@ -194,9 +194,17 @@ class WebHandler:
                 ph_num.append(1)
         return ph_num
     
+    async def api_get_basic_info(self):
+        return {
+            "languages": list(self.lang_map.keys()),
+            "speakers": list(self.spk_map.keys()),
+            "hop_size": self.hparams["hop_size"],
+            "samplerate": self.hparams["audio_sample_rate"],
+            "pitch_styles": list(self.pitch_pred_spk_map.keys())
+        }
+
     async def api_pred_pitch(self, req: dict):
         # check params
-        assert "speaker" in req, "speaker is required"
         assert "note_midi_list" in req, "note_midi_list is required"
         assert "note_dur_list" in req, "note_dur_list is required"
         # process input
@@ -218,7 +226,7 @@ class WebHandler:
         mel2note = torch.from_numpy(get_mel2ph_dur(self.lr, note_dur_sec, length, self.timestep))
         expr = req.get("pitch_expr", 1.)
         pitch_expr = torch.FloatTensor([expr]).to(self.device)[None, :]
-        speaker = req["speaker"]
+        speaker = req.get("style", "")
         spk_id = torch.LongTensor([self.spk_map.get(speaker, 0)]).to(self.device)
         base_pitch = torch.gather(F.pad(note_midi, [1, 0], value=-1), 0, mel2note)
         base_pitch = self.midi_smooth(base_pitch[None])[0].to(self.device)[None, :]
@@ -235,14 +243,6 @@ class WebHandler:
         pitch = pitch[0].cpu().detach().numpy()
         return {
             "pitch": pitch.tolist()
-        }
-
-    async def api_get_basic_info(self):
-        return {
-            "languages": list(self.lang_map.keys()),
-            "speakers": list(self.spk_map.keys()),
-            "hop_size": self.hparams["hop_size"],
-            "samplerate": self.hparams["audio_sample_rate"],
         }
     
     async def api_pred_dur(self, req: dict):
@@ -291,22 +291,22 @@ class WebHandler:
         padding_SP_time = ph_dur_list[0]
         start_time = segment_start_time - padding_note_time + padding_SP_time
         ph_text_list = ph_text_list[1:]
-        ph_num_list[1] += ph_num_list[0]-1
-        ph_num_list = ph_num_list[1:]
         ph_dur_list = ph_dur_list[1:]
+        word_list = word_list[1:]
         note_ph_list = []
         idx = 0
         ph_start_time = start_time
-        for num in ph_num_list:
+        for word in word_list:
+            word_ph_num = len(self.dictionay[language].get(word, ["SP"]))
             note_ph_list.append([])
-            for i in range(idx, idx + num):
+            for i in range(idx, idx+word_ph_num):
                 note_ph_list[-1].append({
                     "ph": ph_text_list[i],
                     "start_time": ph_start_time,
                     "end_time": ph_start_time + ph_dur_list[i]
                 })
                 ph_start_time += ph_dur_list[i]
-            idx += num
+            idx += word_ph_num
         return {
             "start_time": start_time,
             "note_ph_list": note_ph_list,
