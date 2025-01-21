@@ -94,9 +94,10 @@ class WebHandler:
         self.ph_encoder = TokenTextEncoder(None, vocab_list=ph_list, replace_oov='SP')
         # build dictionary
         self.dictionay = {}
-        for lang, dictionary_fn in self.hparams["dictionary"].items():
+        for lang, dictionary in self.hparams["dictionary"].items():
             if lang == "global":
                 continue
+            dictionary_fn = dictionary["dictionary"]
             self.dictionay[lang] = {"AP": ["AP"], "SP": ["SP"]}
             f = open(dictionary_fn, 'r')
             for x in f.readlines():
@@ -107,12 +108,12 @@ class WebHandler:
             f.close()
         # build ph type
         self.consonant_set = {}
-        for lang, dictionary_fn in self.hparams["dictionary"].items():
+        for lang, dictionary in self.hparams["dictionary"].items():
             if lang == "global":
                 continue
-            lang_ph_list_fn = os.path.dirname(dictionary_fn) + f"/{lang}_phones.txt"
+            phoneme_fn = dictionary["phoneme"]
             self.consonant_set[lang] = set()
-            with open(lang_ph_list_fn, "r") as f:
+            with open(phoneme_fn, "r") as f:
                 for x in f.readlines():
                     line = x.split("\n")[0].split(' ')
                     ph, ph_type = line[0], line[1]
