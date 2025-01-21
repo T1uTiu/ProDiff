@@ -119,6 +119,7 @@ class WebHandler:
                     if ph_type == "consonant":
                         self.consonant_set[lang].add(ph)
                     self.dictionay[lang][ph] = [ph]
+
     def build_model(self):
         f0_stats_fn = f'{self.hparams["work_dir"]}/train_f0s_mean_std.npy'
         if os.path.exists(f0_stats_fn):
@@ -185,13 +186,16 @@ class WebHandler:
             return ph
         return f"{ph}/{lang}" if "/" not in ph else ph
 
-    def get_ph_num_list(self, lang: str, raw_ph_text_list: List[str]) -> List[int]:
-        ph_num = []
-        for ph in raw_ph_text_list:
-            if ph in self.consonant_set[lang]:
-                ph_num[-1] += 1
-            else:
-                ph_num.append(1)
+    def get_ph_num_list(self, lang: str, word_ph_text_list: List[List[str]]) -> List[int]:
+        num_word = len(word_ph_text_list)
+        ph_num = [0] * num_word
+        for i, ph_list in enumerate(word_ph_text_list):
+            for ph_idx, ph in enumerate(ph_list):
+                # if the first ph of the word is consonant, add it to the last word to align the beat
+                if ph_idx == 0 and ph in self.consonant_set[lang]:
+                    ph_num[i-1] += 1
+                else:
+                    ph_num[i] += 1
         return ph_num
     
     async def api_get_basic_info(self):
@@ -256,22 +260,23 @@ class WebHandler:
         language = req["language"]
 
         word_list = ["SP"] + req["word_list"]
-        raw_ph_text_list = list(chain.from_iterable([ 
+        word_ph_text_list = [ 
             self.dictionay[language].get(word, ["SP"]) for word in word_list
-        ]))
-        ph_text_list = [
-            self.ph_map.get(self.get_ph_text(ph, language), "SP") for ph in raw_ph_text_list
         ]
+        ph_text_list = list(chain.from_iterable([
+            [self.ph_map.get(self.get_ph_text(ph, language), "SP") for ph in ph_list] 
+            for ph_list in word_ph_text_list
+        ]))
         ph_token_seq = torch.LongTensor(
             self.ph_encoder.encode(ph_text_list)
         ).to(self.device)[None, :] # [B=1, T_txt]
 
-        ph_num_list = self.get_ph_num_list(language, raw_ph_text_list)
+        ph_num_list = self.get_ph_num_list(language, word_ph_text_list)
         ph_num = torch.LongTensor(ph_num_list)
         ph2word = self.lr(ph_num[None])[0]
         onset = torch.diff(ph2word, dim=0, prepend=ph2word.new_zeros(1)).to(self.device)[None, :]
 
-        padding_note_time = 0.5
+        padding_note_time = req.get("padding_note_time", 0.5) # padding SP time, sec
         word_dur_list = [padding_note_time] + req["word_dur_list"]
         word_dur_seq = torch.FloatTensor(word_dur_list)[None, :] # [B=1, T_w]
         word_dur_seq = torch.gather(F.pad(word_dur_seq, [1, 0], value=0), 1, ph2word[None, :]).to(self.device)# [B=1, T_txt]
@@ -285,19 +290,19 @@ class WebHandler:
             note_dur=word_dur_list
         ).to(self.device)
 
-        # post process: rm the padding SP
+        # post process
         segment_start_time = req["start_time"]
+        start_time = segment_start_time - padding_note_time
         ph_dur_list: List[float] = ph_dur.cpu().detach().numpy().tolist()
-        padding_SP_time = ph_dur_list[0]
-        start_time = segment_start_time - padding_note_time + padding_SP_time
-        ph_text_list = ph_text_list[1:]
-        ph_dur_list = ph_dur_list[1:]
         word_list = word_list[1:]
         note_ph_list = []
         idx = 0
         ph_start_time = start_time
-        for word in word_list:
+        for i, word in enumerate(word_list):
             word_ph_num = len(self.dictionay[language].get(word, ["SP"]))
+            # add padding SP to the first word
+            if i == 0:
+                word_ph_num += 1
             note_ph_list.append([])
             for i in range(idx, idx+word_ph_num):
                 note_ph_list[-1].append({
