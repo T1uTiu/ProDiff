@@ -24,8 +24,15 @@ datasets:
 data_dir: data/test
 dictionary: 
   global: dictionary/global.csv
-  zh: dictionary/zh.txt
-  jp: dictionary/jp.txt
+  zh: 
+    - dictionary: dictionary/zh.txt
+    - phoneme: dictionary/zh_phones.txt
+  jp: 
+    - dictionary: dictionary/jp.txt
+    - phoneme: dictionary/jp_phones.txt
+  en: 
+    - dictionary: dictionary/en.txt
+    - phoneme: dictionary/en_phones.txt
 test_num: 6
 valid_num: 6
 pitch_extractor: rmvpe # parselmouth|rmvpe

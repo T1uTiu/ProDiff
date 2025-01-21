@@ -28,16 +28,16 @@ class PreprocessHandler:
         return label
 
     def add_ph_num_label(self, labels, override=False):
-        dictionary_fn = f"dictionary/{self.lang}.txt"
+        dictionary_fn = f"dictionary/{self.lang}_phones.txt"
         c_set, v_set = set(), set(["AP", "SP"])
         with open(dictionary_fn, 'r', encoding='utf-8') as f:
-            for line in  f.readlines():
-                ph_list = line.split("\n")[0].split('\t')[1].split(' ')
-                for i, ph in enumerate(ph_list):
-                    if len(ph_list) == 1 or i != 0:
-                        v_set.add(ph)
-                    else:
-                        c_set.add(ph)
+            for x in  f.readlines():
+                line = x.split("\n")[0].split(' ')
+                ph, ph_type = line[0], line[1]
+                if ph_type == "consonant":
+                    c_set.add(ph)
+                else:
+                    v_set.add(ph)
         for label in tqdm(labels.values()):
             if "ph_num" in label and not override:
                 continue

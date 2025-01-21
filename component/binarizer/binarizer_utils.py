@@ -29,18 +29,20 @@ def build_phone_encoder(data_dir: str, dictionary: dict):
         for lang, dictionary in dictionary.items():
             if lang == "global":
                 continue
-            f = open(dictionary, 'r')
+            f = open(dictionary["phoneme"], 'r')
             ph_map[f"AP/{lang}"] = "AP"
             ph_map[f"SP/{lang}"] = "SP"
             for x in f.readlines():
-                ph_list = x.split("\n")[0].split('\t')[1].split(' ')
-                for ph in ph_list:
-                    ph = f"{ph}/{lang}"
-                    ph_map[ph] = ph2global.get(ph, ph)
+                line = x.split("\n")[0].split(' ')
+                ph, _ = line[0], line[1]
+                ph = f"{ph}/{lang}"
+                ph_map[ph] = ph2global.get(ph, ph)
             f.close()
-        json.dump(ph_map, open(ph_set_fn, 'w'))
+        with open(ph_set_fn, 'w') as f:
+            json.dump(ph_map, f)
     else:
-        ph_map = json.load(open(ph_set_fn, 'r'))
+        with open(ph_set_fn, 'r') as f:
+            ph_map = json.load(f)
     ph_list = list(sorted(set(ph_map.values())))
     print("| phone set: ", ph_list)
     ph_encoder = TokenTextEncoder(None, vocab_list=ph_list, replace_oov="SP")
