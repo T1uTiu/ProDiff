@@ -44,7 +44,8 @@ class WebHandler:
         self.build_vocoder()
         
         # dur predictor
-        is_local_pred_dur_model = os.path.exists(f"{self.work_dir}/dur/config.yaml")
+        dur_predictor_work_dir = os.path.join(*self.work_dir.split('\\')[:-1], 'dur')
+        is_local_pred_dur_model = os.path.exists(f"{dur_predictor_work_dir}/config.yaml")
         dur_pred_hparams = set_hparams(
             exp_name=exp_name if is_local_pred_dur_model else None,
             task="dur",
@@ -53,7 +54,8 @@ class WebHandler:
         self.dur_predictor = get_inferer_cls("dur")(dur_pred_hparams)
         self.dur_predictor.build_model(self.ph_encoder)
         # pitch predictor
-        is_local_pred_pitch_model = os.path.exists(f"{self.work_dir}/pitch/config.yaml")
+        pitch_predictor_work_dir = os.path.join(*self.work_dir.split('\\')[:-1], 'pitch')
+        is_local_pred_pitch_model = os.path.exists(f"{pitch_predictor_work_dir}/config.yaml")
         pitch_pred_hparams = set_hparams(
             exp_name=exp_name if is_local_pred_pitch_model else None,
             task="pitch",
@@ -119,7 +121,7 @@ class WebHandler:
                     ph, ph_type = line[0], line[1]
                     if ph_type == "consonant":
                         self.consonant_set[lang].add(ph)
-                    self.dictionay[lang][ph] = [ph]
+                    self.dictionay[lang][f".{ph}"] = [ph]
 
     def build_model(self):
         f0_stats_fn = f'{self.hparams["work_dir"]}/train_f0s_mean_std.npy'
