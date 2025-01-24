@@ -3,14 +3,13 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 from modules.commons.common_layers import Linear, Embedding
-from modules.diffusion.denoise import DiffNet
+from modules.decoder.wavenet import WaveNet
 from modules.diffusion.reflow import PitchRectifiedFlow
 from modules.fastspeech.tts_modules import NoteEncoder, mel2ph_to_dur
 
 class PitchPredictor(nn.Module):
     def __init__(self, hparams):
         super().__init__()
-
         f0_prediction_args = hparams['f0_prediction_args']
         self.note_encoder = NoteEncoder(
             hidden_size=f0_prediction_args["encoder_args"]['hidden_size'], 
@@ -27,9 +26,10 @@ class PitchPredictor(nn.Module):
         # pitch
         self.delta_pitch_embed = Linear(1, hparams["hidden_size"])
         self.pitch_retake_embed = Embedding(2, hparams['hidden_size'])
+        self.sample_steps = hparams["sampling_steps"]
         self.diffusion = PitchRectifiedFlow(
             repeat_bins=f0_prediction_args["repeat_bins"],\
-            denoise_fn=DiffNet(
+            denoise_fn=WaveNet(
                 in_dims=f0_prediction_args["repeat_bins"],
                 hidden_size=hparams["hidden_size"],
                 residual_layers=f0_prediction_args["denoise_args"]["residual_layers"],
@@ -38,7 +38,6 @@ class PitchPredictor(nn.Module):
             ),
             time_scale=f0_prediction_args["timescale"],
             sampling_algorithm=hparams["sampling_algorithm"],
-            sampling_steps=hparams["sampling_steps"],
             spec_min=f0_prediction_args["spec_min"],
             spec_max=f0_prediction_args["spec_max"],
             clamp_min=f0_prediction_args["clamp_min"],
@@ -93,5 +92,5 @@ class PitchPredictor(nn.Module):
         if not infer:
             pitch_pred = self.diffusion(condition, pitch-base_pitch, infer=False)
         else:
-            pitch_pred = self.diffusion(condition, infer=True)
+            pitch_pred = self.diffusion(condition, infer_step=self.sample_steps, infer=True)
         return pitch_pred

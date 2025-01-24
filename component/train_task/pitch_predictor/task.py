@@ -1,6 +1,6 @@
 import torch
 from component.train_task.base_task import BaseTask
-from component.train_task.loss_utils import RectifiedFlowLoss
+from component.train_task.loss_utils import PitchLoss
 from component.train_task.pitch_predictor.dataset import PitchPredictorDataset
 from modules.variance_predictor.pitch_predictor import PitchPredictor
 import utils
@@ -13,7 +13,7 @@ class PitchPredictorTask(BaseTask):
         self.f0_prediction_args = hparams['f0_prediction_args']
         self.f0_repeat = [1, 1, self.f0_prediction_args['repeat_bins']]
         loss_type = self.f0_prediction_args['loss_type']
-        self.pich_loss = RectifiedFlowLoss(loss_type, log_norm=True)
+        self.pich_loss = PitchLoss(loss_type, log_norm=True)
         print("| Pitch losses:", loss_type)
 
     def get_dataset_cls(self):

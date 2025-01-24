@@ -124,3 +124,9 @@ class RectifiedFlowLoss(nn.Module):
         """
         v_pred, v_gt = self._mask_non_padding(v_pred, v_gt, non_padding)
         return self._forward(v_pred, v_gt, t=t).mean()
+
+class PitchLoss(RectifiedFlowLoss):
+    pass
+
+class MelLoss(RectifiedFlowLoss):
+    pass

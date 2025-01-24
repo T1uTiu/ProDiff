@@ -190,22 +190,31 @@ use_spk_id: true
 use_lang_id: true
 use_gender_id: false
 
-# diffusion
-spec_min: []
-spec_max: []
+#########
+# diffsuion
+#########
+spec_min: [-12]
+spec_max: [0]
+diff_type: "prodiff" # prodiff|reflow
+# ddpm's param
 max_beta: 40
 timesteps: 4
-timescale: 1
 schedule_type: 'vpsde' # vpsde|linear|cosine|logsnr
+# reflow's param
+sampling_algorithm: euler
+sampling_steps: 20
+timescale: 1000
+# diff decoder
 diff_decoder_type: 'wavenet'
 dilation_cycle_length: 1
 residual_layers: 20
 residual_channels: 256
-sampling_algorithm: euler
-sampling_steps: 20
+# loss
 mel_loss: l1:0.5|ssim:0.5 # l1|l2|gdl|ssim or l1:0.5|ssim:0.5
 
+#########
 # vocoder
+#########
 vocoder: nsfhifigan
 vocoder_ckpt: checkpoints/nsf_hifigan/model
 vocoder_denoise_c: 0.0

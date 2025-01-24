@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 from modules.commons.common_layers import Embedding, Linear
-from modules.diffusion.denoise import DiffNet
+from modules.decoder.wavenet import WaveNet
 from modules.diffusion.prodiff import MultiVariDiffusion
 from modules.fastspeech.tts_modules import NoteEncoder, FastspeechEncoder, mel2ph_to_dur
 
@@ -63,7 +63,7 @@ class VariPredictor(nn.Module):
         repeat_bins = vari_prediction_args["repeat_bins"] // len(self.variance_list)
         self.diffusion = MultiVariDiffusion(
             repeat_bins=repeat_bins,
-            denoise_fn=DiffNet(
+            denoise_fn=WaveNet(
                 in_dims=repeat_bins,
                 hidden_size=hparams["hidden_size"],
                 residual_layers=vari_prediction_args["denoise_args"]["residual_layers"],

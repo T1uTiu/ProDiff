@@ -2,8 +2,9 @@ import torch
 import torch.nn as nn
 
 from modules.commons.common_layers import *
-from modules.diffusion.denoise import DiffNet
+from modules.decoder.wavenet import WaveNet
 from modules.diffusion.prodiff import GaussianDiffusion
+from modules.diffusion.reflow import RectifiedFlow
 from modules.fastspeech.tts_modules import FastspeechEncoder, mel2ph_to_dur
 
 class ProDiffTeacher(nn.Module):
@@ -43,22 +44,40 @@ class ProDiffTeacher(nn.Module):
         if self.with_breath_embed:
             self.breath_embed = Linear(1, hparams['hidden_size'])
 
-        self.diffusion = GaussianDiffusion(
-            out_dims=hparams["audio_num_mel_bins"],
-            denoise_fn=DiffNet(
-                in_dims=hparams['audio_num_mel_bins'],
-                hidden_size=hparams["hidden_size"],
-                residual_layers=hparams["residual_layers"],
-                residual_channels=hparams["residual_channels"],
-                dilation_cycle_length=hparams["dilation_cycle_length"],
-            ),
-            timesteps=hparams["timesteps"],
-            time_scale=hparams["timescale"],
-            schedule_type=hparams['schedule_type'],
-            max_beta=hparams.get("max_beta", 0.02),
-            spec_min=hparams["spec_min"],
-            spec_max=hparams["spec_max"],
-        )
+        self.diffusion_type = hparams.get("diff_type", "prodiff")
+        if self.diffusion_type == "prodiff":
+            self.diffusion = GaussianDiffusion(
+                out_dims=hparams["audio_num_mel_bins"],
+                denoise_fn=WaveNet(
+                    in_dims=hparams['audio_num_mel_bins'],
+                    hidden_size=hparams["hidden_size"],
+                    residual_layers=hparams["residual_layers"],
+                    residual_channels=hparams["residual_channels"],
+                    dilation_cycle_length=hparams["dilation_cycle_length"],
+                ),
+                timesteps=hparams["timesteps"],
+                time_scale=hparams["timescale"],
+                schedule_type=hparams['schedule_type'],
+                max_beta=hparams.get("max_beta", 0.02),
+                spec_min=hparams["spec_min"],
+                spec_max=hparams["spec_max"],
+            )
+        elif self.diffusion_type == "reflow":
+            self.diffusion = RectifiedFlow(
+                out_dims=hparams["audio_num_mel_bins"],
+                denoise_fn=WaveNet(
+                    in_dims=hparams['audio_num_mel_bins'],
+                    hidden_size=hparams["hidden_size"],
+                    residual_layers=hparams["residual_layers"],
+                    residual_channels=hparams["residual_channels"],
+                    dilation_cycle_length=hparams["dilation_cycle_length"],
+                ),
+                time_scale=hparams["timescale"],
+                num_features=1,
+                sampling_algorithm=hparams.get("sampling_algorithm", "euler"),
+                spec_min=hparams["spec_min"],
+                spec_max=hparams["spec_max"],
+            )
 
 
     def add_spk_embed(self, spk_embed_id, spk_mix_embed):
@@ -80,13 +99,13 @@ class ProDiffTeacher(nn.Module):
         pitch_embed = self.pitch_embed(f0_mel[:, : , None])
         return pitch_embed
 
-    def forward(self, txt_tokens, mel2ph, f0, 
-                lang_seq=None, 
-                spk_embed_id=None, spk_mix_embed=None, 
-                gender_embed_id=None, gender_mix_embed=None,
-                voicing=None, breath=None,
-                ref_mels=None,  
-                infer=False, **kwargs):
+    def forward_condition(
+            self, txt_tokens, mel2ph, f0, 
+            lang_seq=None, 
+            spk_embed_id=None, spk_mix_embed=None, 
+            gender_embed_id=None, gender_mix_embed=None,
+            voicing=None, breath=None
+        ):
         # dur embed
         if self.with_dur_embed:
             dur = mel2ph_to_dur(mel2ph, txt_tokens.shape[1]).float()
@@ -123,7 +142,24 @@ class ProDiffTeacher(nn.Module):
             condition += torch.stack(variance_embeds, dim=-1).sum(-1)
         nonpadding = (mel2ph > 0).float()[:, :, None]
         condition = condition * nonpadding
+        return condition
+        
+    def forward(
+            self, txt_tokens, mel2ph, f0, 
+            lang_seq=None, 
+            spk_embed_id=None, spk_mix_embed=None, 
+            gender_embed_id=None, gender_mix_embed=None,
+            voicing=None, breath=None,
+            ref_mels=None, infer=False
+        ):
+        condition = self.forward_condition(
+            txt_tokens, mel2ph, f0, 
+            lang_seq=lang_seq, 
+            spk_embed_id=spk_embed_id, spk_mix_embed=spk_mix_embed,
+            gender_embed_id=gender_embed_id, gender_mix_embed=gender_mix_embed,
+            voicing=voicing, breath=breath
+        )
         # diffusion
         nonpadding = (mel2ph > 0).float().unsqueeze(1).unsqueeze(1)
-        mel_out = self.diffusion(condition, nonpadding=nonpadding, gt_spec=ref_mels, infer=infer)
-        return mel_out
+        output = self.diffusion(condition, nonpadding=nonpadding, gt_spec=ref_mels, infer=infer)
+        return output

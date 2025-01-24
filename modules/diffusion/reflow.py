@@ -5,14 +5,13 @@ from tqdm import tqdm
 class RectifiedFlow(nn.Module):
     def __init__(self, out_dims, denoise_fn, 
                  time_scale=1000, num_features=1, 
-                 sampling_algorithm="euler", sampling_steps=20,
+                 sampling_algorithm="euler",
                  spec_min=None, spec_max=None):
         super().__init__()
         self.velocity_fn = denoise_fn
         self.out_dims = out_dims
         self.num_features = num_features
         self.sampling_algorithm = sampling_algorithm
-        self.sampling_steps = sampling_steps
         self.t_start = 0.
         self.time_scale = time_scale
 
@@ -30,9 +29,9 @@ class RectifiedFlow(nn.Module):
 
         return v_pred, x_end - x_start
 
-    def forward(self, condition, gt_spec=None, infer=True):
-        cond = condition.transpose(1, 2)
-        b, device = condition.shape[0], condition.device
+    def forward(self, cond, nonpadding=None, gt_spec=None, infer_step=20, infer=True):
+        cond = cond.transpose(1, 2)
+        b, device = cond.shape[0], cond.device
 
         if not infer:
             # gt_spec: [B, T, M] or [B, F, T, M]
@@ -43,7 +42,7 @@ class RectifiedFlow(nn.Module):
             v_pred, v_gt = self.p_losses(spec, t, cond=cond)
             return v_pred, v_gt, t
         else:
-            x = self.inference(cond, b=b, device=device)
+            x = self.inference(cond, b=b, infer_step=infer_step, device=device)
             return self.denorm_spec(x)
 
     @torch.no_grad()
@@ -85,9 +84,8 @@ class RectifiedFlow(nn.Module):
         return x, t
 
     @torch.no_grad()
-    def inference(self, cond, b=1, device=None):
+    def inference(self, cond, b=1, infer_step=20, device=None):
         x = torch.randn(b, self.num_features, self.out_dims, cond.shape[2], device=device)
-        infer_step = self.sampling_steps # 20
         dt = 1.0 / max(1, infer_step) # 1 / 20
         algorithm_fn = {
             'euler': self.sample_euler,
@@ -96,7 +94,7 @@ class RectifiedFlow(nn.Module):
             'rk5': self.sample_rk5,
         }.get(self.sampling_algorithm, self.sample_euler)
         dts = torch.tensor([dt]).to(x) # to device
-        for i in tqdm(range(infer_step), desc='sample time step', total=infer_step, leave=False):
+        for i in tqdm(range(infer_step), desc='Sample time step', total=infer_step, leave=False):
             x, _ = algorithm_fn(x, i * dts, dt, cond)
         x = x.float()
         x = x.transpose(2, 3).squeeze(1)  # [B, F, M, T] => [B, T, M] or [B, F, T, M]
@@ -112,7 +110,7 @@ class RectifiedFlow(nn.Module):
 class PitchRectifiedFlow(RectifiedFlow):
     def __init__(self, repeat_bins, denoise_fn, 
                  time_scale=1000,
-                 sampling_algorithm="euler", sampling_steps=20,
+                 sampling_algorithm="euler",
                  spec_min=-8.0, spec_max=8.0,
                  clamp_min=-12.0, clamp_max=12.0,):
         spec_min = [spec_min]
@@ -123,7 +121,7 @@ class PitchRectifiedFlow(RectifiedFlow):
         super().__init__(
             out_dims=repeat_bins, denoise_fn=denoise_fn, 
             time_scale=time_scale, num_features=1,
-            sampling_algorithm=sampling_algorithm, sampling_steps=sampling_steps,
+            sampling_algorithm=sampling_algorithm,
             spec_min=spec_min, spec_max=spec_max
         )
 

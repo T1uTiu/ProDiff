@@ -2,7 +2,7 @@ import torch
 from component.train_task.base_task import BaseTask
 from component.train_task.loss_utils import add_mel_loss
 from component.train_task.svs.dataset import SVSDataset
-from modules.ProDiff.prodiff_teacher import ProDiffTeacher
+from modules.svs.prodiff_teacher import ProDiffTeacher
 import utils
 from utils.plot import spec_to_figure
 
