@@ -60,20 +60,10 @@ class GaussianDiffusion(nn.Module):
         self.register_buffer('posterior_mean_coef2', to_torch(
             (1. - alphas_cumprod_prev) * np.sqrt(alphas) / (1. - alphas_cumprod)))
 
-        self.register_buffer('spec_min', torch.FloatTensor(spec_min)[None, None, :self.mel_bins])
-        self.register_buffer('spec_max', torch.FloatTensor(spec_max)[None, None, :self.mel_bins])
-
-    def q_mean_variance(self, x_start, t):
-        mean = extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
-        variance = extract(1. - self.alphas_cumprod, t, x_start.shape)
-        log_variance = extract(self.log_one_minus_alphas_cumprod, t, x_start.shape)
-        return mean, variance, log_variance
-
-    def predict_start_from_noise(self, x_t, t, noise):
-        return (
-                extract(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t -
-                extract(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * noise
-        )
+        spec_min = torch.FloatTensor(spec_min)[None, None, :out_dims].transpose(-3, -2)
+        spec_max = torch.FloatTensor(spec_max)[None, None, :out_dims].transpose(-3, -2)
+        self.register_buffer('spec_min', spec_min, persistent=False)
+        self.register_buffer('spec_max', spec_max, persistent=False)
 
     def q_posterior(self, x_start, x_t, t):
         posterior_mean = (
@@ -93,27 +83,9 @@ class GaussianDiffusion(nn.Module):
         return model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise
 
     @torch.no_grad()
-    def p_sample(self, x_t, t, cond, spk_emb=None, clip_denoised=True, repeat_noise=False):
-        b, *_, device = *x_t.shape, x_t.device
+    def p_sample(self, x_t, t, cond):
         x_0_pred = self.denoise_fn(x_t, t, cond)
-
         return self.q_posterior_sample(x_start=x_0_pred, x_t=x_t, t=t)
-
-    @torch.no_grad()
-    def interpolate(self, x1, x2, t, cond, spk_emb, lam=0.5):
-        b, *_, device = *x1.shape, x1.device
-        t = default(t, self.num_timesteps - 1)
-
-        assert x1.shape == x2.shape
-
-        t_batched = torch.stack([torch.tensor(t, device=device)] * b)
-        xt1, xt2 = map(lambda x: self.q_sample(x, t=t_batched), (x1, x2))
-
-        x = (1 - lam) * xt1 + lam * xt2
-        for i in tqdm(reversed(range(0, t)), desc="interpolation sample time step", total=t):
-            x = self.p_sample(x, torch.full((b,), i, device=device, dtype=torch.long), cond, spk_emb)
-        x = x[:, 0].transpose(1, 2)
-        return self.denorm_spec(x)
 
     def q_sample(self, x_start, t, noise=None):
         noise = default(noise, lambda: torch.randn_like(x_start))
@@ -123,45 +95,24 @@ class GaussianDiffusion(nn.Module):
                 extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
         )
 
-    def diffuse_trace(self, x_start, mask):
-        b, *_, device = *x_start.shape, x_start.device
-        trace = [self.norm_spec(x_start).clamp_(-1., 1.) * ~mask.unsqueeze(-1)]
-        for t in range(self.num_timesteps):
-            t = torch.full((b,), t, device=device, dtype=torch.long)
-            trace.append(
-                self.diffuse_fn(x_start, t)[:, 0].transpose(1, 2) * ~mask.unsqueeze(-1)
-            )
-        return trace
 
-    def diffuse_fn(self, x_start, t, noise=None):
-        x_start = self.norm_spec(x_start) # [B, T, M] or [B, F, T, M]
-        x_start = x_start.transpose(-2, -1)  # [B, M, T] or [B, F, T, M]
-        if self.num_features == 1:
-            x_start = x_start[:, None, :, :] # [B, F, M, T]
-        zero_idx = t < 0 # for items where t is -1
-        t[zero_idx] = 0
-        noise = default(noise, lambda: torch.randn_like(x_start))
-        out = self.q_sample(x_start=x_start, t=t, noise=noise)
-        out[zero_idx] = x_start[zero_idx] # set x_{-1} as the gt mel
-        return out
-
-    def forward(self, cond, nonpadding=None, ref_mels=None, infer=False):
+    def forward(self, cond, nonpadding=None, gt_spec=None, infer_step=None, infer=False):
         b, *_, device = *cond.shape, cond.device
         cond = cond.transpose(1, 2)
-        if not infer: # 训练
+        if not infer:
+            spec = self.norm_spec(gt_spec).transpose(-2, -1)  # [B, M, T] or [B, F, M, T]
+            if self.num_features == 1:
+                spec = spec[:, None, :, :]
             t = torch.randint(0, self.num_timesteps + 1, (b,), device=device).long()
-            # Diffusion forward process
-            x_t = self.diffuse_fn(ref_mels, t) * nonpadding
-            # Diffusion reverse process: directly predict x_0
+            x_t = self.q_sample(spec, t=t) * nonpadding
             x_0_pred = self.denoise_fn(x_t, t, cond) * nonpadding
-
             x_0 = x_0_pred[:, 0].transpose(1, 2) # [B, T, mel_bin]
         else:
-            t = self.num_timesteps  # reverse总步数
-            shape = (cond.shape[0], 1, self.mel_bins, cond.shape[2])
-            x = torch.randn(shape, device=device)  # noise
-            for i in tqdm(reversed(range(0, t)), desc='ProDiff Teacher sample time step', total=t):
-                x = self.p_sample(x, torch.full((b,), i, device=device, dtype=torch.long), cond)  # x(mel), t, condition(phoneme)
+            infer_step = min(self.num_timesteps, infer_step) if infer_step is not None else self.num_timesteps
+            x = torch.randn(b, self.num_features, self.mel_bins, cond.shape[2], device=device)  # noise
+            for i in tqdm(range(infer_step-1, -1, -1), desc='Sample time step', total=infer_step):
+                t = torch.full((b,), i, device=device, dtype=torch.long)
+                x = self.p_sample(x, t, cond)  # x(mel), t, condition(phoneme)
             x = x[:, 0].transpose(1, 2)
             x_0 = self.denorm_spec(x)  # 去除norm
         return x_0
@@ -171,33 +122,6 @@ class GaussianDiffusion(nn.Module):
 
     def denorm_spec(self, x):
         return x
-
-class PitchDiffusion(GaussianDiffusion):
-    def __init__(self, repeat_bins, denoise_fn,
-                 timesteps=1000, time_scale=1,
-                 betas=None, schedule_type="vpsde",
-                 spec_min: float=None, spec_max: float =None,
-                 clamp_min: float=None, clamp_max: float=None):
-        self.repeat_bins = repeat_bins
-        self.clamp_min, self.clamp_max = clamp_min, clamp_max
-        super().__init__(
-            out_dims=repeat_bins, denoise_fn=denoise_fn,
-            timesteps=timesteps, time_scale=time_scale, num_features=1,
-            betas=betas, schedule_type=schedule_type,
-            spec_min=[], spec_max=[]
-        )
-
-    def norm_spec(self, x):
-        if self.clamp_min is not None and self.clamp_max is not None:
-            x = x.clamp(self.clamp_min, self.clamp_max)
-        repeats = [1, 1, self.repeat_bins]
-        return super().norm_spec(x.unsqueeze(-1).repeat(*repeats))
-    
-    def denorm_spec(self, x):
-        denorm_out = super().denorm_spec(x).mean(dim=-1)
-        if self.clamp_min is not None and self.clamp_max is not None:
-            denorm_out = denorm_out.clamp(self.clamp_min, self.clamp_max)
-        return denorm_out
     
 class MultiVariDiffusion(GaussianDiffusion):
     def __init__(self, repeat_bins, denoise_fn,

@@ -30,7 +30,7 @@ class RectifiedFlow(nn.Module):
 
         return v_pred, x_end - x_start
 
-    def forward(self, condition, gt_spec=None, src_spec=None, infer=True):
+    def forward(self, condition, gt_spec=None, infer=True):
         cond = condition.transpose(1, 2)
         b, device = condition.shape[0], condition.device
 
@@ -43,14 +43,7 @@ class RectifiedFlow(nn.Module):
             v_pred, v_gt = self.p_losses(spec, t, cond=cond)
             return v_pred, v_gt, t
         else:
-            # src_spec: [B, T, M] or [B, F, T, M]
-            if src_spec is not None:
-                spec = self.norm_spec(src_spec).transpose(-2, -1)
-                if self.num_features == 1:
-                    spec = spec[:, None, :, :]
-            else:
-                spec = None
-            x = self.inference(cond, b=b, x_end=spec, device=device)
+            x = self.inference(cond, b=b, device=device)
             return self.denorm_spec(x)
 
     @torch.no_grad()
@@ -92,29 +85,20 @@ class RectifiedFlow(nn.Module):
         return x, t
 
     @torch.no_grad()
-    def inference(self, cond, b=1, x_end=None, device=None, infer=True):
-        noise = torch.randn(b, self.num_features, self.out_dims, cond.shape[2], device=device)
-        t_start = self.t_start
-        x = noise
-
-        algorithm = self.sampling_algorithm
-        infer_step = self.sampling_steps
-
-        if t_start < 1:
-            dt = (1.0 - t_start) / max(1, infer_step)
-            algorithm_fn = {
-                'euler': self.sample_euler,
-                'rk2': self.sample_rk2,
-                'rk4': self.sample_rk4,
-                'rk5': self.sample_rk5,
-            }.get(algorithm)
-            if algorithm_fn is None:
-                raise ValueError(f'Unsupported algorithm for Rectified Flow: {algorithm}.')
-            dts = torch.tensor([dt]).to(x)
-            for i in tqdm(range(infer_step), desc='sample time step', total=infer_step,
-                          disable=not infer, leave=False):
-                x, _ = algorithm_fn(x, t_start + i * dts, dt, cond)
-            x = x.float()
+    def inference(self, cond, b=1, device=None):
+        x = torch.randn(b, self.num_features, self.out_dims, cond.shape[2], device=device)
+        infer_step = self.sampling_steps # 20
+        dt = 1.0 / max(1, infer_step) # 1 / 20
+        algorithm_fn = {
+            'euler': self.sample_euler,
+            'rk2': self.sample_rk2,
+            'rk4': self.sample_rk4,
+            'rk5': self.sample_rk5,
+        }.get(self.sampling_algorithm, self.sample_euler)
+        dts = torch.tensor([dt]).to(x) # to device
+        for i in tqdm(range(infer_step), desc='sample time step', total=infer_step, leave=False):
+            x, _ = algorithm_fn(x, i * dts, dt, cond)
+        x = x.float()
         x = x.transpose(2, 3).squeeze(1)  # [B, F, M, T] => [B, T, M] or [B, F, T, M]
         return x
 

@@ -126,7 +126,7 @@ class InferHandler:
             self.hparams['f0_std'] = float(self.hparams['f0_std'])
         model = ProDiffTeacher(len(self.ph_encoder), self.hparams)
         model.eval()
-        load_ckpt(model, self.hparams["work_dir"], 'model')
+        load_ckpt(model, self.hparams["work_dir"], 'model', strict=False)
         model.to(self.device)
         self.model = model
 
