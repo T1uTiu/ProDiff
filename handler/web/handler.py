@@ -62,9 +62,10 @@ class WebHandler:
             global_hparams=False,
             make_work_dir=False
         )
+        self.build_ph_category_encoder(pitch_predictor_work_dir)
         self.pitch_pred_spk_map = self.build_spk_map(os.path.join(pitch_pred_hparams["work_dir"], 'spk_map.json'))
         self.pitch_predictor = get_inferer_cls("pitch")(pitch_pred_hparams)
-        self.pitch_predictor.build_model()
+        self.pitch_predictor.build_model(self.ph_category_encoder)
         self.midi_smooth = SinusoidalSmoothingConv1d(round(0.06/self.timestep)).eval()
         # web
         self.app = fastapi.FastAPI(debug=True)
@@ -86,6 +87,13 @@ class WebHandler:
             lang_map = json.load(f)
         self.lang_map = lang_map
     
+    def build_ph_category_encoder(self, work_dir):
+        # build ph_category_encoder
+        ph_category_list_fn = os.path.join(work_dir, 'ph_category_list.json')
+        with open(ph_category_list_fn, 'r') as f:
+            ph_category_list: List[str] = json.load(f)
+        self.ph_category_encoder = TokenTextEncoder(None, vocab_list=ph_category_list, replace_oov='SP')
+
     def build_phone_encoder(self):
         # build ph_map and ph_encoder
         ph_map_fn = os.path.join(self.work_dir, 'phone_set.json')
@@ -94,16 +102,14 @@ class WebHandler:
         ph_list = list(sorted(set(ph_map.values())))
         self.ph_map = ph_map
         self.ph_encoder = TokenTextEncoder(None, vocab_list=ph_list, replace_oov='SP')
-        # build ph_category_encoder
-        ph_category_list_fn = os.path.join(self.work_dir, 'ph_category_list.json')
-        with open(ph_category_list_fn, 'r') as f:
-            ph_category_list: List[str] = json.load(f)
-        self.ph_category_encoder = TokenTextEncoder(None, vocab_list=ph_category_list, replace_oov='SP')
         # build dictionary
         self.word_dictionay = {}
-        self.ph2category = {}
+        self.ph2category = {
+            "AP": "AP",
+            "SP": "SP"
+        }
         self.consonant_set = {}
-        for lang in self.hparams["languages"].items():
+        for lang in self.hparams["languages"]:
             self.word_dictionay[lang] = {"AP": ["AP"], "SP": ["SP"]}
             with open(self.hparams["dictionary"][lang]["word"], 'r') as f:
                 for x in f.readlines():
@@ -112,14 +118,13 @@ class WebHandler:
                     ph_list = line[1].split(' ')
                     self.word_dictionay[lang][word] = ph_list
             self.consonant_set[lang] = set()
-            self.ph2category[lang] = {}
             with open(self.hparams["dictionary"][lang]["phoneme"], "r") as f:
                 for x in f.readlines():
                     line = x.split("\n")[0].split(' ') # "zh consonant affricate"
                     ph, ph_type, ph_category = line[0], line[1], line[2]
                     if ph_type == "consonant":
                         self.consonant_set[lang].add(ph)
-                    self.ph2category[lang][ph] = ph_category
+                    self.ph2category[self.ph_map[self.get_ph_text(ph, lang)]] = ph_category
                     self.word_dictionay[lang][f".{ph}"] = [ph]
 
 
@@ -131,7 +136,7 @@ class WebHandler:
             self.hparams['f0_std'] = float(self.hparams['f0_std'])
         model = ProDiffTeacher(len(self.ph_encoder), self.hparams)
         model.eval()
-        load_ckpt(model, self.hparams["work_dir"], 'model')
+        load_ckpt(model, self.hparams["work_dir"], 'model', strict=False)
         model.to(self.device)
         self.model = model
 
@@ -219,7 +224,7 @@ class WebHandler:
         assert "note_dur_list" in req, "note_dur_list is required"
         # process input
         lang = req["language"]
-        ph_text_list = [self.ph2category[lang][ph] for ph in req["ph_text_list"]]
+        ph_text_list = [self.ph2category[ph] for ph in req["ph_text_list"]]
         ph_token_seq = torch.LongTensor(
             self.ph_encoder.encode(ph_text_list)
         ).to(self.device)[None, :] # [B=1, T_txt]

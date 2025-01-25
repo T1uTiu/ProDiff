@@ -7,8 +7,8 @@ import torch
 import yaml
 from torch import nn
 
-from modules.FastDiff.module.FastDiff_model import FastDiff as FastDiff_model
-from modules.FastDiff.module.util import (compute_hyperparams_given_schedule,
+from modules.fastdiff.module.FastDiff_model import FastDiff as FastDiff_model
+from modules.fastdiff.module.util import (compute_hyperparams_given_schedule,
                                           sampling_given_noise_schedule,
                                           )
 from component.vocoder.base_vocoder import BaseVocoder, register_vocoder
