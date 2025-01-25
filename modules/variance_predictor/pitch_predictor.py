@@ -5,12 +5,22 @@ from torch.nn import functional as F
 from modules.commons.common_layers import Linear, Embedding
 from modules.diffusion.denoise import DiffNet
 from modules.diffusion.reflow import PitchRectifiedFlow
-from modules.fastspeech.tts_modules import NoteEncoder, mel2ph_to_dur
+from modules.fastspeech.tts_modules import NoteEncoder, FastspeechEncoder, mel2ph_to_dur
 
 class PitchPredictor(nn.Module):
-    def __init__(self, hparams):
+    def __init__(self, vocab_size, hparams):
         super().__init__()
-
+        self.encoder = FastspeechEncoder(
+            vocab_size=vocab_size+1,
+            hidden_size=hparams["hidden_size"],
+            num_layers=hparams["enc_layers"],
+            kernel_size=hparams["enc_ffn_kernel_size"],
+            dropout=hparams["dropout"],
+            num_heads=hparams["num_heads"]
+        )
+        self.with_dur_embed = hparams.get('use_dur_embed', True)
+        if self.with_dur_embed:
+            self.dur_embed = Linear(1, hparams["hidden_size"])
         f0_prediction_args = hparams['f0_prediction_args']
         self.note_encoder = NoteEncoder(
             hidden_size=f0_prediction_args["encoder_args"]['hidden_size'], 
@@ -45,10 +55,23 @@ class PitchPredictor(nn.Module):
             clamp_max=f0_prediction_args["clamp_max"],
         )
 
-    def forward(self, note_midi, note_rest, mel2note, 
-                base_pitch, pitch=None, 
-                pitch_retake=None, pitch_expr=None,
-                spk_id=None, infer=False):
+    def forward(
+            self, txt_tokens, mel2ph,
+            note_midi, note_rest, mel2note, 
+            base_pitch, pitch=None, 
+            pitch_retake=None, pitch_expr=None,
+            spk_id=None, infer=False
+        ):
+        # dur embed
+        if self.with_dur_embed:
+            dur = mel2ph_to_dur(mel2ph, txt_tokens.shape[1]).float()
+            extra_embed = self.dur_embed(dur[:, :, None])
+        # ph encode
+        encoder_out = self.encoder(txt_tokens, extra_embed)
+        # length regulate
+        condition = F.pad(encoder_out, [0, 0, 1, 0])
+        mel2ph_ = mel2ph[..., None].repeat([1, 1, encoder_out.shape[-1]])
+        condition = torch.gather(condition, 1, mel2ph_)
         # encode
         note_dur = mel2ph_to_dur(mel2note, note_midi.shape[1]).float()
         note_encoder_out = self.note_encoder(note_midi, note_rest, note_dur)
@@ -56,7 +79,8 @@ class PitchPredictor(nn.Module):
         # length regulate
         note_encoder_out = F.pad(note_encoder_out, [0, 0, 1, 0])
         mel2note_ = mel2note[..., None].repeat([1, 1, note_encoder_out.shape[-1]])
-        condition = torch.gather(note_encoder_out, 1, mel2note_)
+        note_condition = torch.gather(note_encoder_out, 1, mel2note_)
+        condition += note_condition
 
         # spk
         if self.with_spk_embed:

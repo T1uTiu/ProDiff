@@ -1,6 +1,7 @@
 import csv
 import json
 import os
+from typing import Dict, List, Tuple
 
 import librosa
 import numpy as np
@@ -54,7 +55,28 @@ def build_lang_map(data_dir, dictionary: dict):
     lang_map_fn = f"{data_dir}/lang_map.json"
     with open(lang_map_fn, 'w') as f:
         json.dump(lang_map, f)
-    return lang_map\
+    return lang_map
+
+def build_ph_category_encoder(data_dir, dictionary: dict, languages: List[str]) -> Tuple[Dict[str, Dict], TokenTextEncoder]:
+    ph2category = {}
+    ph_category_set = set(["AP", "SP"])
+    for lang in languages:
+        ph2category[lang] = {
+            "AP": "AP",
+            "SP": "SP"
+        }
+        f = open(dictionary[lang]["phoneme"], 'r')
+        for x in f.readlines():
+            line = x.split("\n")[0].split(' ') # "a vowel vowel"
+            ph, category = line[0], line[2]
+            ph2category[lang][ph] = category
+            ph_category_set.add(category)
+        f.close()
+    ph_category_list = list(sorted(ph_category_set))
+    with open(f"{data_dir}/ph_category_list.json", 'w') as f:
+        json.dump(ph_category_list, f)
+    print("| phone category list: ", ph_category_list)
+    return ph2category, TokenTextEncoder(None, vocab_list=ph_category_list, replace_oov="SP")
     
 def build_spk_map(data_dir, datasets):
     spk_map = {ds["speaker"]: i for i, ds in enumerate(datasets)}
