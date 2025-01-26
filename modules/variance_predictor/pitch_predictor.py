@@ -37,7 +37,6 @@ class PitchPredictor(nn.Module):
         # pitch
         self.delta_pitch_embed = Linear(1, hparams["hidden_size"])
         self.pitch_retake_embed = Embedding(2, hparams['hidden_size'])
-        self.sample_steps = hparams["sampling_steps"]
         self.diffusion = PitchRectifiedFlow(
             repeat_bins=f0_prediction_args["repeat_bins"],\
             denoise_fn=WaveNet(
@@ -60,7 +59,8 @@ class PitchPredictor(nn.Module):
             note_midi, note_rest, mel2note, 
             base_pitch, pitch=None, 
             pitch_retake=None, pitch_expr=None,
-            spk_id=None, infer=False
+            spk_id=None, 
+            infer_step=20, infer=False
         ):
         # dur embed
         if self.with_dur_embed:
@@ -117,5 +117,5 @@ class PitchPredictor(nn.Module):
         if not infer:
             pitch_pred = self.diffusion(condition, pitch-base_pitch, infer=False)
         else:
-            pitch_pred = self.diffusion(condition, infer_step=self.sample_steps, infer=True)
+            pitch_pred = self.diffusion(condition, infer_step=infer_step, infer=True)
         return pitch_pred
