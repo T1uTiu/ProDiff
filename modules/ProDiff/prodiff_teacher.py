@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from modules.commons.common_layers import *
-from modules.diffusion.denoise import DiffNet
+from modules.decoder.wavenet import WaveNet
 from modules.diffusion.prodiff import GaussianDiffusion
 from modules.fastspeech.tts_modules import FastspeechEncoder, mel2ph_to_dur
 
@@ -45,7 +45,7 @@ class ProDiffTeacher(nn.Module):
 
         self.diffusion = GaussianDiffusion(
             out_dims=hparams["audio_num_mel_bins"],
-            denoise_fn=DiffNet(
+            denoise_fn=WaveNet(
                 in_dims=hparams['audio_num_mel_bins'],
                 hidden_size=hparams["hidden_size"],
                 residual_layers=hparams["residual_layers"],

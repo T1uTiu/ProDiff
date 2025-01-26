@@ -1,10 +1,49 @@
 from functools import partial
-from typing import Union
-from modules.diffusion.diffusion_utils import *
+from inspect import isfunction
 import numpy as np
 import torch
 from torch import nn
 from tqdm import tqdm
+
+def default(val, d):
+    if val is not None:
+        return val
+    return d() if isfunction(d) else d
+
+def extract(a, t, x_shape):
+    b, *_ = t.shape
+    out = a.gather(-1, t)
+    return out.reshape(b, *((1,) * (len(x_shape) - 1)))
+
+def vpsde_beta_t(t, T, min_beta, max_beta):
+    t_coef = (2 * t - 1) / (T ** 2)
+    return 1. - np.exp(-min_beta / T - 0.5 * (max_beta - min_beta) * t_coef)
+
+def logsnr_schedule_cosine(t, *, logsnr_min, logsnr_max):
+  b = np.arctan(np.exp(-0.5 * logsnr_max))
+  a = np.arctan(np.exp(-0.5 * logsnr_min)) - b
+  return -2. * np.log(np.tan(a * t + b))
+
+def get_noise_schedule_list(schedule_mode, timesteps, min_beta=0.0, max_beta=0.01, s=0.008):
+    if schedule_mode == "linear":
+        schedule_list = np.linspace(1e-4, max_beta, timesteps)
+    elif schedule_mode == "cosine":
+        steps = timesteps + 1
+        x = np.linspace(0, steps, steps)
+        alphas_cumprod = np.cos(((x / steps) + s) / (1 + s) * np.pi * 0.5) ** 2
+        alphas_cumprod = alphas_cumprod / alphas_cumprod[0]
+        betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
+        schedule_list = np.clip(betas, a_min=0, a_max=0.999)
+    elif schedule_mode == "vpsde":
+        schedule_list = np.array([
+            vpsde_beta_t(t, timesteps, min_beta, max_beta) for t in range(1, timesteps + 1)])
+    elif schedule_mode == "logsnr":
+        u = np.array([t for t in range(0, timesteps + 1)])
+        schedule_list = np.array([
+            logsnr_schedule_cosine(t / timesteps, logsnr_min=-20.0, logsnr_max=20.0) for t in range(1, timesteps + 1)])
+    else:
+        raise NotImplementedError
+    return schedule_list
 
 class GaussianDiffusion(nn.Module):
     def __init__(self, out_dims, denoise_fn,
@@ -16,7 +55,7 @@ class GaussianDiffusion(nn.Module):
         self.mel_bins = out_dims
         self.num_features = num_features
 
-        if exists(betas):
+        if betas is not None:
             betas = betas.detach().cpu().numpy() if isinstance(betas, torch.Tensor) else betas
         else:
             betas = get_noise_schedule_list(
@@ -74,10 +113,10 @@ class GaussianDiffusion(nn.Module):
         posterior_log_variance_clipped = extract(self.posterior_log_variance_clipped, t, x_t.shape)
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
-    def q_posterior_sample(self, x_start, x_t, t, repeat_noise=False):
+    def q_posterior_sample(self, x_start, x_t, t):
         b, *_, device = *x_start.shape, x_start.device
         model_mean, _, model_log_variance = self.q_posterior(x_start=x_start, x_t=x_t, t=t)
-        noise = noise_like(x_start.shape, device, repeat_noise)
+        noise = torch.rand(x_start.shape, device=device)
         # no noise when t == 0
         nonzero_mask = (1 - (t == 0).float()).reshape(b, *((1,) * (len(x_start.shape) - 1)))
         return model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise

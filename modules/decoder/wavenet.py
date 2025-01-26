@@ -71,7 +71,7 @@ class ResidualBlock(nn.Module):
         residual, skip = torch.chunk(y, 2, dim=1)
         return (x + residual) / sqrt(2.0), skip
 
-class DiffNet(nn.Module):
+class WaveNet(nn.Module):
     def __init__(self, in_dims, hidden_size, residual_layers, residual_channels, dilation_cycle_length):
         super().__init__()
         self.params = params = AttrDict(

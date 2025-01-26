@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 from modules.commons.common_layers import Linear, Embedding
-from modules.diffusion.denoise import DiffNet
+from modules.decoder.wavenet import WaveNet
 from modules.diffusion.reflow import PitchRectifiedFlow
 from modules.fastspeech.tts_modules import NoteEncoder, FastspeechEncoder, mel2ph_to_dur
 
@@ -39,7 +39,7 @@ class PitchPredictor(nn.Module):
         self.pitch_retake_embed = Embedding(2, hparams['hidden_size'])
         self.diffusion = PitchRectifiedFlow(
             repeat_bins=f0_prediction_args["repeat_bins"],\
-            denoise_fn=DiffNet(
+            denoise_fn=WaveNet(
                 in_dims=f0_prediction_args["repeat_bins"],
                 hidden_size=hparams["hidden_size"],
                 residual_layers=f0_prediction_args["denoise_args"]["residual_layers"],
