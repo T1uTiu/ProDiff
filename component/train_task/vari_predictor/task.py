@@ -1,6 +1,6 @@
 import torch
 from component.train_task.base_task import BaseTask
-from component.train_task.loss_utils import add_mel_loss
+from component.train_task.loss_utils import add_sepc_loss_prodiff
 from modules.variance_predictor.vari_predictor import VariPredictor
 from .dataset import VariPredictorDataset
 import utils
@@ -73,7 +73,7 @@ class VariPredictorTask(BaseTask):
             return output
         losses = {}
         tgt_vari = self.get_tgt_vari_spec(sample)
-        add_mel_loss(output, tgt_vari, losses, loss_and_lambda=self.loss_and_lambda)
+        add_sepc_loss_prodiff(output, tgt_vari, losses, loss_type=self.loss_and_lambda)
         if not return_output:
             return losses
         else:

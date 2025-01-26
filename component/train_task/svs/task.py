@@ -1,6 +1,6 @@
 import torch
 from component.train_task.base_task import BaseTask
-from component.train_task.loss_utils import add_mel_loss
+from component.train_task.loss_utils import add_sepc_loss_prodiff, add_spec_loss_reflow
 from component.train_task.svs.dataset import SVSDataset
 from modules.svs.prodiff_teacher import ProDiffTeacher
 import utils
@@ -9,8 +9,10 @@ from utils.plot import spec_to_figure
 class SVSTask(BaseTask):
     def __init__(self, hparams):
         super(SVSTask, self).__init__(hparams=hparams)
+        self.diffusion_type = hparams.get("diff_type", "prodiff")
         mel_losses = hparams['mel_loss'].split("|")
-        self.mel_loss_and_lambda = {}
+        self.loss_type_list = mel_losses
+        self.loss_type = {}
         for l in mel_losses:
             if l == '':
                 continue
@@ -19,9 +21,8 @@ class SVSTask(BaseTask):
                 lbd = float(lbd)
             else:
                 lbd = 1.0
-            self.mel_loss_and_lambda[l] = lbd
-        
-        print("| Mel losses:", self.mel_loss_and_lambda)
+            self.loss_type[l] = lbd
+        print("| Mel losses:", self.loss_type)
         
         self.build_phone_encoder()
 
@@ -55,7 +56,20 @@ class SVSTask(BaseTask):
         if infer:
             return output
         losses = {}
-        add_mel_loss(output, tgt_mel, losses, loss_and_lambda=self.mel_loss_and_lambda)
+        spec_pred, spec_gt, t = output
+        non_padding = (mel2ph > 0).unsqueeze(-1)
+        if self.diffusion_type == "prodiff":
+            add_sepc_loss_prodiff(
+                spec_pred, spec_gt, non_padding, 
+                loss_type=self.loss_type,
+                losses=losses, name="mel"
+            )
+        elif self.diffusion_type == "reflow":
+            add_spec_loss_reflow(
+                spec_pred, spec_gt, t, non_padding, 
+                self.loss_type_list[0], log_norm=True, 
+                losses=losses, name="mel"
+            )
         if not return_output:
             return losses
         else:

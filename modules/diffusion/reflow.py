@@ -29,7 +29,7 @@ class RectifiedFlow(nn.Module):
 
         return v_pred, x_end - x_start
 
-    def forward(self, cond, nonpadding=None, gt_spec=None, infer_step=20, infer=True):
+    def forward(self, cond, gt_spec=None, infer_step=20, infer=True):
         cond = cond.transpose(1, 2)
         b, device = cond.shape[0], cond.device
 

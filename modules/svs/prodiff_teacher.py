@@ -79,7 +79,6 @@ class ProDiffTeacher(nn.Module):
                 spec_max=hparams["spec_max"],
             )
 
-
     def add_spk_embed(self, spk_embed_id, spk_mix_embed):
         assert not (spk_embed_id is None and spk_mix_embed is None)
         if spk_mix_embed is not None:
@@ -160,6 +159,5 @@ class ProDiffTeacher(nn.Module):
             voicing=voicing, breath=breath
         )
         # diffusion
-        nonpadding = (mel2ph > 0).float().unsqueeze(1).unsqueeze(1)
-        output = self.diffusion(condition, nonpadding=nonpadding, gt_spec=ref_mels, infer=infer)
+        output = self.diffusion(condition, gt_spec=ref_mels, infer=infer)
         return output
