@@ -179,6 +179,12 @@ class BaseTask(nn.Module):
         ph_list = list(sorted(set(ph_map.values())))
         self.ph_encoder = TokenTextEncoder(None, vocab_list=ph_list, replace_oov='SP')
 
+    def build_phone_category_encoder(self):
+        ph_category_list_fn = os.path.join(self.data_dir, 'ph_category_list.json')
+        with open(ph_category_list_fn, 'r') as f:
+            ph_category_list = json.load(f)
+        self.ph_category_encoder = TokenTextEncoder(None, vocab_list=ph_category_list, replace_oov='SP')
+
     ######################
     # training
     ######################

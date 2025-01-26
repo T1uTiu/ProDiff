@@ -62,9 +62,10 @@ class WebHandler:
             global_hparams=False,
             make_work_dir=False
         )
+        self.build_ph_category_encoder(pitch_predictor_work_dir)
         self.pitch_pred_spk_map = self.build_spk_map(os.path.join(pitch_pred_hparams["work_dir"], 'spk_map.json'))
         self.pitch_predictor = get_inferer_cls("pitch")(pitch_pred_hparams)
-        self.pitch_predictor.build_model()
+        self.pitch_predictor.build_model(self.ph_category_encoder)
         self.midi_smooth = SinusoidalSmoothingConv1d(round(0.06/self.timestep)).eval()
         # web
         self.app = fastapi.FastAPI(debug=True)
@@ -86,6 +87,13 @@ class WebHandler:
             lang_map = json.load(f)
         self.lang_map = lang_map
     
+    def build_ph_category_encoder(self, work_dir):
+        # build ph_category_encoder
+        ph_category_list_fn = os.path.join(work_dir, 'ph_category_list.json')
+        with open(ph_category_list_fn, 'r') as f:
+            ph_category_list: List[str] = json.load(f)
+        self.ph_category_encoder = TokenTextEncoder(None, vocab_list=ph_category_list, replace_oov='SP')
+
     def build_phone_encoder(self):
         # build ph_map and ph_encoder
         ph_map_fn = os.path.join(self.work_dir, 'phone_set.json')
@@ -95,33 +103,30 @@ class WebHandler:
         self.ph_map = ph_map
         self.ph_encoder = TokenTextEncoder(None, vocab_list=ph_list, replace_oov='SP')
         # build dictionary
-        self.dictionay = {}
-        for lang, dictionary in self.hparams["dictionary"].items():
-            if lang == "global":
-                continue
-            dictionary_fn = dictionary["dictionary"]
-            self.dictionay[lang] = {"AP": ["AP"], "SP": ["SP"]}
-            f = open(dictionary_fn, 'r')
-            for x in f.readlines():
-                line = x.split("\n")[0].split('\t')
-                word = line[0]
-                ph_list = line[1].split(' ')
-                self.dictionay[lang][word] = ph_list
-            f.close()
-        # build ph type
+        self.word_dictionay = {}
+        self.ph2category = {
+            "AP": "AP",
+            "SP": "SP"
+        }
         self.consonant_set = {}
-        for lang, dictionary in self.hparams["dictionary"].items():
-            if lang == "global":
-                continue
-            phoneme_fn = dictionary["phoneme"]
-            self.consonant_set[lang] = set()
-            with open(phoneme_fn, "r") as f:
+        for lang in self.hparams["languages"]:
+            self.word_dictionay[lang] = {"AP": ["AP"], "SP": ["SP"]}
+            with open(self.hparams["dictionary"][lang]["word"], 'r') as f:
                 for x in f.readlines():
-                    line = x.split("\n")[0].split(' ')
-                    ph, ph_type = line[0], line[1]
+                    line = x.split("\n")[0].split('\t') # "zhi    zh ir"
+                    word = line[0]
+                    ph_list = line[1].split(' ')
+                    self.word_dictionay[lang][word] = ph_list
+            self.consonant_set[lang] = set()
+            with open(self.hparams["dictionary"][lang]["phoneme"], "r") as f:
+                for x in f.readlines():
+                    line = x.split("\n")[0].split(' ') # "zh consonant affricate"
+                    ph, ph_type, ph_category = line[0], line[1], line[2]
                     if ph_type == "consonant":
                         self.consonant_set[lang].add(ph)
-                    self.dictionay[lang][f".{ph}"] = [ph]
+                    self.ph2category[self.ph_map[self.get_ph_text(ph, lang)]] = ph_category
+                    self.word_dictionay[lang][f".{ph}"] = [ph]
+
 
     def build_model(self):
         f0_stats_fn = f'{self.hparams["work_dir"]}/train_f0s_mean_std.npy'
@@ -131,7 +136,7 @@ class WebHandler:
             self.hparams['f0_std'] = float(self.hparams['f0_std'])
         model = ProDiffTeacher(len(self.ph_encoder), self.hparams)
         model.eval()
-        load_ckpt(model, self.hparams["work_dir"], 'model')
+        load_ckpt(model, self.hparams["work_dir"], 'model', strict=False)
         model.to(self.device)
         self.model = model
 
@@ -212,9 +217,23 @@ class WebHandler:
 
     async def api_pred_pitch(self, req: dict):
         # check params
+        assert "language" in req, "language is required"
+        assert "ph_text_list" in req, "ph_text_list is required"
+        assert "ph_dur_list" in req, "ph_dur_list is required"
         assert "note_midi_list" in req, "note_midi_list is required"
         assert "note_dur_list" in req, "note_dur_list is required"
         # process input
+        lang = req["language"]
+        ph_text_list = [self.ph2category[ph] for ph in req["ph_text_list"]]
+        ph_token_seq = torch.LongTensor(
+            self.ph_encoder.encode(ph_text_list)
+        ).to(self.device)[None, :] # [B=1, T_txt]
+        ph_dur_list = req["ph_dur_list"]
+        ph_dur_seq = torch.FloatTensor(ph_dur_list).to(self.device)
+        ph_acc = torch.round(torch.cumsum(ph_dur_seq, dim=0) / self.timestep + 0.5).long()
+        durations = torch.diff(ph_acc, dim=0, prepend=torch.LongTensor([0]).to(self.device))[None]  # => [B=1, T_txt]
+        mel2ph = self.lr(durations, ph_token_seq == 0)  # => [B=1, T]
+        length = mel2ph.shape[1]
         note_midi = np.array(req["note_midi_list"], dtype=np.float32)
         note_rest = note_midi == -1
         if np.all(note_rest):
@@ -228,8 +247,6 @@ class WebHandler:
         note_rest = torch.BoolTensor(note_rest)
         note_midi = torch.FloatTensor(note_midi)
         note_dur_sec = torch.from_numpy(np.array(req["note_dur_list"], np.float32))
-        duration = torch.sum(note_dur_sec).item()
-        length = round(duration / self.timestep)
         mel2note = torch.from_numpy(get_mel2ph_dur(self.lr, note_dur_sec, length, self.timestep))
         expr = req.get("pitch_expr", 1.)
         pitch_expr = torch.FloatTensor([expr]).to(self.device)[None, :]
@@ -239,6 +256,8 @@ class WebHandler:
         base_pitch = self.midi_smooth(base_pitch[None])[0].to(self.device)[None, :]
         # model infer
         delta_pitch = self.pitch_predictor.run_model(
+            ph_seq = ph_token_seq,
+            mel2ph = mel2ph,
             note_midi = note_midi.to(self.device)[None, :],
             note_rest = note_rest.to(self.device)[None, :],
             mel2note = mel2note.to(self.device)[None, :],
@@ -264,7 +283,7 @@ class WebHandler:
 
         word_list = ["SP"] + req["word_list"]
         word_ph_text_list = [ 
-            self.dictionay[language].get(word, ["SP"]) for word in word_list
+            self.word_dictionay[language].get(word, ["SP"]) for word in word_list
         ]
         ph_text_list = list(chain.from_iterable([
             [self.ph_map.get(self.get_ph_text(ph, language), "SP") for ph in ph_list] 
@@ -302,7 +321,7 @@ class WebHandler:
         idx = 0
         ph_start_time = start_time
         for i, word in enumerate(word_list):
-            word_ph_num = len(self.dictionay[language].get(word, ["SP"]))
+            word_ph_num = len(self.word_dictionay[language].get(word, ["SP"]))
             # add padding SP to the first word
             if i == 0:
                 word_ph_num += 1

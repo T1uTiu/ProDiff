@@ -1,8 +1,8 @@
 import torch.nn as nn
 import torch
 import logging
-from modules.FastDiff.module.modules import DiffusionDBlock, TimeAware_LVCBlock
-from modules.FastDiff.module.util import calc_diffusion_step_embedding
+from modules.fastdiff.module.modules import DiffusionDBlock, TimeAware_LVCBlock
+from modules.fastdiff.module.util import calc_diffusion_step_embedding
 
 def swish(x):
     return x * torch.sigmoid(x)

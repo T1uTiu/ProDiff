@@ -1,39 +1,39 @@
-b consonant
-by consonant
-ch consonant
-d consonant
-dy consonant
-f consonant
-g consonant
-gw consonant
-gy consonant
-h consonant
-hy consonant
-j consonant
-k consonant
-kw consonant
-ky consonant
-m consonant
-my consonant
-n consonant
-ny consonant
-p consonant
-py consonant
-r consonant
-ry consonant
-s consonant
-sh consonant
-t consonant
-ts consonant
-ty consonant
-v consonant
-w consonant
-y consonant
-z consonant
-N vowel
-a vowel
-cl vowel
-e vowel
-i vowel
-o vowel
-u vowel
+b consonant stop
+by consonant stop
+ch consonant affricate
+d consonant stop
+dy consonant stop
+f consonant fricative
+g consonant stop
+gw consonant stop
+gy consonant stop
+h consonant aspirate
+hy consonant aspirate
+j consonant affricate
+k consonant stop
+kw consonant stop
+ky consonant stop
+m consonant nasal
+my consonant nasal
+n consonant nasal
+ny consonant nasal
+p consonant stop
+py consonant stop
+r consonant liquid
+ry consonant liquid
+s consonant fricative
+sh consonant fricative
+t consonant stop
+ts consonant affricate
+ty consonant affricate
+v consonant semivowel
+w consonant semivowel
+y consonant semivowel
+z consonant affricate
+N vowel nasal
+a vowel vowel
+cl vowel stop
+e vowel vowel
+i vowel vowel
+o vowel vowel
+u vowel vowel

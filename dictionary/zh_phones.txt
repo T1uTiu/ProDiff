@@ -1,62 +1,62 @@
-b consonant
-c consonant
-ch consonant
-d consonant
-f consonant
-g consonant
-h consonant
-j consonant
-k consonant
-l consonant
-m consonant
-n consonant
-p consonant
-q consonant
-r consonant
-s consonant
-sh consonant
-t consonant
-w consonant
-x consonant
-y consonant
-z consonant
-zh consonant
-E vowel
-En vowel
-a vowel
-ai vowel
-an vowel
-ang vowel
-ao vowel
-e vowel
-ei vowel
-en vowel
-eng vowel
-er vowel
-i vowel
-i0 vowel
-ia vowel
-ian vowel
-iang vowel
-iao vowel
-ie vowel
-in vowel
-ing vowel
-iong vowel
-ir vowel
-iu vowel
-o vowel
-ong vowel
-ou vowel
-u vowel
-ua vowel
-uai vowel
-uan vowel
-uang vowel
-ui vowel
-un vowel
-uo vowel
-v vowel
-van vowel
-ve vowel
-vn vowel
+b consonant stop
+c consonant affricate
+ch consonant affricate
+d consonant stop
+f consonant fricative
+g consonant stop
+h consonant aspirate
+j consonant affricate
+k consonant stop
+l consonant liquid
+m consonant nasal
+n consonant nasal
+p consonant stop
+q consonant fricative
+r consonant semivowel
+s consonant fricative
+sh consonant fricative
+t consonant stop
+w consonant semivowel
+x consonant fricative
+y consonant semivowel
+z consonant affricate
+zh consonant affricate
+E vowel vowel
+En vowel diphthong
+a vowel vowel
+ai vowel diphthong
+an vowel vowel
+ang vowel vowel
+ao vowel diphthong
+e vowel vowel
+ei vowel diphthong
+en vowel vowel
+eng vowel vowel
+er vowel vowel
+i vowel vowel
+i0 vowel vowel
+ia vowel diphthong
+ian vowel diphthong
+iang vowel diphthong
+iao vowel diphthong
+ie vowel diphthong
+in vowel diphthong
+ing vowel diphthong
+iong vowel diphthong
+ir vowel vowel
+iu vowel diphthong
+o vowel vowel
+ong vowel vowel
+ou vowel diphthong
+u vowel vowel
+ua vowel diphthong
+uai vowel diphthong
+uan vowel diphthong
+uang vowel diphthong
+ui vowel diphthong
+un vowel diphthong
+uo vowel diphthong
+v vowel vowel
+van vowel diphthong
+ve vowel diphthong
+vn vowel vowel
