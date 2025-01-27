@@ -195,7 +195,7 @@ use_gender_id: false
 #########
 spec_min: [-12]
 spec_max: [0]
-diff_type: "prodiff" # prodiff|reflow
+diff_type: "prodiff" # prodiff|reflow|flow_matching
 # ddpm's param
 max_beta: 40
 timesteps: 4
@@ -204,6 +204,8 @@ schedule_type: 'vpsde' # vpsde|linear|cosine|logsnr
 sampling_algorithm: euler
 sampling_steps: 20
 timescale: 1000
+# flow_matching's param
+step_size: 0.05
 # diff decoder
 diff_decoder_type: 'wavenet'
 dilation_cycle_length: 1

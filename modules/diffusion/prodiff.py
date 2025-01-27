@@ -75,29 +75,29 @@ class GaussianDiffusion(nn.Module):
 
         to_torch = partial(torch.tensor, dtype=torch.float32)
 
-        self.register_buffer('timesteps', to_torch(self.num_timesteps))      # beta
-        self.register_buffer('timescale', to_torch(self.time_scale))      # beta
+        self.register_buffer('timesteps', to_torch(self.num_timesteps), persistent=False)      # beta
+        self.register_buffer('timescale', to_torch(self.time_scale), persistent=False)      # beta
         self.register_buffer('betas', to_torch(betas))      # beta
-        self.register_buffer('alphas_cumprod', to_torch(alphas_cumprod)) # alphacum_t
-        self.register_buffer('alphas_cumprod_prev', to_torch(alphas_cumprod_prev)) # alphacum_{t-1}
+        self.register_buffer('alphas_cumprod', to_torch(alphas_cumprod), persistent=False) # alphacum_t
+        self.register_buffer('alphas_cumprod_prev', to_torch(alphas_cumprod_prev), persistent=False) # alphacum_{t-1}
 
         # calculations for diffusion q(x_t | x_{t-1}) and others
-        self.register_buffer('sqrt_alphas_cumprod', to_torch(np.sqrt(alphas_cumprod)))
-        self.register_buffer('sqrt_one_minus_alphas_cumprod', to_torch(np.sqrt(1. - alphas_cumprod)))
-        self.register_buffer('log_one_minus_alphas_cumprod', to_torch(np.log(1. - alphas_cumprod)))
-        self.register_buffer('sqrt_recip_alphas_cumprod', to_torch(np.sqrt(1. / alphas_cumprod)))
-        self.register_buffer('sqrt_recipm1_alphas_cumprod', to_torch(np.sqrt(1. / alphas_cumprod - 1)))
+        self.register_buffer('sqrt_alphas_cumprod', to_torch(np.sqrt(alphas_cumprod)), persistent=False)
+        self.register_buffer('sqrt_one_minus_alphas_cumprod', to_torch(np.sqrt(1. - alphas_cumprod)), persistent=False)
+        self.register_buffer('log_one_minus_alphas_cumprod', to_torch(np.log(1. - alphas_cumprod)), persistent=False)
+        self.register_buffer('sqrt_recip_alphas_cumprod', to_torch(np.sqrt(1. / alphas_cumprod)), persistent=False)
+        self.register_buffer('sqrt_recipm1_alphas_cumprod', to_torch(np.sqrt(1. / alphas_cumprod - 1)), persistent=False)
 
         # calculations for posterior q(x_{t-1} | x_t, x_0)
         posterior_variance = betas * (1. - alphas_cumprod_prev) / (1. - alphas_cumprod)
         # above: equal to 1. / (1. / (1. - alpha_cumprod_tm1) + alpha_t / beta_t)
-        self.register_buffer('posterior_variance', to_torch(posterior_variance))
+        self.register_buffer('posterior_variance', to_torch(posterior_variance), persistent=False)
         # below: log calculation clipped because the posterior variance is 0 at the beginning of the diffusion chain
-        self.register_buffer('posterior_log_variance_clipped', to_torch(np.log(np.maximum(posterior_variance, 1e-20))))
+        self.register_buffer('posterior_log_variance_clipped', to_torch(np.log(np.maximum(posterior_variance, 1e-20))), persistent=False)
         self.register_buffer('posterior_mean_coef1', to_torch(
-            betas * np.sqrt(alphas_cumprod_prev) / (1. - alphas_cumprod)))
+            betas * np.sqrt(alphas_cumprod_prev) / (1. - alphas_cumprod)), persistent=False)
         self.register_buffer('posterior_mean_coef2', to_torch(
-            (1. - alphas_cumprod_prev) * np.sqrt(alphas) / (1. - alphas_cumprod)))
+            (1. - alphas_cumprod_prev) * np.sqrt(alphas) / (1. - alphas_cumprod)), persistent=False)
 
         spec_min = torch.FloatTensor(spec_min)[None, None, :out_dims].transpose(-3, -2)
         spec_max = torch.FloatTensor(spec_max)[None, None, :out_dims].transpose(-3, -2)

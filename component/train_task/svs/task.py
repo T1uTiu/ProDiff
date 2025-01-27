@@ -1,6 +1,6 @@
 import torch
 from component.train_task.base_task import BaseTask
-from component.train_task.loss_utils import add_sepc_loss_prodiff, add_spec_loss_reflow
+from component.train_task.loss_utils import add_sepc_loss_prodiff, add_spec_loss_flow_matching, add_spec_loss_reflow
 from component.train_task.svs.dataset import SVSDataset
 from modules.svs.prodiff_teacher import ProDiffTeacher
 import utils
@@ -69,6 +69,12 @@ class SVSTask(BaseTask):
                 spec_pred, spec_gt, t, non_padding, 
                 self.loss_type_list[0], log_norm=True, 
                 losses=losses, name="mel"
+            )
+        elif self.diffusion_type == "flow_matching":
+            add_spec_loss_flow_matching(
+                spec_pred, spec_gt, non_padding,
+                self.loss_type_list[0],
+                losses, name="mel"
             )
         if not return_output:
             return losses

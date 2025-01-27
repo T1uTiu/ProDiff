@@ -62,6 +62,29 @@ def add_sepc_loss_prodiff(
             raise NotImplementedError()
         losses[f'{name}_{loss_name}'] = l * lbd
 
+def add_spec_loss_flow_matching(
+        pred_spec: torch.Tensor, gt_spec: torch.Tensor, non_padding: torch.Tensor,
+        loss_type: str,
+        losses: Dict, name: str = "spec"
+    ):
+    """
+    :param v_pred: [B, 1, M, T]
+    :param v_gt: [B, 1, M, T]
+    :param non_padding: [B, T, M]
+    """
+    if non_padding is not None:
+        non_padding = non_padding.transpose(1, 2).unsqueeze(1)
+        pred_spec = pred_spec * non_padding
+        gt_spec = gt_spec * non_padding
+    if loss_type == "l1":
+        loss_fn = nn.L1Loss()
+    elif loss_type in ("l2", "mse"):
+        loss_fn = nn.MSELoss()
+    else:
+        raise NotImplementedError()
+    loss = loss_fn(pred_spec, gt_spec)
+    losses[name] = loss.mean()
+
 def add_spec_loss_reflow(
         pred_spec: torch.Tensor, gt_spec: torch.Tensor, t: torch.Tensor, non_padding: torch.Tensor,
         loss_type: str, log_norm: bool, 

@@ -3,6 +3,7 @@ import torch.nn as nn
 
 from modules.commons.common_layers import *
 from modules.decoder.wavenet import WaveNet
+from modules.diffusion.flow_matching import FlowMatching
 from modules.diffusion.prodiff import GaussianDiffusion
 from modules.diffusion.reflow import RectifiedFlow
 from modules.fastspeech.tts_modules import FastspeechEncoder, mel2ph_to_dur
@@ -75,6 +76,21 @@ class ProDiffTeacher(nn.Module):
                 time_scale=hparams["timescale"],
                 num_features=1,
                 sampling_algorithm=hparams.get("sampling_algorithm", "euler"),
+                spec_min=hparams["spec_min"],
+                spec_max=hparams["spec_max"],
+            )
+        elif self.diffusion_type == "flow_matching":
+            self.diffusion = FlowMatching(
+                out_dims=hparams["audio_num_mel_bins"],
+                denoise_fn=WaveNet(
+                    in_dims=hparams['audio_num_mel_bins'],
+                    hidden_size=hparams["hidden_size"],
+                    residual_layers=hparams["residual_layers"],
+                    residual_channels=hparams["residual_channels"],
+                    dilation_cycle_length=hparams["dilation_cycle_length"],
+                ),
+                num_features=1,
+                step_size=hparams.get("step_size", 0.05),
                 spec_min=hparams["spec_min"],
                 spec_max=hparams["spec_max"],
             )
