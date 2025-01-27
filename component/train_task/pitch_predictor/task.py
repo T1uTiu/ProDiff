@@ -1,6 +1,6 @@
 import torch
 from component.train_task.base_task import BaseTask
-from component.train_task.loss_utils import RectifiedFlowLoss
+from component.train_task.loss_utils import add_spec_loss_reflow
 from component.train_task.pitch_predictor.dataset import PitchPredictorDataset
 from modules.variance_predictor.pitch_predictor import PitchPredictor
 import utils
@@ -13,9 +13,8 @@ class PitchPredictorTask(BaseTask):
         self.build_phone_category_encoder()
         self.f0_prediction_args = hparams['f0_prediction_args']
         self.f0_repeat = [1, 1, self.f0_prediction_args['repeat_bins']]
-        loss_type = self.f0_prediction_args['loss_type']
-        self.pich_loss = RectifiedFlowLoss(loss_type, log_norm=True)
-        print("| Pitch losses:", loss_type)
+        self.loss_type = self.f0_prediction_args['loss_type']
+        print("| Pitch losses:", self.loss_type)
 
     def get_dataset_cls(self):
         return PitchPredictorDataset
@@ -43,9 +42,13 @@ class PitchPredictorTask(BaseTask):
         if infer:
             return output
         losses = {}
-        non_padding = (mel2note > 0).unsqueeze(-1) if mel2note is not None else None
         pitch_pred, pitch_gt, t = output
-        losses['pitch'] = self.pich_loss(pitch_pred, pitch_gt, t=t, non_padding=non_padding)
+        non_padding = (mel2note > 0).unsqueeze(-1)
+        add_spec_loss_reflow(
+            pitch_pred, pitch_gt, t, non_padding, 
+            self.loss_type, log_norm=True, 
+            losses=losses, name="pitch"
+        )
         if not return_output:
             return losses
         else:

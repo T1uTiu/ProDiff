@@ -13,7 +13,7 @@ from typing import List
 from component.binarizer.binarizer_utils import extract_harmonic_aperiodic
 from component.inferer.base import get_inferer_cls
 from component.vocoder.base_vocoder import get_vocoder_cls
-from modules.ProDiff.prodiff_teacher import ProDiffTeacher
+from modules.svs.prodiff_teacher import ProDiffTeacher
 from modules.commons.common_layers import SinusoidalSmoothingConv1d
 from modules.fastspeech.tts_modules import LengthRegulator
 from utils.ckpt_utils import load_ckpt

@@ -48,7 +48,6 @@ class PitchPredictor(nn.Module):
             ),
             time_scale=f0_prediction_args["timescale"],
             sampling_algorithm=hparams["sampling_algorithm"],
-            sampling_steps=hparams["sampling_steps"],
             spec_min=f0_prediction_args["spec_min"],
             spec_max=f0_prediction_args["spec_max"],
             clamp_min=f0_prediction_args["clamp_min"],
@@ -60,7 +59,8 @@ class PitchPredictor(nn.Module):
             note_midi, note_rest, mel2note, 
             base_pitch, pitch=None, 
             pitch_retake=None, pitch_expr=None,
-            spk_id=None, infer=False
+            spk_id=None, 
+            infer_step=20, infer=False
         ):
         # dur embed
         if self.with_dur_embed:
@@ -117,5 +117,5 @@ class PitchPredictor(nn.Module):
         if not infer:
             pitch_pred = self.diffusion(condition, pitch-base_pitch, infer=False)
         else:
-            pitch_pred = self.diffusion(condition, infer=True)
+            pitch_pred = self.diffusion(condition, infer_step=infer_step, infer=True)
         return pitch_pred

@@ -116,7 +116,7 @@ class GaussianDiffusion(nn.Module):
     def q_posterior_sample(self, x_start, x_t, t):
         b, *_, device = *x_start.shape, x_start.device
         model_mean, _, model_log_variance = self.q_posterior(x_start=x_start, x_t=x_t, t=t)
-        noise = torch.rand(x_start.shape, device=device)
+        noise = torch.randn(x_start.shape, device=device)
         # no noise when t == 0
         nonzero_mask = (1 - (t == 0).float()).reshape(b, *((1,) * (len(x_start.shape) - 1)))
         return model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise
@@ -135,7 +135,7 @@ class GaussianDiffusion(nn.Module):
         )
 
 
-    def forward(self, cond, nonpadding=None, gt_spec=None, infer_step=None, infer=False):
+    def forward(self, cond, gt_spec=None, infer_step=4, infer=False):
         b, *_, device = *cond.shape, cond.device
         cond = cond.transpose(1, 2)
         if not infer:
@@ -143,11 +143,11 @@ class GaussianDiffusion(nn.Module):
             if self.num_features == 1:
                 spec = spec[:, None, :, :]
             t = torch.randint(0, self.num_timesteps + 1, (b,), device=device).long()
-            x_t = self.q_sample(spec, t=t) * nonpadding
-            x_0_pred = self.denoise_fn(x_t, t, cond) * nonpadding
-            x_0 = x_0_pred[:, 0].transpose(1, 2) # [B, T, mel_bin]
+            x_t = self.q_sample(spec, t=t)
+            x_0_pred = self.denoise_fn(x_t, t, cond)
+            return x_0_pred, spec, t
         else:
-            infer_step = min(self.num_timesteps, infer_step) if infer_step is not None else self.num_timesteps
+            infer_step = np.clip(infer_step, 1, self.num_timesteps)
             x = torch.randn(b, self.num_features, self.mel_bins, cond.shape[2], device=device)  # noise
             for i in tqdm(range(infer_step-1, -1, -1), desc='Sample time step', total=infer_step):
                 t = torch.full((b,), i, device=device, dtype=torch.long)

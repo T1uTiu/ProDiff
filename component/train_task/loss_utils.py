@@ -1,3 +1,4 @@
+from typing import Dict
 import torch
 from torch import Tensor, nn
 from torch.functional import F
@@ -38,18 +39,61 @@ def ssim_loss(decoder_output, target, bias=6.0):
     ssim_loss = (ssim_loss * weights).sum() / weights.sum()
     return ssim_loss
 
-def add_mel_loss(mel_out, target, losses, loss_and_lambda, postfix=''):
-    nonpadding = target.abs().sum(-1).ne(0).float()
-    for loss_name, lbd in loss_and_lambda.items():
+def add_sepc_loss_prodiff(
+        pred_spec: torch.Tensor, gt_spec: torch.Tensor, non_padding: torch.Tensor,
+        loss_type: Dict[str, float], 
+        losses: Dict, name='spec'):
+    """
+    :param pred_spec: [B,  M, T]
+    :param gt_spec: [B, M, T]
+    """
+    if non_padding is not None:
+        non_padding = non_padding.transpose(1, 2).unsqueeze(1)
+        pred_spec = pred_spec * non_padding
+        gt_spec = gt_spec * non_padding
+    for loss_name, lbd in loss_type.items():
         if 'l1' == loss_name:
-            l = l1_loss(mel_out, target)
+            l = l1_loss(pred_spec, gt_spec)
         elif 'mse' == loss_name:
-            l = mse_loss(mel_out, target)
+            l = mse_loss(pred_spec, gt_spec)
         elif 'ssim' == loss_name:
-            l = ssim_loss(mel_out, target)
+            l = ssim_loss(pred_spec, gt_spec)
         else:
             raise NotImplementedError()
-        losses[f'{loss_name}{postfix}'] = l * lbd
+        losses[f'{name}_{loss_name}'] = l * lbd
+
+def add_spec_loss_reflow(
+        pred_spec: torch.Tensor, gt_spec: torch.Tensor, t: torch.Tensor, non_padding: torch.Tensor,
+        loss_type: str, log_norm: bool, 
+        losses: Dict, name: str = "spec"
+    ):
+    """
+    :param v_pred: [B, 1, M, T]
+    :param v_gt: [B, 1, M, T]
+    :param t: [B,]
+    :param non_padding: [B, T, M]
+    """
+    if loss_type == "l1":
+        loss_fn = nn.L1Loss()
+    elif loss_type in ("l2", "mse"):
+        loss_fn = nn.MSELoss()
+    else:
+        raise NotImplementedError()
+    if non_padding is not None:
+        non_padding = non_padding.transpose(1, 2).unsqueeze(1)
+        pred_spec = pred_spec * non_padding
+        gt_spec = gt_spec * non_padding
+    loss = loss_fn(pred_spec, gt_spec)
+    if log_norm:
+        eps = 1e-7
+        t = t.float()
+        t = torch.clip(t, 0 + eps, 1 - eps)
+        weights = 0.398942 / t / (1 - t) * torch.exp(
+            -0.5 * torch.log(t / (1 - t)) ** 2
+        ) + eps
+        loss = weights[:, None, None, None] * loss
+    losses[name] = loss.mean()
+
 
 def add_dur_loss(dur_pred, dur_tgt, onset, loss_type: str, log_offset, loss_and_lambda, losses):
     if loss_type == "mse":
@@ -78,49 +122,3 @@ def add_dur_loss(dur_pred, dur_tgt, onset, loss_type: str, log_offset, loss_and_
     sdur_tgt = dur_tgt.sum(dim=1)
     sdur_loss = lambda_sdur * loss(linear2log(sdur_pred), linear2log(sdur_tgt))
     losses["dur"] = pdur_loss + wdur_loss + sdur_loss
-
-class RectifiedFlowLoss(nn.Module):
-    def __init__(self, loss_type, log_norm=True):
-        super().__init__()
-        self.loss_type = loss_type
-        self.log_norm = log_norm
-        if self.loss_type == 'l1':
-            self.loss = nn.L1Loss(reduction='none')
-        elif self.loss_type in ("l2", "mse"):
-            self.loss = nn.MSELoss(reduction='none')
-        else:
-            raise NotImplementedError()
-
-    @staticmethod
-    def _mask_non_padding(v_pred, v_gt, non_padding=None):
-        if non_padding is not None:
-            non_padding = non_padding.transpose(1, 2).unsqueeze(1)
-            return v_pred * non_padding, v_gt * non_padding
-        else:
-            return v_pred, v_gt
-
-    @staticmethod
-    def get_weights(t):
-        eps = 1e-7
-        t = t.float()
-        t = torch.clip(t, 0 + eps, 1 - eps)
-        weights = 0.398942 / t / (1 - t) * torch.exp(
-            -0.5 * torch.log(t / (1 - t)) ** 2
-        ) + eps
-        return weights[:, None, None, None]
-
-    def _forward(self, v_pred, v_gt, t=None):
-        if self.log_norm:
-            return self.get_weights(t) * self.loss(v_pred, v_gt)
-        else:
-            return self.loss(v_pred, v_gt)
-
-    def forward(self, v_pred: Tensor, v_gt: Tensor, t: Tensor, non_padding: Tensor = None) -> Tensor:
-        """
-        :param v_pred: [B, 1, M, T]
-        :param v_gt: [B, 1, M, T]
-        :param t: [B,]
-        :param non_padding: [B, T, M]
-        """
-        v_pred, v_gt = self._mask_non_padding(v_pred, v_gt, non_padding)
-        return self._forward(v_pred, v_gt, t=t).mean()

@@ -10,7 +10,7 @@ import torch
 
 from component.binarizer.binarizer_utils import extract_harmonic_aperiodic, get_kth_harmonic
 from component.inferer.base import get_inferer_cls
-from modules.ProDiff.prodiff_teacher import ProDiffTeacher
+from modules.svs.prodiff_teacher import ProDiffTeacher
 from modules.commons.common_layers import SinusoidalSmoothingConv1d
 from modules.fastspeech.tts_modules import LengthRegulator
 from utils.audio import cross_fade, save_wav
