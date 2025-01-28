@@ -9,6 +9,8 @@ from component.binarizer.binarizer_utils import build_lang_map, build_phone_enco
 from component.pe.base import get_pitch_extractor_cls
 from modules.commons.common_layers import SinusoidalSmoothingConv1d
 from modules.fastspeech.tts_modules import LengthRegulator
+from modules.svs.prodiff_teacher import ProDiffTeacher
+from utils.ckpt_utils import load_ckpt
 from utils.data_gen_utils import get_mel2ph_dur
 
 @register_binarizer
@@ -57,6 +59,14 @@ class SVSBinarizer(Binarizer):
             self.tension_smooth = SinusoidalSmoothingConv1d(
                 round(0.12 / self.timesteps)
             ).eval().to(self.device)
+
+        self.need_rectified_mel = binarization_args.get("with_rectified_mel", False)
+        if self.need_rectified_mel:
+            teacher_ckpt = hparams["teacher_ckpt"]
+            self.model = ProDiffTeacher(len(self.ph_encoder), hparams)
+            self.model.eval()
+            load_ckpt(self.model, teacher_ckpt, 'model', strict=False)
+            self.model.to(self.device)
 
         # post process
         if binarization_args['shuffle']:
@@ -173,4 +183,14 @@ class SVSBinarizer(Binarizer):
                 smooth_func=self.tension_smooth,
                 device=self.device
             )
+        if self.need_rectified_mel:
+            output = self.model(
+                preprocessed_item["ph_seq"], preprocessed_item["mel2ph"], f0, 
+                lang_seq=preprocessed_item.get("lang_seq", None), 
+                spk_embed_id=preprocessed_item.get("spk_id", None), 
+                gender_embed_id=preprocessed_item.get("gender_embed_id", None),
+                voicing=preprocessed_item.get("voicing", None), breath=preprocessed_item.get("breath", None),
+                infer=True
+            )
+            preprocessed_item["mel"] = output
         return preprocessed_item
