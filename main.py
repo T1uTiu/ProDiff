@@ -23,9 +23,10 @@ def binarize(task, config, exp_name):
 @click.option("--exp_name", type=str, required=True)
 def train(train_task, config, exp_name):
     from handler.train.handler import TrainHandler
-    from component.train_task import SVSTask, DurPredictorTask, PitchPredictorTask, VariPredictorTask
+    from component.train_task import SVSTask, SVSStudentTask, DurPredictorTask, PitchPredictorTask, VariPredictorTask
     train_task_map = {
         "svs": SVSTask,
+        "svs_stu": SVSStudentTask,
         "dur": DurPredictorTask,
         "pitch": PitchPredictorTask,
         "vari": VariPredictorTask,

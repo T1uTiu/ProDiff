@@ -47,13 +47,12 @@ def get_noise_schedule_list(schedule_mode, timesteps, min_beta=0.0, max_beta=0.0
 
 class GaussianDiffusion(nn.Module):
     def __init__(self, out_dims, denoise_fn,
-                 timesteps=1000, time_scale=1, num_features=1,
+                 timesteps=1000, time_scale=1,
                  betas=None, schedule_type="vpsde", max_beta=0.02,
                  spec_min=None, spec_max=None):
         super().__init__()
         self.denoise_fn = denoise_fn
         self.mel_bins = out_dims
-        self.num_features = num_features
 
         if betas is not None:
             betas = betas.detach().cpu().numpy() if isinstance(betas, torch.Tensor) else betas
@@ -104,56 +103,53 @@ class GaussianDiffusion(nn.Module):
         self.register_buffer('spec_min', spec_min, persistent=False)
         self.register_buffer('spec_max', spec_max, persistent=False)
 
-    def q_posterior(self, x_start, x_t, t):
+    def q_posterior(self, x_0, x_t, t):
         posterior_mean = (
-                extract(self.posterior_mean_coef1, t, x_t.shape) * x_start +
+                extract(self.posterior_mean_coef1, t, x_t.shape) * x_0 +
                 extract(self.posterior_mean_coef2, t, x_t.shape) * x_t
         )
         posterior_variance = extract(self.posterior_variance, t, x_t.shape)
         posterior_log_variance_clipped = extract(self.posterior_log_variance_clipped, t, x_t.shape)
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
-    def q_posterior_sample(self, x_start, x_t, t):
-        b, *_, device = *x_start.shape, x_start.device
-        model_mean, _, model_log_variance = self.q_posterior(x_start=x_start, x_t=x_t, t=t)
-        noise = torch.randn(x_start.shape, device=device)
+    def q_posterior_sample(self, x_0, x_t, t):
+        b, *_, device = *x_0.shape, x_0.device
+        model_mean, _, model_log_variance = self.q_posterior(x_0=x_0, x_t=x_t, t=t)
+        noise = torch.randn(x_0.shape, device=device)
         # no noise when t == 0
-        nonzero_mask = (1 - (t == 0).float()).reshape(b, *((1,) * (len(x_start.shape) - 1)))
+        nonzero_mask = (1 - (t == 0).float()).reshape(b, *((1,) * (len(x_0.shape) - 1)))
         return model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise
 
     @torch.no_grad()
     def p_sample(self, x_t, t, cond):
         x_0_pred = self.denoise_fn(x_t, t, cond)
-        return self.q_posterior_sample(x_start=x_0_pred, x_t=x_t, t=t)
+        return self.q_posterior_sample(x_0=x_0_pred, x_t=x_t, t=t)
 
-    def q_sample(self, x_start, t, noise=None):
-        noise = default(noise, lambda: torch.randn_like(x_start))
-
+    def q_sample(self, x_0, t, x_T=None):
+        x_T = default(x_T, lambda: torch.randn_like(x_0)) # noise
         return (
-                extract(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start +
-                extract(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
+            extract(self.sqrt_alphas_cumprod, t, x_0.shape) * x_0 +
+            extract(self.sqrt_one_minus_alphas_cumprod, t, x_0.shape) * x_T
         )
 
 
-    def forward(self, cond, gt_spec=None, infer_step=4, infer=False):
+    def forward(self, cond, src_spec, gt_spec=None, infer_step=4, infer=False):
         b, *_, device = *cond.shape, cond.device
         cond = cond.transpose(1, 2)
         if not infer:
-            spec = self.norm_spec(gt_spec).transpose(-2, -1)  # [B, M, T] or [B, F, M, T]
-            if self.num_features == 1:
-                spec = spec[:, None, :, :]
+            x_0 = self.norm_spec(gt_spec)
             t = torch.randint(0, self.num_timesteps + 1, (b,), device=device).long()
-            x_t = self.q_sample(spec, t=t)
+            x_t = self.q_sample(x_0, t=t, x_T=src_spec)
             x_0_pred = self.denoise_fn(x_t, t, cond)
-            return x_0_pred, spec, t
+            return x_0_pred, x_0, t
         else:
             infer_step = np.clip(infer_step, 1, self.num_timesteps)
-            x = torch.randn(b, self.num_features, self.mel_bins, cond.shape[2], device=device)  # noise
+            x = src_spec
             for i in tqdm(range(infer_step-1, -1, -1), desc='Sample time step', total=infer_step):
                 t = torch.full((b,), i, device=device, dtype=torch.long)
-                x = self.p_sample(x, t, cond)  # x(mel), t, condition(phoneme)
+                x = self.p_sample(x, t, cond)
             x = x[:, 0].transpose(1, 2)
-            x_0 = self.denorm_spec(x)  # 去除norm
+            x_0 = self.denorm_spec(x)
         return x_0
 
     def norm_spec(self, x):

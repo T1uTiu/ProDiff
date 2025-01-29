@@ -398,7 +398,7 @@ class TrainHandler:
         checkpoint['optimizer_states'] = optimizer_states
         task_ref = self.get_task_ref()
         checkpoint['state_dict'] = {
-            k: v.state_dict() for k, v in task_ref.named_children() if len(list(v.parameters())) > 0}
+            k: v.state_dict() for k, v in task_ref.named_children() if len(list(v.parameters())) > 0 and "teacher" not in k}
         return checkpoint
 
     ####################

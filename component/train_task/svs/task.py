@@ -2,8 +2,9 @@ import torch
 from component.train_task.base_task import BaseTask
 from component.train_task.loss_utils import add_sepc_loss_prodiff, add_spec_loss_reflow
 from component.train_task.svs.dataset import SVSDataset
-from modules.svs.prodiff_teacher import ProDiffTeacher
+from modules.svs.prodiff_teacher import ProDiffTeacher, ProDiff
 import utils
+from utils.ckpt_utils import load_ckpt
 from utils.plot import spec_to_figure
 
 class SVSTask(BaseTask):
@@ -94,3 +95,10 @@ class SVSTask(BaseTask):
         vmax = self.hparams['mel_vmax']
         self.logger.add_figure(name, spec_to_figure(spec_cat[0], vmin, vmax), self.global_step)
 
+class SVSStudentTask(SVSTask):
+    def build_model(self):
+        self.model = ProDiff(len(self.ph_encoder), self.hparams)
+        teacher_ckpt = self.hparams["teacher_ckpt"]
+        load_ckpt(self.model.teacher, teacher_ckpt, "model", strict=False)
+        utils.num_params(self.model.diffusion)
+        return self.model
