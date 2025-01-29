@@ -6,10 +6,10 @@ from torch.functional import F
 from modules.commons.ssim import ssim
 
 def weights_nonzero_speech(target):
-    # target : [B, T, mel_bin]
+    # target : [B, F, M, T]
     # Assign weight 1.0 to all labels except for padding (id=0).
-    dim = target.size(-1)
-    return target.abs().sum(-1, keepdim=True).ne(0).float().repeat(1, 1, dim)
+    dim = target.size(-2)
+    return target.abs().sum(-2, keepdim=True).ne(0).float().repeat(1, 1, dim, 1)
 
 def l1_loss(decoder_output, target):
     # decoder_output : B x T x n_mel
@@ -33,8 +33,8 @@ def ssim_loss(decoder_output, target, bias=6.0):
     # target : B x T x n_mel
     assert decoder_output.shape == target.shape
     weights = weights_nonzero_speech(target)
-    decoder_output = decoder_output[:, None] + bias
-    target = target[:, None] + bias
+    decoder_output = decoder_output + bias
+    target = target + bias
     ssim_loss = 1 - ssim(decoder_output, target, size_average=False)
     ssim_loss = (ssim_loss * weights).sum() / weights.sum()
     return ssim_loss

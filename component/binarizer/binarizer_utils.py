@@ -13,7 +13,7 @@ from utils.text_encoder import TokenTextEncoder
 from modules.vr import load_sep_model
 
 
-def build_phone_encoder(data_dir: str, dictionary: dict):
+def build_phone_encoder(data_dir: str, dictionary: dict, languages: List[str]) -> Tuple[Dict[str, str], TokenTextEncoder]:
     ph2global = {}
     if dictionary.get("global", None):
         f = open(dictionary["global"], 'r')
@@ -26,31 +26,27 @@ def build_phone_encoder(data_dir: str, dictionary: dict):
 
     ph_set_fn = f"{data_dir}/phone_set.json"
     ph_map = {}
-    if not os.path.exists(ph_set_fn):
-        for lang, dictionary in dictionary.items():
-            if lang == "global":
-                continue
-            f = open(dictionary["phoneme"], 'r')
-            ph_map[f"AP/{lang}"] = "AP"
-            ph_map[f"SP/{lang}"] = "SP"
-            for x in f.readlines():
-                line = x.split("\n")[0].split(' ')
-                ph, _ = line[0], line[1]
-                ph = f"{ph}/{lang}"
-                ph_map[ph] = ph2global.get(ph, ph)
-            f.close()
-        with open(ph_set_fn, 'w') as f:
-            json.dump(ph_map, f)
-    else:
-        with open(ph_set_fn, 'r') as f:
-            ph_map = json.load(f)
+    for lang in languages:
+        if lang == "global":
+            continue
+        f = open(dictionary[lang]["phoneme"], 'r')
+        ph_map[f"AP/{lang}"] = "AP"
+        ph_map[f"SP/{lang}"] = "SP"
+        for x in f.readlines():
+            line = x.split("\n")[0].split(' ')
+            ph, _ = line[0], line[1]
+            ph = f"{ph}/{lang}"
+            ph_map[ph] = ph2global.get(ph, ph)
+        f.close()
+    with open(ph_set_fn, 'w') as f:
+        json.dump(ph_map, f)
     ph_list = list(sorted(set(ph_map.values())))
     print("| phone set: ", ph_list)
     ph_encoder = TokenTextEncoder(None, vocab_list=ph_list, replace_oov="SP")
     return ph_map, ph_encoder
 
-def build_lang_map(data_dir, dictionary: dict):
-    lang_map = {dt: i for i, dt in enumerate(dictionary.keys()) if dt != "global"}
+def build_lang_map(data_dir, languages: List[str]) -> Dict[str, int]:
+    lang_map = {lang: i for i, lang in enumerate(languages)}
     print("| lang_map: ", lang_map)
     lang_map_fn = f"{data_dir}/lang_map.json"
     with open(lang_map_fn, 'w') as f:

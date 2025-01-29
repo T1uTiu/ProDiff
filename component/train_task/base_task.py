@@ -52,6 +52,7 @@ class BaseTask(nn.Module):
     def __init__(self, hparams):
         # dataset configs
         super(BaseTask, self).__init__()
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.hparams = hparams
         self.max_tokens = hparams['max_tokens']
         self.max_sentences = hparams['max_sentences']

@@ -23,10 +23,10 @@ def binarize(task, config, exp_name):
 @click.option("--exp_name", type=str, required=True)
 def train(train_task, config, exp_name):
     from handler.train.handler import TrainHandler
-    from component.train_task import SVSTask, SVSStudentTask, DurPredictorTask, PitchPredictorTask, VariPredictorTask
+    from component.train_task import SVSTask, SVSSRecitifedTask, DurPredictorTask, PitchPredictorTask, VariPredictorTask
     train_task_map = {
         "svs": SVSTask,
-        "svs_stu": SVSStudentTask,
+        "svs_rectified": SVSSRecitifedTask,
         "dur": DurPredictorTask,
         "pitch": PitchPredictorTask,
         "vari": VariPredictorTask,
@@ -124,6 +124,20 @@ def preprocess(data_dir, lang, override_ph_num, override_note_midi, override_ori
 def web(exp_name):
     from handler.web import WebHandler
     WebHandler(exp_name=exp_name).handle()
+
+@main.command()
+@click.argument("teacher_ckpt", type=str)
+@click.argument("rectified_diffusion_ckpt", type=str)
+def merge_rectified(teacher_ckpt, rectified_diffusion_ckpt):
+    import torch
+    teacher = torch.load(teacher_ckpt)
+    rectified_diffusion = torch.load(rectified_diffusion_ckpt)
+    for k in teacher["state_dict"]["model"].keys():
+        if not k.startswith("diffusion"):
+            continue
+        single_key = k[11:]
+        teacher["state_dict"]["model"][k] = rectified_diffusion["state_dict"]["model"][single_key]
+    torch.save(teacher, teacher_ckpt+".merged.ckpt")
 
 if __name__ == "__main__":
     main()  
