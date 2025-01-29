@@ -20,7 +20,7 @@ class SVSBinarizer(Binarizer):
         binarization_args = hparams["binarization_args"]
         # basic info
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.ph_map, self.ph_encoder = build_phone_encoder(self.data_dir, hparams["dictionary"])
+        self.ph_map, self.ph_encoder = build_phone_encoder(self.data_dir, hparams["dictionary"], hparams["languages"])
 
         self.need_spk_id = binarization_args.get("with_spk_id", True)
         if self.need_spk_id:
@@ -28,7 +28,7 @@ class SVSBinarizer(Binarizer):
 
         self.need_lang_id = binarization_args.get("with_lang_id", True)
         if self.need_lang_id:
-            self.lang_map = build_lang_map(self.data_dir, hparams["dictionary"])
+            self.lang_map = build_lang_map(self.data_dir, hparams["languages"])
         
         # param
         self.samplerate = hparams["audio_sample_rate"]
@@ -59,14 +59,6 @@ class SVSBinarizer(Binarizer):
             self.tension_smooth = SinusoidalSmoothingConv1d(
                 round(0.12 / self.timesteps)
             ).eval().to(self.device)
-
-        self.need_rectified_mel = binarization_args.get("with_rectified_mel", False)
-        if self.need_rectified_mel:
-            teacher_ckpt = hparams["teacher_ckpt"]
-            self.model = ProDiffTeacher(len(self.ph_encoder), hparams)
-            self.model.eval()
-            load_ckpt(self.model, teacher_ckpt, 'model', strict=False)
-            self.model.to(self.device)
 
         # post process
         if binarization_args['shuffle']:
@@ -183,14 +175,4 @@ class SVSBinarizer(Binarizer):
                 smooth_func=self.tension_smooth,
                 device=self.device
             )
-        if self.need_rectified_mel:
-            output = self.model(
-                preprocessed_item["ph_seq"], preprocessed_item["mel2ph"], f0, 
-                lang_seq=preprocessed_item.get("lang_seq", None), 
-                spk_embed_id=preprocessed_item.get("spk_id", None), 
-                gender_embed_id=preprocessed_item.get("gender_embed_id", None),
-                voicing=preprocessed_item.get("voicing", None), breath=preprocessed_item.get("breath", None),
-                infer=True
-            )
-            preprocessed_item["mel"] = output
         return preprocessed_item

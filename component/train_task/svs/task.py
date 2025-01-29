@@ -1,8 +1,11 @@
 import torch
 from component.train_task.base_task import BaseTask
 from component.train_task.loss_utils import add_sepc_loss_prodiff, add_spec_loss_reflow
-from component.train_task.svs.dataset import SVSDataset
-from modules.svs.prodiff_teacher import ProDiffTeacher, ProDiff
+from component.train_task.svs.dataset import SVSDataset, SVSRectifiedDataset
+from modules.decoder.wavenet import WaveNet
+from modules.diffusion.prodiff import GaussianDiffusion
+from modules.diffusion.reflow import RectifiedFlow
+from modules.svs.prodiff_teacher import ProDiffTeacher
 import utils
 from utils.ckpt_utils import load_ckpt
 from utils.plot import spec_to_figure
@@ -37,7 +40,7 @@ class SVSTask(BaseTask):
 
     def run_model(self, sample: dict, return_output=False, infer=False):
         txt_tokens = sample["ph_seq"]  # [B, T_t]
-        tgt_mel = sample["mel"]  # [B, T_s, 80]
+        gt_mel = sample["mel"]  # [B, T_s, 80]
         mel2ph = sample["mel2ph"]
         f0 = sample["f0"]
         spk_embed_id = sample.get("spk_id", None)
@@ -52,7 +55,7 @@ class SVSTask(BaseTask):
             spk_embed_id=spk_embed_id, 
             gender_embed_id=gender_embed_id,
             voicing=voicing, breath=breath,
-            ref_mels=tgt_mel, infer=infer
+            gt_spec=gt_mel, infer=infer
         )
         if infer:
             return output
@@ -95,10 +98,73 @@ class SVSTask(BaseTask):
         vmax = self.hparams['mel_vmax']
         self.logger.add_figure(name, spec_to_figure(spec_cat[0], vmin, vmax), self.global_step)
 
-class SVSStudentTask(SVSTask):
+class SVSSRecitifedTask(SVSTask):
+    def get_dataset_cls(self):
+        return SVSRectifiedDataset
+
     def build_model(self):
-        self.model = ProDiff(len(self.ph_encoder), self.hparams)
-        teacher_ckpt = self.hparams["teacher_ckpt"]
-        load_ckpt(self.model.teacher, teacher_ckpt, "model", strict=False)
-        utils.num_params(self.model.diffusion)
+        hparams = self.hparams
+        # train model
+        self.diffusion_type = hparams.get("diff_type", "prodiff")
+        if self.diffusion_type == "prodiff":
+            self.model = GaussianDiffusion(
+                out_dims=hparams["audio_num_mel_bins"],
+                denoise_fn=WaveNet(
+                    in_dims=hparams['audio_num_mel_bins'],
+                    hidden_size=hparams["hidden_size"],
+                    residual_layers=hparams["residual_layers"],
+                    residual_channels=hparams["residual_channels"],
+                    dilation_cycle_length=hparams["dilation_cycle_length"],
+                ),
+                timesteps=hparams["timesteps"],
+                time_scale=hparams["timescale"],
+                schedule_type=hparams['schedule_type'],
+                max_beta=hparams.get("max_beta", 0.02),
+                spec_min=hparams["spec_min"],
+                spec_max=hparams["spec_max"],
+            )
+        elif self.diffusion_type == "reflow":
+            self.model = RectifiedFlow(
+                out_dims=hparams["audio_num_mel_bins"],
+                denoise_fn=WaveNet(
+                    in_dims=hparams['audio_num_mel_bins'],
+                    hidden_size=hparams["hidden_size"],
+                    residual_layers=hparams["residual_layers"],
+                    residual_channels=hparams["residual_channels"],
+                    dilation_cycle_length=hparams["dilation_cycle_length"],
+                ),
+                time_scale=hparams["timescale"],
+                num_features=1,
+                sampling_algorithm=hparams.get("sampling_algorithm", "euler"),
+                spec_min=hparams["spec_min"],
+                spec_max=hparams["spec_max"],
+            )
+        utils.num_params(self.model)
         return self.model
+    
+    def run_model(self, sample, return_output=False, infer=False):
+        mel2ph = sample["mel2ph"]
+        condition = sample["condition"] # [B, T, hidden]
+        x_T, x_0 = sample["x_T"], sample["x_0"] # [B, 1, M, T]
+        output = self.model.forward(condition, x_T, gt_spec=x_0, infer=infer)
+        if infer:
+            return output
+        losses = {}
+        spec_pred, spec_gt, t = output
+        non_padding = (mel2ph > 0).unsqueeze(-1)
+        if self.diffusion_type == "prodiff":
+            add_sepc_loss_prodiff(
+                spec_pred, spec_gt, non_padding, 
+                loss_type=self.loss_type,
+                losses=losses, name="mel"
+            )
+        elif self.diffusion_type == "reflow":
+            add_spec_loss_reflow(
+                spec_pred, spec_gt, t, non_padding, 
+                self.loss_type_list[0], log_norm=True, 
+                losses=losses, name="mel"
+            )
+        if not return_output:
+            return losses
+        else:
+            return losses, output

@@ -145,7 +145,7 @@ class GaussianDiffusion(nn.Module):
         else:
             infer_step = np.clip(infer_step, 1, self.num_timesteps)
             x = src_spec
-            for i in tqdm(range(infer_step-1, -1, -1), desc='Sample time step', total=infer_step):
+            for i in tqdm(range(infer_step-1, -1, -1), desc='Sample time step', total=infer_step, leave=False):
                 t = torch.full((b,), i, device=device, dtype=torch.long)
                 x = self.p_sample(x, t, cond)
             x = x[:, 0].transpose(1, 2)

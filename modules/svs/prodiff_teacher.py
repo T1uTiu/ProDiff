@@ -10,6 +10,7 @@ from modules.fastspeech.tts_modules import FastspeechEncoder, mel2ph_to_dur
 class ProDiffTeacher(nn.Module):
     def __init__(self, vocab_size, hparams):
         super(ProDiffTeacher, self).__init__()
+        self.mel_bins = hparams["audio_num_mel_bins"]
         self.encoder = FastspeechEncoder(
             vocab_size=vocab_size,
             hidden_size=hparams["hidden_size"],
@@ -33,7 +34,7 @@ class ProDiffTeacher(nn.Module):
 
         self.with_lang_embed = hparams.get('use_lang_id', True)
         if self.with_lang_embed:
-            self.lang_embed = Embedding(len(hparams["dictionary"]), hparams['hidden_size'], 0)
+            self.lang_embed = Embedding(len(hparams["languages"]), hparams['hidden_size'], 0)
 
         self.pitch_embed = Linear(1, hparams['hidden_size'])
 
@@ -150,7 +151,7 @@ class ProDiffTeacher(nn.Module):
             spk_embed_id=None, spk_mix_embed=None, 
             gender_embed_id=None, gender_mix_embed=None,
             voicing=None, breath=None,
-            ref_mels=None, infer=False
+            src_spec=None, gt_spec=None, infer=False
         ):
         condition = self.forward_condition(
             txt_tokens, mel2ph, f0, 
@@ -159,75 +160,8 @@ class ProDiffTeacher(nn.Module):
             gender_embed_id=gender_embed_id, gender_mix_embed=gender_mix_embed,
             voicing=voicing, breath=breath
         )
+        b, device = condition.shape[0], condition.device
+        x_T = torch.randn(b, 1, self.mel_bins, condition.shape[1], device=device) if src_spec is None else src_spec
         # diffusion
-        output = self.diffusion(condition, gt_spec=ref_mels, infer=infer)
-        return output
-
-
-class ProDiff(nn.Module):
-    def __init__(self, vocab_size, hparams):
-        super().__init__(vocab_size, hparams)
-        self.mel_bins = hparams["audio_num_mel_bins"]
-        self.teacher = ProDiffTeacher(vocab_size, hparams)
-        self.diffusion_type = hparams.get("diff_type", "prodiff")
-        assert self.diffusion_type in ["prodiff"]
-        if self.diffusion_type == "prodiff":
-            self.diffusion = GaussianDiffusion(
-                out_dims=hparams["audio_num_mel_bins"],
-                denoise_fn=WaveNet(
-                    in_dims=hparams['audio_num_mel_bins'],
-                    hidden_size=hparams["hidden_size"],
-                    residual_layers=hparams["residual_layers"],
-                    residual_channels=hparams["residual_channels"],
-                    dilation_cycle_length=hparams["dilation_cycle_length"],
-                ),
-                timesteps=1,
-                time_scale=hparams["timescale"],
-                schedule_type=hparams['schedule_type'],
-                max_beta=hparams.get("max_beta", 0.02),
-                spec_min=hparams["spec_min"],
-                spec_max=hparams["spec_max"],
-            )
-        elif self.diffusion_type == "reflow":
-            self.diffusion = RectifiedFlow(
-                out_dims=hparams["audio_num_mel_bins"],
-                denoise_fn=WaveNet(
-                    in_dims=hparams['audio_num_mel_bins'],
-                    hidden_size=hparams["hidden_size"],
-                    residual_layers=hparams["residual_layers"],
-                    residual_channels=hparams["residual_channels"],
-                    dilation_cycle_length=hparams["dilation_cycle_length"],
-                ),
-                time_scale=hparams["timescale"],
-                num_features=1,
-                sampling_algorithm=hparams.get("sampling_algorithm", "euler"),
-                spec_min=hparams["spec_min"],
-                spec_max=hparams["spec_max"],
-            )
-            
-    def forward(
-            self, txt_tokens, mel2ph, f0, 
-            lang_seq=None, 
-            spk_embed_id=None, spk_mix_embed=None, 
-            gender_embed_id=None, gender_mix_embed=None,
-            voicing=None, breath=None,
-            ref_mels=None, infer=False
-        ):
-        with torch.no_grad():
-            condition = self.teacher.forward_condition(
-                txt_tokens, mel2ph, f0, 
-                lang_seq=lang_seq, 
-                spk_embed_id=spk_embed_id, spk_mix_embed=spk_mix_embed,
-                gender_embed_id=gender_embed_id, gender_mix_embed=gender_mix_embed,
-                voicing=voicing, breath=breath
-            )
-            b, device = condition.shape[0], condition.device
-            x_T = torch.randn(b, 1, self.mel_bins, condition.shape[2], device=device)
-            if not infer:
-                x_0 = self.teacher.diffusion(condition, x_T, infer=True)
-                x_0 = x_0.transpose(-2, -1)[:, None, :, :]
-        if not infer:
-            output = self.diffusion(condition, x_T, gt_spec=x_0, infer=False)
-        else:
-            output = self.diffusion(condition, x_T, infer=True)
+        output = self.diffusion(condition, x_T, gt_spec=gt_spec, infer=infer)
         return output
