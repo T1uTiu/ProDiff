@@ -34,7 +34,7 @@ class ProDiffTeacher(nn.Module):
 
         self.with_lang_embed = hparams.get('use_lang_id', True)
         if self.with_lang_embed:
-            self.lang_embed = Embedding(len(hparams["languages"]), hparams['hidden_size'], 0)
+            self.lang_embed = Embedding(len(hparams["languages"]+1), hparams['hidden_size'], 0)
 
         self.pitch_embed = Linear(1, hparams['hidden_size'])
 
@@ -60,7 +60,7 @@ class ProDiffTeacher(nn.Module):
                 timesteps=hparams["timesteps"],
                 time_scale=hparams["timescale"],
                 schedule_type=hparams['schedule_type'],
-                max_beta=hparams.get("max_beta", 0.02),
+                max_beta=hparams.get("max_beta", 0.06),
                 spec_min=hparams["spec_min"],
                 spec_max=hparams["spec_max"],
             )

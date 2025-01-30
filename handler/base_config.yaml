@@ -197,7 +197,7 @@ spec_min: [-12]
 spec_max: [0]
 diff_type: "prodiff" # prodiff|reflow
 # ddpm's param
-max_beta: 40
+max_beta: 0.06
 timesteps: 4
 schedule_type: 'vpsde' # vpsde|linear|cosine|logsnr
 # reflow's param

@@ -46,7 +46,7 @@ def build_phone_encoder(data_dir: str, dictionary: dict, languages: List[str]) -
     return ph_map, ph_encoder
 
 def build_lang_map(data_dir, languages: List[str]) -> Dict[str, int]:
-    lang_map = {lang: i for i, lang in enumerate(languages)}
+    lang_map = {lang: i for i, lang in enumerate(languages, 1)}
     print("| lang_map: ", lang_map)
     lang_map_fn = f"{data_dir}/lang_map.json"
     with open(lang_map_fn, 'w') as f:
