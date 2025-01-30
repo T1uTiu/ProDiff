@@ -133,7 +133,7 @@ class GaussianDiffusion(nn.Module):
         )
 
 
-    def forward(self, cond, src_spec, gt_spec=None, infer_step=4, infer=False):
+    def forward(self, cond, src_spec=None, gt_spec=None, infer_step=4, infer=False):
         b, *_, device = *cond.shape, cond.device
         cond = cond.transpose(1, 2)
         if not infer:
@@ -141,10 +141,10 @@ class GaussianDiffusion(nn.Module):
             t = torch.randint(0, self.num_timesteps + 1, (b,), device=device).long()
             x_t = self.q_sample(x_0, t=t, x_T=src_spec)
             x_0_pred = self.denoise_fn(x_t, t, cond)
-            return x_0_pred, x_0, t
+            return x_0_pred, x_0
         else:
             infer_step = np.clip(infer_step, 1, self.num_timesteps)
-            x = src_spec
+            x = torch.rand(b, 1, self.mel_bins, cond.shape[2], device=device)
             for i in tqdm(range(infer_step-1, -1, -1), desc='Sample time step', total=infer_step, leave=False):
                 t = torch.full((b,), i, device=device, dtype=torch.long)
                 x = self.p_sample(x, t, cond)

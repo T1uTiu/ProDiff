@@ -1,42 +1,18 @@
 from typing import Dict
 import torch
-from torch import Tensor, nn
+from torch import nn
 from torch.functional import F
 
 from modules.commons.ssim import ssim
 
-def weights_nonzero_speech(target):
-    # target : [B, F, M, T]
-    # Assign weight 1.0 to all labels except for padding (id=0).
-    dim = target.size(-2)
-    return target.abs().sum(-2, keepdim=True).ne(0).float().repeat(1, 1, dim, 1)
-
-def l1_loss(decoder_output, target):
-    # decoder_output : B x T x n_mel
-    # target : B x T x n_mel
-    l1_loss = F.l1_loss(decoder_output, target, reduction='none')
-    weights = weights_nonzero_speech(target)
-    l1_loss = (l1_loss * weights).sum() / weights.sum()
-    return l1_loss
-
-def mse_loss(decoder_output, target):
-    # decoder_output : B x T x n_mel
-    # target : B x T x n_mel
-    assert decoder_output.shape == target.shape
-    mse_loss = F.mse_loss(decoder_output, target, reduction='none')
-    weights = weights_nonzero_speech(target)
-    mse_loss = (mse_loss * weights).sum() / weights.sum()
-    return mse_loss
-
 def ssim_loss(decoder_output, target, bias=6.0):
-    # decoder_output : B x T x n_mel
-    # target : B x T x n_mel
-    assert decoder_output.shape == target.shape
-    weights = weights_nonzero_speech(target)
-    decoder_output = decoder_output + bias
-    target = target + bias
-    ssim_loss = 1 - ssim(decoder_output, target, size_average=False)
-    ssim_loss = (ssim_loss * weights).sum() / weights.sum()
+    """
+    :param decoder_output: [B, F, M, T]
+    :param target: [B, F, M, T]
+    """
+    decoder_output = decoder_output.transpose(-1, -2) + bias
+    target = target.transpose(-1, -2) + bias
+    ssim_loss = 1 - ssim(decoder_output, target)
     return ssim_loss
 
 def add_sepc_loss_prodiff(
@@ -44,18 +20,19 @@ def add_sepc_loss_prodiff(
         loss_type: Dict[str, float], 
         losses: Dict, name='spec'):
     """
-    :param pred_spec: [B,  M, T]
-    :param gt_spec: [B, M, T]
+    :param pred_spec: [B, F, M, T]
+    :param gt_spec: [B, F, M, T]
+    :param non_padding: [B, T, 1]
     """
     if non_padding is not None:
-        non_padding = non_padding.transpose(1, 2).unsqueeze(1)
+        non_padding = non_padding.transpose(1, 2).unsqueeze(1) # [B, 1, 1, T]
         pred_spec = pred_spec * non_padding
         gt_spec = gt_spec * non_padding
     for loss_name, lbd in loss_type.items():
         if 'l1' == loss_name:
-            l = l1_loss(pred_spec, gt_spec)
+            l = F.l1_loss(pred_spec, gt_spec)
         elif 'mse' == loss_name:
-            l = mse_loss(pred_spec, gt_spec)
+            l = F.mse_loss(pred_spec, gt_spec)
         elif 'ssim' == loss_name:
             l = ssim_loss(pred_spec, gt_spec)
         else:

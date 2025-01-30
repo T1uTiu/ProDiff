@@ -79,7 +79,7 @@ class SVSBinarizer(Binarizer):
             with open(f"{data_dir}/label.json", "r", encoding="utf-8") as f:
                 labels = json.load(f)
             for item_name, label in labels.items():
-                ph_text = [f"{x}/{lang}" for x in label["ph_seq"].split(" ")]
+                ph_text = [self.ph_map[f"{x}/{lang}"] for x in label["ph_seq"].split(" ")]
                 ph_dur = [float(x) for x in label["ph_dur"].split(" ")]
                 ph_seq = self.ph_encoder.encode(ph_text)
                 item = {

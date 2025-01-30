@@ -135,7 +135,7 @@ def merge_rectified(teacher_ckpt, rectified_diffusion_ckpt):
     for k in teacher["state_dict"]["model"].keys():
         if not k.startswith("diffusion"):
             continue
-        single_key = k[11:]
+        single_key = k[10:]
         teacher["state_dict"]["model"][k] = rectified_diffusion["state_dict"]["model"][single_key]
     torch.save(teacher, teacher_ckpt+".merged.ckpt")
 

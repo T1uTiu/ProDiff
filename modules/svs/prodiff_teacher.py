@@ -34,7 +34,7 @@ class ProDiffTeacher(nn.Module):
 
         self.with_lang_embed = hparams.get('use_lang_id', True)
         if self.with_lang_embed:
-            self.lang_embed = Embedding(len(hparams["languages"]+1), hparams['hidden_size'], 0)
+            self.lang_embed = Embedding(len(hparams["languages"])+1, hparams['hidden_size'], 0)
 
         self.pitch_embed = Linear(1, hparams['hidden_size'])
 
@@ -151,7 +151,7 @@ class ProDiffTeacher(nn.Module):
             spk_embed_id=None, spk_mix_embed=None, 
             gender_embed_id=None, gender_mix_embed=None,
             voicing=None, breath=None,
-            src_spec=None, gt_spec=None, infer=False
+            gt_spec=None, infer=False
         ):
         condition = self.forward_condition(
             txt_tokens, mel2ph, f0, 
@@ -160,13 +160,9 @@ class ProDiffTeacher(nn.Module):
             gender_embed_id=gender_embed_id, gender_mix_embed=gender_mix_embed,
             voicing=voicing, breath=breath
         )
-        b, device = condition.shape[0], condition.device
-        x_T = torch.randn(b, 1, self.mel_bins, condition.shape[1], device=device) if src_spec is None else src_spec
-        b, device = condition.shape[0], condition.device
-        x_T = torch.randn(b, 1, self.mel_bins, condition.shape[1], device=device) if src_spec is None else src_spec
         if not infer:
             x_0 = gt_spec.transpose(-2, -1)[:, None, :, :]
-            output = self.diffusion(condition, x_T, gt_spec=x_0, infer=False)
+            output = self.diffusion(condition, gt_spec=x_0, infer=False)
         else:
-            output = self.diffusion(condition, x_T, infer=True)
+            output = self.diffusion(condition, infer=True)
         return output

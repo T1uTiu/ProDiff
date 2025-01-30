@@ -116,7 +116,7 @@ class SVSSRecitifedTask(SVSTask):
                     residual_channels=hparams["residual_channels"],
                     dilation_cycle_length=hparams["dilation_cycle_length"],
                 ),
-                timesteps=hparams["timesteps"],
+                timesteps=1,
                 time_scale=hparams["timescale"],
                 schedule_type=hparams['schedule_type'],
                 max_beta=hparams.get("max_beta", 0.06),

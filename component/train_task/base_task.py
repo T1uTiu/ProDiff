@@ -128,6 +128,7 @@ class BaseTask(nn.Module):
                                            collate_fn=dataset.collater,
                                            batch_sampler=batches,
                                            num_workers=num_workers,
+                                           multiprocessing_context='spawn',
                                            pin_memory=False)
 
     @data_loader

@@ -70,7 +70,7 @@ class SVSRectifiedDataset(SVSDataset):
             ph_map = json.load(f)
         ph_list = list(sorted(set(ph_map.values())))
         ph_encoder = TokenTextEncoder(None, vocab_list=ph_list, replace_oov='SP')
-        teacher_ckpt = hparams.get["teacher_ckpt"]
+        teacher_ckpt = hparams["teacher_ckpt"]
         self.teacher = ProDiffTeacher(len(ph_encoder), hparams)
         load_ckpt(self.teacher, teacher_ckpt, "model")
         self.teacher.eval()
@@ -78,14 +78,24 @@ class SVSRectifiedDataset(SVSDataset):
 
     def collater(self, samples: List[dict]):
         batch_item = super().collater(samples)
-        ph_seq = batch_item["ph_seq"]  # [B, T_t]
-        mel2ph = batch_item["mel2ph"]
-        f0 = batch_item["f0"]
+        ph_seq = batch_item["ph_seq"].to(self.device)  # [B, T_t]
+        mel2ph = batch_item["mel2ph"].to(self.device)
+        f0 = batch_item["f0"].to(self.device)
         spk_embed_id = batch_item.get("spk_id", None)
+        if spk_embed_id != None:
+            spk_embed_id = spk_embed_id.to(self.device)
         gender_embed_id = batch_item.get("gender_id", None)
+        if gender_embed_id != None:
+            gender_embed_id = gender_embed_id.to(self.device)
         lang_seq = batch_item.get("lang_seq", None)
+        if lang_seq != None:
+            lang_seq = lang_seq.to(self.device)
         voicing = batch_item.get("voicing", None)
+        if voicing != None:
+            voicing = voicing.to(self.device)
         breath = batch_item.get("breath", None)
+        if breath != None:
+            breath = breath.to(self.device)
         with torch.no_grad():
             condition = self.teacher.forward_condition(
                 ph_seq, mel2ph, f0,
