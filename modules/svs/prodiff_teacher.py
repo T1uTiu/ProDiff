@@ -162,6 +162,9 @@ class ProDiffTeacher(nn.Module):
         )
         b, device = condition.shape[0], condition.device
         x_T = torch.randn(b, 1, self.mel_bins, condition.shape[1], device=device) if src_spec is None else src_spec
+        b, device = condition.shape[0], condition.device
+        x_T = torch.randn(b, 1, self.mel_bins, condition.shape[1], device=device) if src_spec is None else src_spec
         # diffusion
+        output = self.diffusion(condition, x_T, gt_spec=gt_spec, infer=infer)
         output = self.diffusion(condition, x_T, gt_spec=gt_spec, infer=infer)
         return output
