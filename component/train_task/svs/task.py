@@ -119,11 +119,7 @@ class SVSSRecitifedTask(SVSTask):
                 timesteps=hparams["timesteps"],
                 time_scale=hparams["timescale"],
                 schedule_type=hparams['schedule_type'],
-<<<<<<< HEAD
                 max_beta=hparams.get("max_beta", 0.06),
-=======
-                max_beta=hparams.get("max_beta", 0.02),
->>>>>>> c50974115ca31ecb061ca0a4f0a0e63ddb1bbd46
                 spec_min=hparams["spec_min"],
                 spec_max=hparams["spec_max"],
             )
