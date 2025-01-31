@@ -60,15 +60,16 @@ class SVSTask(BaseTask):
         if infer:
             return output
         losses = {}
-        spec_pred, spec_gt, t = output
         non_padding = (mel2ph > 0).unsqueeze(-1)
         if self.diffusion_type == "prodiff":
+            spec_pred, spec_gt = output
             add_sepc_loss_prodiff(
                 spec_pred, spec_gt, non_padding, 
                 loss_type=self.loss_type,
                 losses=losses, name="mel"
             )
         elif self.diffusion_type == "reflow":
+            spec_pred, spec_gt, t = output
             add_spec_loss_reflow(
                 spec_pred, spec_gt, t, non_padding, 
                 self.loss_type_list[0], log_norm=True, 

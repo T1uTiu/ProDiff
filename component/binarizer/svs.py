@@ -176,3 +176,48 @@ class SVSBinarizer(Binarizer):
                 device=self.device
             )
         return preprocessed_item
+
+class SVSRectifiedDiffusionBinarizer(SVSBinarizer):
+    def __init__(self, hparams):
+        super().__init__(hparams)
+        teacher_ckpt = hparams["teacher_ckpt"]
+        self.teacher = ProDiffTeacher(len(self.ph_encoder), hparams)
+        load_ckpt(self.teacher, teacher_ckpt, "model")
+        self.teacher.eval()
+        self.teacher.to(self.device)
+
+    @staticmethod
+    def category():
+        return "svs_rectified"
+    
+    def process_item(self, item: dict):
+        preprocessed_item = super().process_item(item)
+        ph_seq = torch.LongTensor(preprocessed_item["ph_seq"]).to(self.device)[None, :]
+        mel2ph = torch.LongTensor(preprocessed_item["mel2ph"]).to(self.device)[None, :]
+        f0 = torch.FloatTensor(preprocessed_item["f0"]).to(self.device)[None, :]
+        if self.hparams["use_spk_id"]:
+            spk_id = torch.LongTensor([preprocessed_item["spk_id"]]).to(self.device)
+        if self.hparams["use_gender_id"]:
+            gender_id = torch.LongTensor([preprocessed_item["gender_id"]]).to(self.device)
+        if self.hparams["use_lang_id"]:
+            lang_seq = torch.LongTensor(preprocessed_item["lang_seq"]).to(self.device)[None, :]
+        if self.hparams["use_voicing_embed"]:
+            voicing = torch.FloatTensor(preprocessed_item["voicing"]).to(self.device)[None, :]
+        if self.hparams["use_breath_embed"]:
+            breath = torch.FloatTensor(preprocessed_item["breath"]).to(self.device)[None, :]
+
+        with torch.no_grad():
+            condition = self.teacher.forward_condition(
+                ph_seq, mel2ph, f0,
+                lang_seq=lang_seq,
+                spk_embed_id=spk_id, gender_embed_id=gender_id,
+                voicing=voicing, breath=breath
+            )
+            b, T, device = condition.shape[0], condition.shape[1], condition.device
+            x_T = torch.randn(b, 1, self.num_mel_bins, T, device=device)
+            x_0 = self.teacher.diffusion(condition, x_T, infer=True)
+            x_T = x_T.squeeze(1).transpose(-2, -1)
+            preprocessed_item["condition"] = condition.squeeze(1).detach().cpu().numpy() # [T, Hidden]
+            preprocessed_item["x_T"] = x_T.squeeze(1).detach().cpu().numpy() # [T, M]
+            preprocessed_item["x_0"] = x_0.detach().cpu().numpy() # [T, M]
+        return preprocessed_item

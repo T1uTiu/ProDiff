@@ -60,54 +60,13 @@ class SVSDataset(BaseDataset):
         return batch_item
 
 class SVSRectifiedDataset(SVSDataset):
-    def __init__(self, prefix, shuffle, hparams):
-        super().__init__(prefix, shuffle, hparams)
-        # load teacher model
-        self.mel_bins = hparams["audio_num_mel_bins"]
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        ph_map_fn = os.path.join(self.data_dir, 'phone_set.json')
-        with open(ph_map_fn, 'r') as f:
-            ph_map = json.load(f)
-        ph_list = list(sorted(set(ph_map.values())))
-        ph_encoder = TokenTextEncoder(None, vocab_list=ph_list, replace_oov='SP')
-        teacher_ckpt = hparams["teacher_ckpt"]
-        self.teacher = ProDiffTeacher(len(ph_encoder), hparams)
-        load_ckpt(self.teacher, teacher_ckpt, "model")
-        self.teacher.eval()
-        self.teacher.to(self.device)
-
     def collater(self, samples: List[dict]):
         batch_item = super().collater(samples)
-        ph_seq = batch_item["ph_seq"].to(self.device)  # [B, T_t]
-        mel2ph = batch_item["mel2ph"].to(self.device)
-        f0 = batch_item["f0"].to(self.device)
-        spk_embed_id = batch_item.get("spk_id", None)
-        if spk_embed_id != None:
-            spk_embed_id = spk_embed_id.to(self.device)
-        gender_embed_id = batch_item.get("gender_id", None)
-        if gender_embed_id != None:
-            gender_embed_id = gender_embed_id.to(self.device)
-        lang_seq = batch_item.get("lang_seq", None)
-        if lang_seq != None:
-            lang_seq = lang_seq.to(self.device)
-        voicing = batch_item.get("voicing", None)
-        if voicing != None:
-            voicing = voicing.to(self.device)
-        breath = batch_item.get("breath", None)
-        if breath != None:
-            breath = breath.to(self.device)
-        with torch.no_grad():
-            condition = self.teacher.forward_condition(
-                ph_seq, mel2ph, f0,
-                lang_seq=lang_seq,
-                spk_embed_id=spk_embed_id, gender_embed_id=gender_embed_id,
-                voicing=voicing, breath=breath
-            )
-            b, device = condition.shape[0], condition.device
-            x_T = torch.randn(b, 1, self.mel_bins, condition.shape[1], device=device)
-            x_0 = self.teacher.diffusion(condition, x_T, infer=True)
-            x_0 = x_0.transpose(-2, -1)[:, None, :, :]
-            batch_item["condition"] = condition
-            batch_item["x_T"] = x_T
-            batch_item["x_0"] = x_0
+        batch_item["condition"] = utils.collate_2d([torch.Tensor(s["condition"]) for s in samples], 0.0)
+        x_T= utils.collate_2d([torch.Tensor(s["x_T"]) for s in samples], 0.0)
+        x_T = x_T.transpose(-1, -2).unsqueeze(1)
+        batch_item["x_T"] = x_T
+        x_0 = utils.collate_2d([torch.Tensor(s["x_0"]) for s in samples], 0.0)
+        x_0 = x_0.transpose(-1, -2).unsqueeze(1)
+        batch_item["x_0"] = x_0
         return batch_item

@@ -62,7 +62,7 @@ class WebHandler:
             global_hparams=False,
             make_work_dir=False
         )
-        self.build_ph_category_encoder(pitch_predictor_work_dir)
+        self.build_ph_category_encoder(pitch_pred_hparams["work_dir"])
         self.pitch_pred_spk_map = self.build_spk_map(os.path.join(pitch_pred_hparams["work_dir"], 'spk_map.json'))
         self.pitch_predictor = get_inferer_cls("pitch")(pitch_pred_hparams)
         self.pitch_predictor.build_model(self.ph_category_encoder)

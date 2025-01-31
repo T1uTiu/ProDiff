@@ -126,18 +126,18 @@ def web(exp_name):
     WebHandler(exp_name=exp_name).handle()
 
 @main.command()
-@click.argument("teacher_ckpt", type=str)
-@click.argument("rectified_diffusion_ckpt", type=str)
-def merge_rectified(teacher_ckpt, rectified_diffusion_ckpt):
+@click.argument("target_ckpt", type=str)
+@click.argument("component_ckpt", type=str)
+def merge_rectified(target_ckpt, component_ckpt):
     import torch
-    teacher = torch.load(teacher_ckpt)
-    rectified_diffusion = torch.load(rectified_diffusion_ckpt)
-    for k in teacher["state_dict"]["model"].keys():
+    target = torch.load(target_ckpt)
+    component = torch.load(component_ckpt)
+    for k in target["state_dict"]["model"].keys():
         if not k.startswith("diffusion"):
             continue
         single_key = k[10:]
-        teacher["state_dict"]["model"][k] = rectified_diffusion["state_dict"]["model"][single_key]
-    torch.save(teacher, teacher_ckpt+".merged.ckpt")
+        target["state_dict"]["model"][k] = component["state_dict"]["model"][single_key]
+    torch.save(target, target_ckpt+".merged.ckpt")
 
 if __name__ == "__main__":
     main()  
