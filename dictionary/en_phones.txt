@@ -1,39 +1,43 @@
-b consonant
-ch consonant
-d consonant
-dh consonant
-f consonant
-g consonant
-hh consonant
-jh consonant
-k consonant
-l consonant
-m consonant
-n consonant
-ng consonant
-p consonant
-r consonant
-s consonant
-sh consonant
-t consonant
-th consonant
-v consonant
-w consonant
-y consonant
-z consonant
-zh consonant
-aa vowel
-ae vowel
-ah vowel
-ao vowel
-aw vowel
-ay vowel
-eh vowel
-er vowel
-ey vowel
-ih vowel
-iy vowel
-ow vowel
-oy vowel
-uh vowel
-uw vowel
+b consonant stop
+ch consonant affricate
+d consonant stop
+dx consonant stop
+dr consonant affricate
+dh consonant fricative
+f consonant fricative
+g consonant stop
+hh consonant aspirate
+jh consonant affricate
+k consonant stop
+l consonant liquid
+m consonant nasal
+n consonant nasal
+ng consonant nasal
+p consonant stop
+r consonant semivowel
+s consonant fricative
+sh consonant fricative
+t consonant stop
+tr consonant affricate
+th consonant fricative
+v consonant fricative
+w consonant semivowel
+y consonant semivowel
+z consonant fricative
+zh consonant fricative
+aa vowel vowel
+ae vowel vowel
+ah vowel vowel
+ao vowel vowel
+aw vowel diphthong
+ax vowel vowel
+ay vowel diphthong
+eh vowel vowel
+er vowel vowel
+ey vowel diphthong
+ih vowel vowel
+iy vowel vowel
+ow vowel diphthong
+oy vowel diphthong
+uh vowel vowel
+uw vowel vowel
